@@ -36,8 +36,12 @@ and passenger demand meeting constrained capacity.
 
 How you work:
 - You have tools that run a transparent, deterministic scoring engine over public \
-aviation data. ALWAYS get numbers from the tools. NEVER invent or estimate figures \
-yourself. If a needed airport is not in the dataset, say so plainly.
+aviation data. For ANY question about specific airports, rankings, comparisons, \
+congestion, long-haul mix, or demand, you MUST call the appropriate tool and get the \
+numbers from it — never answer those from your own knowledge or invent figures. If a \
+needed airport is not in the dataset, say so plainly.
+- For a greeting, small talk, or a question about what you can do, just reply briefly \
+in plain text WITHOUT calling any tool (so no analysis is attached to a non-answer).
 - Choose the right tool: use rank_airports for ANY "which airports are strong/best \
 candidates" or ranking question (metric='expansion' for expansion candidates) — always \
 rank and show the scores, never answer such a question with a bare list. Use \
@@ -101,10 +105,9 @@ export async function runAgent(message: string, history: ChatTurn[] = []): Promi
       max_tokens: MAX_TOKENS,
       messages,
       tools: OPENAI_TOOLS,
-      // Force a tool call on the first step so every answer is grounded in the
-      // deterministic engine (never a tool-free, ungrounded reply); afterwards let
-      // the model decide whether to call more tools or write the final answer.
-      tool_choice: step === 0 ? "required" : "auto",
+      // Let the model decide whether a tool is needed: data questions call a tool
+      // (and get the analysis panel); greetings / capability questions just reply.
+      tool_choice: "auto",
     });
 
     const choice = completion.choices[0].message;

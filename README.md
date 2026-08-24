@@ -4,15 +4,20 @@ A conversational AI agent that helps investment analysts identify U.S. airports
 where **terminal renovation would be most profitable** — where growing flight and
 passenger demand is running into constrained capacity.
 
-Ask it questions in plain English (typed or by voice):
+Ask it anything about U.S. airport capacity, congestion, and demand — in plain English
+or Hebrew, typed or by voice. These are just a few examples:
 
 - *Which airports in New England are strong candidates for terminal expansion?*
 - *Compare LA and Santa Ana airport congestion levels.*
 - *What is the percentage of long-haul flights out of Anchorage?*
 - *What is the unmet flight demand at SFO, and why?*
 
-Every answer combines a clear explanation, a structured table/chart, and an explicit
-**assumptions & uncertainty** panel.
+It's not limited to these. You can rank any region or state by expansion, congestion,
+or unmet-demand potential; compare any airports head-to-head; pull a single airport's
+full profile; and ask natural follow-ups — across the airports in its dataset.
+
+Every data-backed answer combines a clear explanation, a structured table/chart, and an
+explicit **assumptions & uncertainty** panel.
 
 ---
 
