@@ -81,7 +81,7 @@ Returns `{ "status": "ok", "data_vintage": "..." }`. Used to verify the backend 
 - Always render `reply` as Markdown.
 - If `structured` is present, render it as a small table; a bar chart is a nice-to-have
   for `ranking`/`comparison`/`breakdown`.
-- Always surface `assumptions` and `uncertainty` when present — the exam explicitly
-  rewards clearly communicating assumptions, uncertainty, and scoping.
+- Always surface `assumptions` and `uncertainty` when present — clearly communicating
+  assumptions, uncertainty, and scoping is a core goal of the product.
 - Voice: use the browser Web Speech API — `SpeechRecognition` for mic input,
   `speechSynthesis` for reading `reply` aloud. No server involvement, no API key.

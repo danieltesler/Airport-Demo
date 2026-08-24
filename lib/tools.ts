@@ -16,15 +16,14 @@ import * as data from "./data";
 import type { Airport } from "./data";
 import {
   METRIC_SCORERS,
-  EXPANSION_ASSUMPTIONS,
   haulBreakdown,
   congestionScore,
   unmetDemandScore,
   expansionScore,
   roundResult,
   type MetricKey,
-  type ScoreResult,
 } from "./scoring";
+import { ASSUMPTIONS, haulAssumptions, type Lang } from "./i18n";
 import type { StructuredResult } from "./types";
 
 export interface ToolOutput {
@@ -51,7 +50,7 @@ function unknown(iata: string): ToolOutput {
 // Tool implementations
 // --------------------------------------------------------------------------- //
 
-export function airportProfile(iata: string): ToolOutput {
+export function airportProfile(iata: string, lang: Lang = "en"): ToolOutput {
   const a = data.getAirport(iata);
   if (!a) return unknown(iata);
   return {
@@ -72,16 +71,21 @@ export function airportProfile(iata: string): ToolOutput {
       },
       haul_mix_pct: haulBreakdown(a),
       scores: {
-        congestion: roundResult(congestionScore(a)),
-        unmet_demand: roundResult(unmetDemandScore(a)),
-        expansion: roundResult(expansionScore(a)),
+        congestion: roundResult(congestionScore(a, lang)),
+        unmet_demand: roundResult(unmetDemandScore(a, lang)),
+        expansion: roundResult(expansionScore(a, lang)),
       },
     },
-    assumptions: EXPANSION_ASSUMPTIONS.slice(0, 1),
+    assumptions: [ASSUMPTIONS.expansion[lang][0]],
   };
 }
 
-export function rankAirports(scope: string = "all", metric: MetricKey = "expansion", topN = 5): ToolOutput {
+export function rankAirports(
+  scope: string = "all",
+  metric: MetricKey = "expansion",
+  topN = 5,
+  lang: Lang = "en",
+): ToolOutput {
   if (!(metric in METRIC_SCORERS)) {
     return { result: { error: `Unknown metric '${metric}'.`, valid_metrics: Object.keys(METRIC_SCORERS) } };
   }
@@ -90,7 +94,7 @@ export function rankAirports(scope: string = "all", metric: MetricKey = "expansi
 
   const scorer = METRIC_SCORERS[metric];
   const ranked = airports
-    .map((a) => ({ a, res: scorer(a) }))
+    .map((a) => ({ a, res: scorer(a, lang) }))
     .sort((x, y) => y.res.score - x.res.score)
     .slice(0, Math.max(1, topN));
 
@@ -126,7 +130,11 @@ export function rankAirports(scope: string = "all", metric: MetricKey = "expansi
   };
 }
 
-export function compareAirports(iatas: string[], metric: MetricKey = "congestion"): ToolOutput {
+export function compareAirports(
+  iatas: string[],
+  metric: MetricKey = "congestion",
+  lang: Lang = "en",
+): ToolOutput {
   if (!(metric in METRIC_SCORERS)) {
     return { result: { error: `Unknown metric '${metric}'.`, valid_metrics: Object.keys(METRIC_SCORERS) } };
   }
@@ -137,7 +145,7 @@ export function compareAirports(iatas: string[], metric: MetricKey = "congestion
   }
 
   const scorer = METRIC_SCORERS[metric];
-  const scored = resolved.map((r) => ({ a: r.a as Airport, res: scorer(r.a as Airport) }));
+  const scored = resolved.map((r) => ({ a: r.a as Airport, res: scorer(r.a as Airport, lang) }));
 
   const columns = [
     "Airport",
@@ -176,7 +184,7 @@ export function compareAirports(iatas: string[], metric: MetricKey = "congestion
   };
 }
 
-export function longHaulBreakdown(iata: string): ToolOutput {
+export function longHaulBreakdown(iata: string, lang: Lang = "en"): ToolOutput {
   const a = data.getAirport(iata);
   if (!a) return unknown(iata);
   const mix = haulBreakdown(a);
@@ -190,18 +198,14 @@ export function longHaulBreakdown(iata: string): ToolOutput {
   return {
     result: { iata: a.iata, name: a.name, haul_mix_pct: mix, thresholds_miles: t },
     structured: { kind: "breakdown", columns, rows },
-    assumptions: [
-      `Haul class is by great-circle route distance from T-100 segment data: short ` +
-        `<${t.short_max} mi, medium ${t.short_max}-${t.long_min} mi, long >${t.long_min} mi.`,
-      "Percentages are shares of departures performed, not passengers or seats.",
-    ],
+    assumptions: haulAssumptions(t, lang),
   };
 }
 
-export function unmetDemand(iata: string): ToolOutput {
+export function unmetDemand(iata: string, lang: Lang = "en"): ToolOutput {
   const a = data.getAirport(iata);
   if (!a) return unknown(iata);
-  const res = unmetDemandScore(a);
+  const res = unmetDemandScore(a, lang);
   const comp = roundResult(res).components;
   const columns = ["Driver", "Contribution (0-1)"];
   const rows = [
@@ -232,23 +236,23 @@ export function unmetDemand(iata: string): ToolOutput {
 // Dispatch + schemas
 // --------------------------------------------------------------------------- //
 
-type ToolFn = (args: Record<string, unknown>) => ToolOutput;
+type ToolFn = (args: Record<string, unknown>, lang: Lang) => ToolOutput;
 
 const DISPATCH: Record<string, ToolFn> = {
-  airport_profile: (a) => airportProfile(a.iata as string),
-  rank_airports: (a) =>
-    rankAirports(a.scope as string | undefined, (a.metric as MetricKey) ?? "expansion", (a.top_n as number) ?? 5),
-  compare_airports: (a) => compareAirports((a.iatas as string[]) ?? [], (a.metric as MetricKey) ?? "congestion"),
-  long_haul_breakdown: (a) => longHaulBreakdown(a.iata as string),
-  unmet_demand: (a) => unmetDemand(a.iata as string),
+  airport_profile: (a, lang) => airportProfile(a.iata as string, lang),
+  rank_airports: (a, lang) =>
+    rankAirports(a.scope as string | undefined, (a.metric as MetricKey) ?? "expansion", (a.top_n as number) ?? 5, lang),
+  compare_airports: (a, lang) => compareAirports((a.iatas as string[]) ?? [], (a.metric as MetricKey) ?? "congestion", lang),
+  long_haul_breakdown: (a, lang) => longHaulBreakdown(a.iata as string, lang),
+  unmet_demand: (a, lang) => unmetDemand(a.iata as string, lang),
 };
 
-/** Execute a tool by name with the LLM-supplied arguments. */
-export function runTool(name: string, input: Record<string, unknown>): ToolOutput {
+/** Execute a tool by name with the LLM-supplied arguments, in the given language. */
+export function runTool(name: string, input: Record<string, unknown>, lang: Lang = "en"): ToolOutput {
   const fn = DISPATCH[name];
   if (!fn) return { result: { error: `Unknown tool '${name}'.` } };
   try {
-    return fn(input ?? {});
+    return fn(input ?? {}, lang);
   } catch (err) {
     return { result: { error: `Bad arguments for '${name}': ${(err as Error).message}` } };
   }

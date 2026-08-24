@@ -3,7 +3,7 @@
 import { ThreadPrimitive } from "@assistant-ui/react";
 import styles from "./chat.module.css";
 
-/** The four sample questions from the exam brief. */
+/** The four sample analyst questions offered as starting points. */
 export const EXAMPLE_QUESTIONS: string[] = [
   "Which airports in New England are strong candidates for terminal expansion?",
   "Compare LA and Santa Ana airport congestion levels.",

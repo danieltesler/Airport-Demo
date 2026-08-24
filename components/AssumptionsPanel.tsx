@@ -1,4 +1,5 @@
 import type { ResponseMeta } from "@/lib/types";
+import { PANEL_LABELS, type Lang } from "@/lib/i18n";
 import styles from "./AssumptionsPanel.module.css";
 
 interface AssumptionsPanelProps {
@@ -9,8 +10,9 @@ interface AssumptionsPanelProps {
 
 /**
  * Subtle, visually distinct panel that surfaces the agent's assumptions,
- * uncertainty, and provenance. Communicating these clearly is a graded part of
- * the exam, so it is always shown when any of the fields are present.
+ * uncertainty, and provenance. It is always shown when any of these are present,
+ * and follows the answer's language (labels and direction switch to Hebrew when
+ * the conversation is in Hebrew).
  */
 export function AssumptionsPanel({
   assumptions,
@@ -24,18 +26,25 @@ export function AssumptionsPanel({
 
   if (!hasAssumptions && !hasUncertainty && !hasMeta) return null;
 
+  const lang: Lang = meta?.lang === "he" ? "he" : "en";
+  const t = (key: keyof typeof PANEL_LABELS) => PANEL_LABELS[key][lang];
+
   return (
-    <aside className={styles.panel} aria-label="Assumptions and uncertainty">
+    <aside
+      className={styles.panel}
+      aria-label={t("title")}
+      dir={lang === "he" ? "rtl" : "ltr"}
+    >
       <div className={styles.head}>
         <span className={styles.icon} aria-hidden="true">
           ⚑
         </span>
-        Assumptions &amp; uncertainty
+        {t("title")}
       </div>
 
       {hasAssumptions && (
         <div className={styles.block}>
-          <div className={styles.blockLabel}>Assumptions</div>
+          <div className={styles.blockLabel}>{t("assumptions")}</div>
           <ul className={styles.list}>
             {assumptions!.map((item, i) => (
               <li key={i}>{item}</li>
@@ -46,7 +55,7 @@ export function AssumptionsPanel({
 
       {hasUncertainty && (
         <div className={styles.block}>
-          <div className={styles.blockLabel}>Uncertainty</div>
+          <div className={styles.blockLabel}>{t("uncertainty")}</div>
           <p className={styles.uncertainty}>{uncertainty}</p>
         </div>
       )}
@@ -55,12 +64,12 @@ export function AssumptionsPanel({
         <div className={styles.metaRow}>
           {meta!.data_vintage && (
             <span className={styles.metaItem}>
-              Data vintage: {meta!.data_vintage}
+              {t("dataVintage")}: {meta!.data_vintage}
             </span>
           )}
           {meta!.tools_used && meta!.tools_used.length > 0 && (
             <span className={styles.metaItem}>
-              Tools: {meta!.tools_used.join(", ")}
+              {t("tools")}: {meta!.tools_used.join(", ")}
             </span>
           )}
         </div>

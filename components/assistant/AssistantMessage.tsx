@@ -18,7 +18,7 @@ import styles from "./chat.module.css";
  * An assistant turn. The reply text is rendered as Markdown by assistant-ui;
  * the non-text extras (structured table + assumptions panel) are read from the
  * message's `metadata.custom` — where the chat-model adapter stashed them — and
- * rendered beneath, so every answer keeps its exam-critical context. A
+ * rendered beneath, so every answer keeps its supporting context. A
  * read-aloud control is shown when the browser supports speech synthesis.
  */
 export function AssistantMessage() {

@@ -4,16 +4,16 @@ A conversational agent that helps investment analysts identify U.S. airports whe
 terminal renovation would be most profitable — driven by growing flight and
 passenger demand meeting constrained capacity.
 
-This document covers the three things the brief asks for: **scoring methodology**,
-**key tradeoffs**, and **where/how AI is used** — plus the data sources and the
-explicit assumptions and scoping behind the analysis.
+This document covers the **scoring methodology**, **key tradeoffs**, and **where/how
+AI is used** — plus the data sources and the explicit assumptions and scoping behind
+the analysis.
 
 ---
 
 ## 1. What it does
 
 An analyst chats with the agent in natural language (typed or by voice) and asks
-questions like the four in the brief:
+questions like:
 
 | Question | How it's answered |
 |---|---|
@@ -67,7 +67,7 @@ covered by unit tests (Vitest) and are meaningful entirely without the LLM.
 
 ## 3. Scoring methodology
 
-This is the "deterministic scoring, not only LLM output" requirement. All scores
+The scoring is deterministic — computed in code, not produced by the LLM. All scores
 are **transparent weighted sums** of sub-metrics, each normalized to 0–1 against a
 **fixed, documented reference scale** and reported on a 0–100 scale. Fixed scales
 (rather than dataset-relative z-scores) mean a score means the same thing no matter
@@ -133,8 +133,8 @@ Deliberately scoped. **The LLM never produces a number.**
 
 Crucially, the **assumptions, uncertainty, and structured table shown in the UI
 come from the code, not the model** (`lib/agent.ts` collects them from each tool's
-output). So the transparency the brief asks for is *guaranteed by construction*,
-not left to the model's discretion. A wrong model response can be unhelpful, but it
+output). So this transparency is *guaranteed by construction*, not left to the
+model's discretion. A wrong model response can be unhelpful, but it
 cannot silently fabricate a figure or hide a caveat.
 
 The tool-use loop is bounded (`MAX_AGENT_STEPS`) as a safety limit.
@@ -151,9 +151,9 @@ The tool-use loop is bounded (`MAX_AGENT_STEPS`) as a safety limit.
 
 Because BTS has **no live API** (bulk CSV only), the app ships a **curated snapshot**
 (`data/airports.json`, ~28 major + mid-size airports) so it runs offline, free, and
-key-free. This is the honest, thoughtful-design tradeoff for a one-day build; the
-snapshot documents the exact BTS tables it is compiled from, and the path to a full
-automated ingest (download → aggregate per airport/year) is straightforward.
+key-free. It's a deliberate tradeoff: the snapshot documents the exact BTS tables it
+is compiled from, and the path to a full automated ingest (download → aggregate per
+airport/year) is straightforward.
 
 ---
 
@@ -162,10 +162,10 @@ automated ingest (download → aggregate per airport/year) is straightforward.
 - **Single Next.js app (one language) vs. a separate Python service.** Folding the
   agent into TypeScript route handlers makes it one codebase that deploys to Vercel in
   one click, with the API served same-origin (no CORS, no second host). *Tradeoff:* we
-  don't showcase a separate Python backend, but we gain a dramatically simpler, more
-  reliable deployment — the right call for a demo.
+  don't run a separate Python backend, but we gain a dramatically simpler, more
+  reliable deployment.
 - **Curated snapshot vs. live ingestion.** A full BTS pipeline (gigabytes of CSVs)
-  would be over-engineering for a demo and adds fragility. We bundle a validated
+  would be over-engineering at this stage and adds fragility. We bundle a validated
   snapshot and document the scale-up path. *Tradeoff:* data isn't real-time (BTS
   itself lags 1–2 months anyway).
 - **Fixed reference scales vs. dataset-relative normalization.** Fixed scales give
@@ -186,7 +186,7 @@ automated ingest (download → aggregate per airport/year) is straightforward.
 ## 7. Assumptions, uncertainty & scoping (stated plainly)
 
 - **Scope:** ~28 major and selected mid-size U.S. airports — enough to answer the
-  brief's questions credibly; not every U.S. airport.
+  questions above credibly; not every U.S. airport.
 - **Vintage:** a single recent full-year snapshot; no intra-year seasonality.
 - **Congestion** mixes weather with true capacity saturation; annual averages smooth
   out peak-day spikes.

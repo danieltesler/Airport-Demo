@@ -18,6 +18,7 @@
  */
 
 import type { Airport } from "./data";
+import { ASSUMPTIONS, UNCERTAINTY, type Lang } from "./i18n";
 
 // --------------------------------------------------------------------------- //
 // Reference scales — the anchors that turn raw metrics into 0-1 components.
@@ -86,14 +87,7 @@ export const CONGESTION_WEIGHTS: Record<string, number> = {
   load_pressure: 0.2,
 };
 
-const CONGESTION_ASSUMPTIONS = [
-  "Congestion is proxied by operational strain: departure delays, the share of " +
-    "flights delayed >15 min, cancellations, and seat load factor.",
-  "Metrics are compared as rates (per-flight / per-seat), not totals, so large " +
-    "hubs and small airports are judged on the same footing.",
-];
-
-export function congestionScore(a: Airport): ScoreResult {
+export function congestionScore(a: Airport, lang: Lang = "en"): ScoreResult {
   const components = {
     delayed_share: normalize(a.delayed_share, FULL_CONGESTION_DELAYED_SHARE),
     avg_delay: normalize(a.avg_dep_delay_min, FULL_CONGESTION_DELAY_MIN),
@@ -109,10 +103,8 @@ export function congestionScore(a: Airport): ScoreResult {
   return {
     score,
     components,
-    assumptions: CONGESTION_ASSUMPTIONS,
-    uncertainty:
-      "Delay data reflects annual averages; short-term peaks (holidays, weather " +
-      "events) are smoothed out. Delays also mix weather with true capacity saturation.",
+    assumptions: ASSUMPTIONS.congestion[lang],
+    uncertainty: UNCERTAINTY.congestion[lang],
   };
 }
 
@@ -138,14 +130,6 @@ export const UNMET_DEMAND_WEIGHTS: Record<string, number> = {
   growth_vs_capacity: 0.25, // fast growth against fixed runways => widening gap
 };
 
-const UNMET_DEMAND_ASSUMPTIONS = [
-  "'Unmet demand' has no direct public measurement (bookings that never happened " +
-    "aren't observable in free data). We estimate it as a composite lower-bound proxy.",
-  "Load factor is the primary signal: sustained high seat utilization implies " +
-    "demand that current supply cannot absorb.",
-  "Growth measured against roughly fixed runway capacity indicates a widening gap.",
-];
-
 /** 0-1: fast passenger growth relative to runway throughput headroom. */
 export function growthVsCapacity(a: Airport): number {
   const growth = normalize(a.pax_growth_yoy, STRONG_GROWTH_YOY);
@@ -155,8 +139,8 @@ export function growthVsCapacity(a: Airport): number {
   return clamp(0.6 * growth + 0.4 * runwayPressure);
 }
 
-export function unmetDemandScore(a: Airport): ScoreResult {
-  const congestion = congestionScore(a).score / 100;
+export function unmetDemandScore(a: Airport, lang: Lang = "en"): ScoreResult {
+  const congestion = congestionScore(a, lang).score / 100;
   const components = {
     load_pressure: loadFactorPressure(a.load_factor),
     congestion,
@@ -171,10 +155,8 @@ export function unmetDemandScore(a: Airport): ScoreResult {
   return {
     score,
     components,
-    assumptions: UNMET_DEMAND_ASSUMPTIONS,
-    uncertainty:
-      "This is a lower-bound proxy. True unmet demand (searches that didn't convert, " +
-      "fares that priced people out) requires proprietary GDS/OAG data not available for free.",
+    assumptions: ASSUMPTIONS.unmet[lang],
+    uncertainty: UNCERTAINTY.unmet[lang],
   };
 }
 
@@ -189,19 +171,10 @@ export const EXPANSION_WEIGHTS: Record<string, number> = {
   volume_upside: 0.15, // scale of passengers who benefit
 };
 
-export const EXPANSION_ASSUMPTIONS = [
-  "Investment thesis: terminal expansion is most profitable where strong, growing " +
-    "demand meets a capacity-constrained airport — so renovation unlocks revenue " +
-    "rather than adding idle space.",
-  "Score blends demand growth, current congestion, seat load pressure, and passenger " +
-    "volume; weights are documented and adjustable.",
-  "Airport scope is limited to the bundled dataset (major + selected mid-size U.S. airports).",
-];
-
-export function expansionScore(a: Airport): ScoreResult {
+export function expansionScore(a: Airport, lang: Lang = "en"): ScoreResult {
   const components = {
     demand_growth: normalize(a.pax_growth_yoy, STRONG_GROWTH_YOY),
-    congestion: congestionScore(a).score / 100,
+    congestion: congestionScore(a, lang).score / 100,
     load_pressure: loadFactorPressure(a.load_factor),
     volume_upside: normalize(a.annual_passengers, LARGE_AIRPORT_PAX),
   };
@@ -214,16 +187,15 @@ export function expansionScore(a: Airport): ScoreResult {
   return {
     score,
     components,
-    assumptions: EXPANSION_ASSUMPTIONS,
-    uncertainty:
-      "Score reflects demand-side opportunity only. It does not model construction " +
-      "cost, land/gate availability, or local regulatory limits (e.g. noise curfews), " +
-      "which a full investment case would weigh.",
+    assumptions: ASSUMPTIONS.expansion[lang],
+    uncertainty: UNCERTAINTY.expansion[lang],
   };
 }
 
 /** Registry so tools can look up a scorer by name. */
-export const METRIC_SCORERS: Record<MetricKey, (a: Airport) => ScoreResult> = {
+export type Scorer = (a: Airport, lang?: Lang) => ScoreResult;
+
+export const METRIC_SCORERS: Record<MetricKey, Scorer> = {
   congestion: congestionScore,
   unmet_demand: unmetDemandScore,
   expansion: expansionScore,

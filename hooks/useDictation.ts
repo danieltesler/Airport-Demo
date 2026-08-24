@@ -23,6 +23,9 @@ interface SpeechRecognitionEventLike extends Event {
   readonly resultIndex: number;
   readonly results: SpeechResultList;
 }
+interface SpeechRecognitionErrorEventLike extends Event {
+  readonly error: string;
+}
 interface SpeechRecognitionLike extends EventTarget {
   lang: string;
   continuous: boolean;
@@ -31,8 +34,9 @@ interface SpeechRecognitionLike extends EventTarget {
   start(): void;
   stop(): void;
   abort(): void;
+  onstart: ((event: Event) => void) | null;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((event: Event) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   onend: ((event: Event) => void) | null;
 }
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
@@ -57,6 +61,8 @@ export interface Dictation {
   supported: boolean;
   /** Recording is in progress. */
   isListening: boolean;
+  /** A short, user-facing message when dictation can't run (e.g. mic blocked). */
+  error: string | null;
   start: () => void;
   stop: () => void;
 }
@@ -73,6 +79,7 @@ export interface Dictation {
 export function useDictation({ lang, onInterim, onFinal }: UseDictationOptions): Dictation {
   const [supported, setSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const finalTranscriptRef = useRef("");
@@ -107,7 +114,23 @@ export function useDictation({ lang, onInterim, onFinal }: UseDictationOptions):
       onInterimRef.current((finalTranscriptRef.current + interim).trim());
     };
 
-    recognition.onerror = () => setIsListening(false);
+    // Let the recognizer itself drive the "listening" state, so the button never
+    // shows a false start (e.g. if the mic is blocked, we never flash "listening").
+    recognition.onstart = () => {
+      setError(null);
+      setIsListening(true);
+    };
+
+    recognition.onerror = (event) => {
+      setIsListening(false);
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        setError("Microphone access is blocked. Allow it in your browser, then try again.");
+      } else if (event.error === "no-speech") {
+        setError("Didn't catch that — tap the mic and speak again.");
+      } else if (event.error !== "aborted") {
+        setError("Voice input hit a problem. Please try again.");
+      }
+    };
 
     recognition.onend = () => {
       setIsListening(false);
@@ -120,6 +143,7 @@ export function useDictation({ lang, onInterim, onFinal }: UseDictationOptions):
     setSupported(true);
 
     return () => {
+      recognition.onstart = null;
       recognition.onresult = null;
       recognition.onerror = null;
       recognition.onend = null;
@@ -128,17 +152,29 @@ export function useDictation({ lang, onInterim, onFinal }: UseDictationOptions):
     };
   }, []);
 
-  const start = useCallback(() => {
+  const start = useCallback(async () => {
     const recognition = recognitionRef.current;
     if (!recognition || isListening) return;
+
+    // Request microphone permission up front. Without this, the very first
+    // recognition.start() is commonly aborted by the browser's permission prompt,
+    // which looks like "it starts listening then immediately stops".
+    if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+      } catch {
+        setError("Microphone access is blocked. Allow it in your browser, then try again.");
+        return;
+      }
+    }
+
     finalTranscriptRef.current = "";
     recognition.lang = langRef.current;
     try {
-      recognition.start();
-      setIsListening(true);
+      recognition.start(); // onstart flips isListening to true
     } catch {
-      // start() throws if called while already active; keep state consistent.
-      setIsListening(false);
+      // start() throws only if already active; ignore.
     }
   }, [isListening]);
 
@@ -146,5 +182,5 @@ export function useDictation({ lang, onInterim, onFinal }: UseDictationOptions):
     recognitionRef.current?.stop();
   }, []);
 
-  return { supported, isListening, start, stop };
+  return { supported, isListening, error, start, stop };
 }

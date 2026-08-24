@@ -73,6 +73,12 @@ export function VoiceInput() {
           listening…
         </span>
       )}
+
+      {!dictation.isListening && dictation.error && (
+        <span role="alert" style={{ color: "var(--danger)", fontSize: "0.78rem" }}>
+          {dictation.error}
+        </span>
+      )}
     </div>
   );
 }

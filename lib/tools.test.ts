@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { compareAirports, longHaulBreakdown, rankAirports, unmetDemand } from "./tools";
 
 /**
- * End-to-end checks for the four exam questions, exercised through the tools
- * (the LLM layer is not involved — these assert the deterministic answers).
+ * End-to-end checks for the four sample analyst questions, exercised through the
+ * tools (the LLM layer is not involved — these assert the deterministic answers).
  */
-describe("exam questions via tools", () => {
+describe("sample questions via tools", () => {
   it("ranks New England expansion candidates with Boston on top", () => {
     const out = rankAirports("new_england", "expansion", 3);
     const ranking = out.result.ranking as Array<{ iata: string }>;

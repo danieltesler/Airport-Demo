@@ -11,12 +11,13 @@
  *  - The tools (and the scoring engine behind them) produce *every number*. The
  *    model is instructed never to invent figures.
  *  - Assumptions, uncertainty, and the structured table shown in the UI come from
- *    the deterministic layer, not from the model — so the transparency the exam
- *    asks for is guaranteed, not left to the model's discretion.
+ *    the deterministic layer, not from the model — so transparency is guaranteed,
+ *    not left to the model's discretion.
  */
 
 import OpenAI from "openai";
 import { dataVintage } from "./data";
+import { detectLang } from "./i18n";
 import { TOOL_SCHEMAS, runTool } from "./tools";
 import type { ChatResponse, ChatTurn, StructuredResult } from "./types";
 
@@ -80,6 +81,8 @@ function toMessages(history: ChatTurn[], message: string): ChatMessage[] {
 export async function runAgent(message: string, history: ChatTurn[] = []): Promise<ChatResponse> {
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const messages = toMessages(history, message);
+  // The deterministic assumptions/uncertainty are localized to the user's language.
+  const lang = detectLang(message);
 
   // Accumulators for the deterministic transparency layer.
   let structured: StructuredResult | null = null;
@@ -122,7 +125,7 @@ export async function runAgent(message: string, history: ChatTurn[] = []): Promi
       } catch {
         args = {};
       }
-      const output = runTool(call.function.name, args);
+      const output = runTool(call.function.name, args, lang);
 
       if (output.structured != null) structured = output.structured;
       for (const a of output.assumptions ?? []) remember(assumptions, a);
@@ -144,6 +147,7 @@ export async function runAgent(message: string, history: ChatTurn[] = []): Promi
     meta: {
       tools_used: [...new Set(toolsUsed)],
       data_vintage: dataVintage(),
+      lang,
     },
   };
 }

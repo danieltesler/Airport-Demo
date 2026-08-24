@@ -16,16 +16,6 @@ Every answer combines a clear explanation, a structured table/chart, and an expl
 
 ---
 
-## Deliverables
-
-- **Source code** — this repository: a single Next.js + TypeScript app. The
-  conversational agent lives in `lib/agent.ts`; the **deterministic scoring engine**
-  (the "not only LLM output" requirement) is `lib/scoring.ts`, covered by tests.
-- **Design / architecture document** — [`docs/DESIGN.md`](docs/DESIGN.md), covering
-  the **scoring methodology**, **key tradeoffs**, and **where/how AI is used**.
-
----
-
 ## How it works (in one picture)
 
 ```
@@ -141,10 +131,10 @@ environment at runtime.
 - Reference/geo from **OurAirports** (public domain); traffic and delay metrics are a
   curated snapshot of **BTS T-100 + On-Time Performance** public data.
 
-## Scope & honesty
+## Scope
 
-This is a demo. Scores reflect **demand-side opportunity** on a curated snapshot of
-mid-to-large U.S. airports — not a full investment model (no construction cost, land,
-or regulatory limits). Assumptions and uncertainty are shown on every answer, and
-detailed in the design doc.
+Scores reflect **demand-side opportunity** on a curated snapshot of mid-to-large
+U.S. airports — not a full investment model (they don't yet weigh construction cost,
+land/gate availability, or regulatory limits). Assumptions and uncertainty are shown
+on every answer and detailed in the design doc.
 </content>

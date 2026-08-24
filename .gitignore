@@ -23,9 +23,9 @@ yarn-debug.log*
 # Vercel
 .vercel/
 
-# Exam prompt (not part of the deliverable; keep out of the public repo)
-FDE Exam 2.pdf
+# Local reference docs (not part of the app)
 *.pdf
+*.tsbuildinfo
 
 # OS / editor
 .DS_Store
