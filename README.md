@@ -1,145 +1,131 @@
 # Airport Investment Intelligence Agent
 
-A conversational AI agent that helps investment analysts identify U.S. airports
-where **terminal renovation would be most profitable** — where growing flight and
-passenger demand is running into constrained capacity.
+A chat assistant for analysts who invest in U.S. airport upgrades. You ask it
+questions about airports in ordinary language, and it points you toward the ones where
+a terminal expansion is most likely to pay off: places where demand is growing and
+starting to run into the limits of what the airport can handle.
 
-Ask it anything about U.S. airport capacity, congestion, and demand — in plain English
-or Hebrew, typed or by voice. These are just a few examples:
+You can type or talk to it, in English or Hebrew.
 
-- *Which airports in New England are strong candidates for terminal expansion?*
-- *Compare LA and Santa Ana airport congestion levels.*
-- *What is the percentage of long-haul flights out of Anchorage?*
-- *What is the unmet flight demand at SFO, and why?*
+## What you can ask
 
-It's not limited to these. You can rank any region or state by expansion, congestion,
-or unmet-demand potential; compare any airports head-to-head; pull a single airport's
-full profile; and ask natural follow-ups — across the airports in its dataset.
+It was built around four questions to start with:
 
-Every data-backed answer combines a clear explanation, a structured table/chart, and an
-explicit **assumptions & uncertainty** panel.
+- Which airports in New England are strong candidates for terminal expansion?
+- Compare LA and Santa Ana congestion levels.
+- What share of flights out of Anchorage are long-haul?
+- What's the unmet demand at SFO, and why?
 
----
+It isn't limited to those, though. You can rank any region or state, compare any
+airports side by side, pull up a single airport's full profile, or just follow up on
+a previous answer. When an answer is backed by data it comes with the numbers in a
+small table (and a bar chart where that helps), along with a short note on the
+assumptions behind the score and where the data came from.
 
-## How it works (in one picture)
+## How it works
+
+It's a single Next.js app. The browser talks to the app's own `/api/chat` route, so
+there's no separate backend to run and no cross-origin setup to worry about.
+
+Two parts split the work:
+
+- The language model reads your question, decides which tool to call, and writes the
+  explanation. It never makes up a number.
+- A plain TypeScript scoring engine does the actual math (the congestion,
+  unmet-demand, and expansion scores) and writes the assumptions and caveats. It's
+  deterministic and covered by tests, so the figures stay the same from one run to
+  the next.
+
+Keeping the numbers out of the model's hands is the point. You can open the code and
+see exactly how any score was produced, rather than trusting the model to have added
+it up correctly.
 
 ```
-Browser (assistant-ui chat)  ──POST /api/chat──▶  Next.js Route Handler
-  chat · tables/charts · voice                       LLM  ──▶  deterministic
-                             ◀───── reply ─────       (language +   scoring engine
-                                                       tool use)    (every number)
+Browser (chat UI)  ──►  /api/chat  ──►  language model picks a tool
+                                          │
+                                          ▼
+                              deterministic scoring engine
+                                     (every number)
 ```
 
-Everything is **one Next.js app**. The chat UI calls the app's own same-origin
-`/api/chat` route; no separate backend host and no CORS.
+The scoring is written up in [docs/DESIGN.md](docs/DESIGN.md), and the exact
+request/response shape is in [docs/API_CONTRACT.md](docs/API_CONTRACT.md).
 
-- The **LLM** interprets questions, picks tools, and explains results — but never
-  invents a number.
-- A **deterministic scoring engine** (pure TypeScript, unit-tested) computes every
-  metric and score, and owns the assumptions and uncertainty shown to the user.
+## Running it locally
 
-See **[docs/DESIGN.md](docs/DESIGN.md)** for the scoring methodology and where AI is
-used, and **[docs/API_CONTRACT.md](docs/API_CONTRACT.md)** for the request/response
-contract the UI and route share.
-
----
-
-## Tech stack
-
-- **Next.js (App Router) + TypeScript** — single app; UI and the `/api` routes live
-  together.
-- **[assistant-ui](https://github.com/assistant-ui/assistant-ui)** — the chat
-  experience is built from assistant-ui primitives driven by a `LocalRuntime` whose
-  custom `ChatModelAdapter` talks to our `/api/chat`. Replies render as Markdown via
-  `@assistant-ui/react-markdown`.
-- **Plain CSS** — global design tokens in `app/globals.css` plus CSS Modules per
-  component (`components/assistant/chat.module.css`). No Tailwind or CSS framework.
-- **Voice (Web Speech API, no keys)** — mic **dictation** with an **EN / עב** language
-  toggle: it recognizes English or Hebrew and auto-sends when you stop speaking.
-  **Read-aloud** strips Markdown and speaks each answer in its own language (Hebrew →
-  `he-IL`, otherwise `en-US`). All controls are feature-detected and hidden where
-  unsupported.
-
----
-
-## Quick start
-
-You need **one** secret: your **OpenAI API key** (`OPENAI_API_KEY`, see `.env.example`).
+You'll need Node 18+ and an OpenAI API key.
 
 ```bash
 npm install
-cp .env.example .env.local     # paste your API key into .env.local
+cp .env.example .env.local   # put your OPENAI_API_KEY in this file
 npm run dev
 ```
 
-Open **http://localhost:3000**.
+Then open http://localhost:3000.
 
-### Scripts
+A few other scripts:
 
 ```bash
-npm run dev         # local dev server
 npm run build       # production build
-npm run typecheck   # tsc --noEmit
-npm run test        # vitest — deterministic scoring + tools
+npm run test        # unit tests for the scoring engine and tools
+npm run typecheck   # type-check only
 ```
 
----
+## Voice
+
+The mic button dictates into the composer and sends the message when you stop
+talking. There's a small EN / עב toggle next to it so it can listen in English or
+Hebrew. Each answer also has a "Read aloud" button that reads the reply back in the
+right language. All of this uses the browser's built-in Web Speech API, so it needs
+no extra keys, and the controls simply don't appear on browsers that don't support it
+(Chrome and Edge work best).
+
+## Deploying
+
+Since it's just a Next.js app, Vercel is the easy path: import the repo, add
+`OPENAI_API_KEY` to the project's environment variables, and deploy. There's nothing
+else to configure. The key lives in the environment and never goes into the repo
+(`.env.local` is git-ignored).
 
 ## Project layout
 
 ```
 app/
-  api/chat/route.ts     POST /api/chat — the agent turn
-  api/health/route.ts   GET  /api/health
-  layout.tsx, page.tsx  app shell + single chat page
-  globals.css           design tokens + Markdown styles
+  api/chat/route.ts     the agent turn (POST /api/chat)
+  api/health/route.ts   a health check
+  layout.tsx, page.tsx  the app shell and the single chat page
+  globals.css           design tokens and Markdown styles
 components/
-  assistant/            assistant-ui integration (provider, thread, message,
-                        composer, VoiceInput, markdown, example chips) + chat.module.css
-  StructuredResult.tsx  table + CSS bar chart for `structured` payloads
-  AssumptionsPanel.tsx  assumptions / uncertainty / provenance panel
+  assistant/            the chat UI, built on assistant-ui
+  StructuredResult.tsx  the results table and bar chart
+  AssumptionsPanel.tsx  the assumptions / uncertainty panel
 lib/
-  chatModelAdapter.ts   maps assistant-ui messages ⇄ the /api/chat contract
-  speechAdapters.ts     Markdown-aware, language-aware read-aloud adapter
-  api.ts                typed same-origin client for /api
-  agent.ts, tools.ts, scoring.ts, data.ts   LLM loop + deterministic engine
-  types.ts              the contract types (source of truth)
+  agent.ts              the model loop (the only file that talks to OpenAI)
+  tools.ts              the tools the model can call
+  scoring.ts            the deterministic scoring engine
+  data.ts               access to the bundled dataset
+  i18n.ts               English / Hebrew strings for the code-owned text
+  chatModelAdapter.ts   connects assistant-ui to /api/chat
+  speechAdapters.ts     read-aloud (language-aware)
 hooks/
-  useDictation.ts       Web Speech mic dictation (EN/he) + auto-send
-  useSpeechSupport.ts   feature-detection for read-aloud
-data/airports.json      curated public dataset
-docs/                   DESIGN.md + API_CONTRACT.md
+  useDictation.ts       mic dictation with the EN/Hebrew toggle
+data/airports.json      the curated airport dataset
+docs/                   the design doc and the API contract
 ```
 
----
+## The data
 
-## Deploy to Vercel
+The airport figures are a curated snapshot of public data: passengers, seats, and
+flights from the BTS T-100 tables, delays and cancellations from BTS On-Time
+Performance, and airport reference details (names, states, runways) from OurAirports.
+BTS doesn't publish a live API, so the snapshot is bundled with the app; the design
+doc covers how you'd wire up an automated refresh down the line. Nothing here costs
+money to run except the OpenAI calls.
 
-This is a **single Next.js app**, so it's a one-click deploy — no separate backend,
-no `vercel.json` gymnastics.
+## What it doesn't do
 
-1. Push to GitHub and **Import** the repo into Vercel (New Project → Import Git
-   Repository). Leave the framework preset and build settings at their defaults.
-2. Under **Environment Variables**, add `OPENAI_API_KEY` (the same key from
-   `.env.example`). Set it for all environments. Optionally add `OPENAI_MODEL`.
-3. **Deploy.** Once live, `GET /api/health` and `POST /api/chat` resolve on the same
-   domain as the UI.
-
-Never commit a real key — `.env.local` is git-ignored and the key is read from the
-environment at runtime.
-
----
-
-## Data & cost
-
-- **Free and key-free by design**, except the model-provider API key.
-- Reference/geo from **OurAirports** (public domain); traffic and delay metrics are a
-  curated snapshot of **BTS T-100 + On-Time Performance** public data.
-
-## Scope
-
-Scores reflect **demand-side opportunity** on a curated snapshot of mid-to-large
-U.S. airports — not a full investment model (they don't yet weigh construction cost,
-land/gate availability, or regulatory limits). Assumptions and uncertainty are shown
-on every answer and detailed in the design doc.
-</content>
+The scores look at the demand side only: how much traffic an airport has and how
+close it is running to its limits. They don't factor in construction cost, available
+land or gates, or local rules such as noise curfews, all of which a real investment
+decision would weigh. Every answer says so, so the numbers aren't taken for more than
+they are.

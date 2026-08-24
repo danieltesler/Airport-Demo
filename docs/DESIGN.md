@@ -1,12 +1,11 @@
 # Design & Architecture — Airport Investment Intelligence Agent
 
-A conversational agent that helps investment analysts identify U.S. airports where
-terminal renovation would be most profitable — driven by growing flight and
-passenger demand meeting constrained capacity.
+This is the design write-up for the agent that helps analysts find U.S. airports
+where a terminal expansion is most likely to pay off, i.e. where demand is growing
+into the limits of what the airport can handle.
 
-This document covers the **scoring methodology**, **key tradeoffs**, and **where/how
-AI is used** — plus the data sources and the explicit assumptions and scoping behind
-the analysis.
+It walks through how the scoring works, the tradeoffs I made along the way, where the
+AI actually sits in the system, and the data behind it all.
 
 ---
 
@@ -47,21 +46,21 @@ one codebase and deploy as one unit — the browser calls the app's own `/api` r
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Layered, each layer with one job:**
+The code is split into small layers, each with one job:
 
-- `app/api/chat/route.ts` — HTTP boundary. Validates input, delegates, always returns
-  a renderable `reply` (even on error). Runs on the Node.js runtime (the OpenAI SDK
-  needs it).
-- `lib/agent.ts` — the LLM tool-use loop (OpenAI, via the `openai` SDK). Language and
-  orchestration only; the provider lives only in this file.
-- `lib/tools.ts` — the bridge: typed functions the model may call. Every number the
-  user sees originates here. Also holds the provider-neutral tool schemas.
-- `lib/scoring.ts` — the deterministic engine: pure functions, no I/O, no LLM.
-- `lib/data.ts` — data access over the bundled dataset (imported as JSON, so it's
-  available in any runtime with no filesystem access).
+- `app/api/chat/route.ts` — the HTTP boundary. It validates the input, hands off to the
+  agent, and always returns something the UI can render, even on error. It runs on the
+  Node.js runtime because the OpenAI SDK needs it.
+- `lib/agent.ts` — the model loop. This is the only file that talks to OpenAI; it
+  handles language and orchestration and nothing else.
+- `lib/tools.ts` — the tools the model is allowed to call. Every number the user sees
+  comes from here.
+- `lib/scoring.ts` — the scoring engine: plain functions, no I/O, no model.
+- `lib/data.ts` — reads the bundled dataset (imported as JSON, so it works in any
+  runtime without touching the filesystem).
 
-The design goal is **isolation and testability**: `scoring.ts` and `data.ts` are
-covered by unit tests (Vitest) and are meaningful entirely without the LLM.
+Splitting it this way means `scoring.ts` and `data.ts` can be unit-tested on their own,
+without the model in the loop, which is where the trust in the numbers comes from.
 
 ---
 
@@ -123,21 +122,18 @@ idle space.
 
 ## 4. Where and how AI is used
 
-Deliberately scoped. **The LLM never produces a number.**
+The short version: the model handles language, the code handles numbers.
 
-- **The LLM (OpenAI, `gpt-4o-mini`) does:** interpret the analyst's intent, pick the
-  right tool and arguments, carry the conversation and follow-ups, and explain the
-  returned numbers in clear prose. It runs as a bounded tool-use loop in `lib/agent.ts`.
-- **The deterministic engine does:** compute every metric, ranking, and score, and
-  own the canonical assumptions and uncertainty text.
+The model (OpenAI's `gpt-4o-mini`) reads the analyst's question, works out which tool
+to call and with what arguments, keeps track of the conversation for follow-ups, and
+explains the results in plain prose. That's it. Every metric, ranking, and score comes
+from the scoring engine, and so does the assumptions and uncertainty text.
 
-Crucially, the **assumptions, uncertainty, and structured table shown in the UI
-come from the code, not the model** (`lib/agent.ts` collects them from each tool's
-output). So this transparency is *guaranteed by construction*, not left to the
-model's discretion. A wrong model response can be unhelpful, but it
-cannot silently fabricate a figure or hide a caveat.
-
-The tool-use loop is bounded (`MAX_AGENT_STEPS`) as a safety limit.
+This is deliberate. The assumptions, the caveats, and the numbers in the table are all
+pulled from the code, not written by the model (`lib/agent.ts` gathers them from each
+tool call). A confused model reply might be unhelpful, but it can't quietly invent a
+figure or drop a caveat, because it never had its hands on the numbers in the first
+place. The loop is also capped (`MAX_AGENT_STEPS`) so it can't run away.
 
 ---
 
@@ -171,9 +167,9 @@ airport/year) is straightforward.
 - **Fixed reference scales vs. dataset-relative normalization.** Fixed scales give
   stable, portable, explainable scores. *Tradeoff:* the anchors are judgment calls;
   they're centralized and documented so they can be tuned.
-- **Deterministic transparency vs. letting the LLM summarize.** Assumptions and the
-  numbers come from code. *Tradeoff:* slightly less "fluid" than a pure-LLM answer,
-  but trustworthy and auditable — the right call for investment decisions.
+- **Deterministic numbers vs. letting the model summarize.** Assumptions and figures
+  come from code. *Tradeoff:* the answers are a little less free-flowing than a
+  pure-model reply, but you can audit every number, which matters when people act on them.
 - **Demand-side scoring vs. full investment model.** Scores reflect demand
   opportunity, not construction cost, land/gate availability, or noise curfews.
   Kept out to stay clear and honest rather than pretend precision.
@@ -198,7 +194,7 @@ These are surfaced to the user on every answer, not buried here.
 
 ---
 
-## 8. If we had more time
+## 8. Where I'd take it next
 
 - Full automated BTS ingestion with multi-year trends (real growth, seasonality).
 - FAA ASPM demand-vs-capacity ratios for a stronger congestion/unmet signal.
