@@ -16,54 +16,76 @@ Every answer combines a clear explanation, a structured table/chart, and an expl
 
 ---
 
+## Deliverables
+
+- **Source code** — this repository: a single Next.js + TypeScript app. The
+  conversational agent lives in `lib/agent.ts`; the **deterministic scoring engine**
+  (the "not only LLM output" requirement) is `lib/scoring.ts`, covered by tests.
+- **Design / architecture document** — [`docs/DESIGN.md`](docs/DESIGN.md), covering
+  the **scoring methodology**, **key tradeoffs**, and **where/how AI is used**.
+
+---
+
 ## How it works (in one picture)
 
 ```
-Frontend (Next.js + TypeScript)  ──POST /api/chat──▶  Backend (FastAPI + Python)
-  chat · charts · voice                                 Claude  ──▶  deterministic
-                                 ◀───── reply ─────      (language +      scoring engine
-                                                          orchestration)  (every number)
+Browser (assistant-ui chat)  ──POST /api/chat──▶  Next.js Route Handler
+  chat · tables/charts · voice                       LLM  ──▶  deterministic
+                             ◀───── reply ─────       (language +   scoring engine
+                                                       tool use)    (every number)
 ```
 
-- **Claude** interprets questions, picks tools, and explains results — but never
+Everything is **one Next.js app**. The chat UI calls the app's own same-origin
+`/api/chat` route; no separate backend host and no CORS.
+
+- The **LLM** interprets questions, picks tools, and explains results — but never
   invents a number.
-- A **deterministic scoring engine** (pure Python, unit-tested) computes every
+- A **deterministic scoring engine** (pure TypeScript, unit-tested) computes every
   metric and score, and owns the assumptions and uncertainty shown to the user.
 
-See **[docs/DESIGN.md](docs/DESIGN.md)** for the scoring methodology, tradeoffs, and
-where/how AI is used, and **[docs/API_CONTRACT.md](docs/API_CONTRACT.md)** for the
-frontend/backend contract.
+See **[docs/DESIGN.md](docs/DESIGN.md)** for the scoring methodology and where AI is
+used, and **[docs/API_CONTRACT.md](docs/API_CONTRACT.md)** for the request/response
+contract the UI and route share.
+
+---
+
+## Tech stack
+
+- **Next.js (App Router) + TypeScript** — single app; UI and the `/api` routes live
+  together.
+- **[assistant-ui](https://github.com/assistant-ui/assistant-ui)** — the chat
+  experience is built from assistant-ui primitives driven by a `LocalRuntime` whose
+  custom `ChatModelAdapter` talks to our `/api/chat`. Replies render as Markdown via
+  `@assistant-ui/react-markdown`.
+- **Plain CSS** — global design tokens in `app/globals.css` plus CSS Modules per
+  component (`components/assistant/chat.module.css`). No Tailwind or CSS framework.
+- **Voice (Web Speech API, no keys)** — mic **dictation** with an **EN / עב** language
+  toggle: it recognizes English or Hebrew and auto-sends when you stop speaking.
+  **Read-aloud** strips Markdown and speaks each answer in its own language (Hebrew →
+  `he-IL`, otherwise `en-US`). All controls are feature-detected and hidden where
+  unsupported.
 
 ---
 
 ## Quick start
 
-You need **one** secret: an Anthropic API key.
-
-### 1. Backend
+You need **one** secret: your **OpenAI API key** (`OPENAI_API_KEY`, see `.env.example`).
 
 ```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env        # paste your ANTHROPIC_API_KEY into .env
-uvicorn app.main:app --reload --port 8000
-```
-
-### 2. Frontend (in a second terminal)
-
-```bash
-cd frontend
 npm install
+cp .env.example .env.local     # paste your API key into .env.local
 npm run dev
 ```
 
 Open **http://localhost:3000**.
 
-### Tests
+### Scripts
 
 ```bash
-cd backend && pytest          # deterministic scoring + data layer
+npm run dev         # local dev server
+npm run build       # production build
+npm run typecheck   # tsc --noEmit
+npm run test        # vitest — deterministic scoring + tools
 ```
 
 ---
@@ -71,30 +93,58 @@ cd backend && pytest          # deterministic scoring + data layer
 ## Project layout
 
 ```
-backend/    FastAPI app, Claude agent loop, deterministic scoring engine, dataset, tests
-frontend/   Next.js + TypeScript chat UI (Markdown, tables/charts, voice)
-docs/       DESIGN.md (methodology & tradeoffs) + API_CONTRACT.md
+app/
+  api/chat/route.ts     POST /api/chat — the agent turn
+  api/health/route.ts   GET  /api/health
+  layout.tsx, page.tsx  app shell + single chat page
+  globals.css           design tokens + Markdown styles
+components/
+  assistant/            assistant-ui integration (provider, thread, message,
+                        composer, VoiceInput, markdown, example chips) + chat.module.css
+  StructuredResult.tsx  table + CSS bar chart for `structured` payloads
+  AssumptionsPanel.tsx  assumptions / uncertainty / provenance panel
+lib/
+  chatModelAdapter.ts   maps assistant-ui messages ⇄ the /api/chat contract
+  speechAdapters.ts     Markdown-aware, language-aware read-aloud adapter
+  api.ts                typed same-origin client for /api
+  agent.ts, tools.ts, scoring.ts, data.ts   LLM loop + deterministic engine
+  types.ts              the contract types (source of truth)
+hooks/
+  useDictation.ts       Web Speech mic dictation (EN/he) + auto-send
+  useSpeechSupport.ts   feature-detection for read-aloud
+data/airports.json      curated public dataset
+docs/                   DESIGN.md + API_CONTRACT.md
 ```
+
+---
+
+## Deploy to Vercel
+
+This is a **single Next.js app**, so it's a one-click deploy — no separate backend,
+no `vercel.json` gymnastics.
+
+1. Push to GitHub and **Import** the repo into Vercel (New Project → Import Git
+   Repository). Leave the framework preset and build settings at their defaults.
+2. Under **Environment Variables**, add `OPENAI_API_KEY` (the same key from
+   `.env.example`). Set it for all environments. Optionally add `OPENAI_MODEL`.
+3. **Deploy.** Once live, `GET /api/health` and `POST /api/chat` resolve on the same
+   domain as the UI.
+
+Never commit a real key — `.env.local` is git-ignored and the key is read from the
+environment at runtime.
 
 ---
 
 ## Data & cost
 
-- **Free and key-free by design**, except the Anthropic API key.
+- **Free and key-free by design**, except the model-provider API key.
 - Reference/geo from **OurAirports** (public domain); traffic and delay metrics are a
-  curated snapshot of **BTS T-100 + On-Time Performance** public data (BTS has no live
-  API — it's bulk download). `backend/data/build_dataset.py` documents the provenance
-  and the path to full automated ingestion.
-
-## Deploy (later)
-
-Standard Next.js frontend deploys to Vercel as-is; set `NEXT_PUBLIC_API_BASE_URL` to
-the deployed backend. Host the Python backend anywhere Python runs and keep
-`ANTHROPIC_API_KEY` in the platform's environment (never in the repo).
+  curated snapshot of **BTS T-100 + On-Time Performance** public data.
 
 ## Scope & honesty
 
-This is a one-day demo. Scores reflect **demand-side opportunity** on a curated
-snapshot of ~28 major/mid-size U.S. airports — not a full investment model (no
-construction cost, land, or regulatory limits). Assumptions and uncertainty are shown
-on every answer, and detailed in the design doc.
+This is a demo. Scores reflect **demand-side opportunity** on a curated snapshot of
+mid-to-large U.S. airports — not a full investment model (no construction cost, land,
+or regulatory limits). Assumptions and uncertainty are shown on every answer, and
+detailed in the design doc.
+</content>

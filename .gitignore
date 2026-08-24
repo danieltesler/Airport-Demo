@@ -20,6 +20,9 @@ out/
 npm-debug.log*
 yarn-debug.log*
 
+# Vercel
+.vercel/
+
 # Exam prompt (not part of the deliverable; keep out of the public repo)
 FDE Exam 2.pdf
 *.pdf

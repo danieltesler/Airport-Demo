@@ -29,36 +29,39 @@ an **assumptions & uncertainty** panel.
 
 ## 2. Architecture
 
+A **single Next.js (TypeScript) application**. The chat UI and the agent API live in
+one codebase and deploy as one unit — the browser calls the app's own `/api` routes
+(same-origin, no CORS, no separate backend to host).
+
 ```
-┌──────────────────────────┐        POST /api/chat        ┌────────────────────────────┐
-│  Frontend (Next.js / TS)  │  ─────────────────────────▶  │  Backend (FastAPI / Python) │
-│                          │  { message, history }        │                            │
-│  • chat transcript        │                              │  main.py   (HTTP, thin)     │
-│  • structured table/chart │  ◀─────────────────────────  │  agent.py  (Claude loop)    │
-│  • assumptions panel      │  { reply, structured,        │     │  tool calls              │
-│  • voice (Web Speech API) │    assumptions, uncertainty }│     ▼                       │
-└──────────────────────────┘                              │  tools.py  ──▶ scoring.py    │
-                                                          │              └▶ data.py       │
-                                                          │  (deterministic engine)      │
-                                                          └────────────────────────────┘
+┌───────────────────────────── Next.js app ─────────────────────────────┐
+│                                                                        │
+│  Browser (React chat UI)          Server (Route Handlers)              │
+│  • assistant-ui chat        ──▶   app/api/chat    ──▶  lib/agent.ts     │
+│  • Markdown answers                (POST)               │  LLM loop     │
+│  • structured table/chart   ◀──   { reply, ... }       ▼               │
+│  • assumptions panel                              lib/tools.ts          │
+│  • voice (Web Speech API)         app/api/health       │  └▶ lib/scoring.ts
+│                                    (GET)               lib/data.ts       │
+│                                                   (deterministic engine) │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Two clean halves, one stable contract.** The frontend and backend talk only
-through `docs/API_CONTRACT.md`, so either can change internally without breaking
-the other. Both languages match the target stack (TypeScript + Python).
+**Layered, each layer with one job:**
 
-**Layered backend, each layer with one job:**
+- `app/api/chat/route.ts` — HTTP boundary. Validates input, delegates, always returns
+  a renderable `reply` (even on error). Runs on the Node.js runtime (the OpenAI SDK
+  needs it).
+- `lib/agent.ts` — the LLM tool-use loop (OpenAI, via the `openai` SDK). Language and
+  orchestration only; the provider lives only in this file.
+- `lib/tools.ts` — the bridge: typed functions the model may call. Every number the
+  user sees originates here. Also holds the provider-neutral tool schemas.
+- `lib/scoring.ts` — the deterministic engine: pure functions, no I/O, no LLM.
+- `lib/data.ts` — data access over the bundled dataset (imported as JSON, so it's
+  available in any runtime with no filesystem access).
 
-- `main.py` — HTTP boundary. Validates input, delegates, always returns a
-  renderable `reply` (even on error).
-- `agent.py` — the Claude tool-use loop. Language and orchestration only.
-- `tools.py` — the bridge: typed functions the model may call. Every number the
-  user sees originates here.
-- `scoring.py` — the deterministic engine: pure functions, no I/O, no LLM.
-- `data.py` — data access over the bundled dataset.
-
-The design goal is **isolation and testability**: `scoring.py` and `data.py` are
-covered by unit tests and are meaningful entirely without the LLM.
+The design goal is **isolation and testability**: `scoring.ts` and `data.ts` are
+covered by unit tests (Vitest) and are meaningful entirely without the LLM.
 
 ---
 
@@ -70,9 +73,9 @@ are **transparent weighted sums** of sub-metrics, each normalized to 0–1 again
 (rather than dataset-relative z-scores) mean a score means the same thing no matter
 which airports are loaded, and results are stable and reproducible.
 
-Reference anchors live in one place at the top of `scoring.py` (e.g. "30 min average
-delay = fully congested", "10% YoY growth = maximal demand signal"). Every weight is
-one edit away from being challenged and re-tuned.
+Reference anchors live in one place at the top of `lib/scoring.ts` (e.g. "30 min
+average delay = fully congested", "10% YoY growth = maximal demand signal"). Every
+weight is one edit away from being challenged and re-tuned.
 
 ### 3.1 Congestion index (0–100)
 
@@ -122,14 +125,14 @@ idle space.
 
 Deliberately scoped. **The LLM never produces a number.**
 
-- **Claude (the LLM) does:** interpret the analyst's intent, pick the right tool
-  and arguments, carry the conversation and follow-ups, and explain the returned
-  numbers in clear prose.
+- **The LLM (OpenAI, `gpt-4o-mini`) does:** interpret the analyst's intent, pick the
+  right tool and arguments, carry the conversation and follow-ups, and explain the
+  returned numbers in clear prose. It runs as a bounded tool-use loop in `lib/agent.ts`.
 - **The deterministic engine does:** compute every metric, ranking, and score, and
   own the canonical assumptions and uncertainty text.
 
 Crucially, the **assumptions, uncertainty, and structured table shown in the UI
-come from the code, not the model** (`agent.py` collects them from each tool's
+come from the code, not the model** (`lib/agent.ts` collects them from each tool's
 output). So the transparency the brief asks for is *guaranteed by construction*,
 not left to the model's discretion. A wrong model response can be unhelpful, but it
 cannot silently fabricate a figure or hide a caveat.
@@ -142,20 +145,25 @@ The tool-use loop is bounded (`MAX_AGENT_STEPS`) as a safety limit.
 
 | Layer | Source | Access |
 |---|---|---|
-| Reference / geo (name, IATA/ICAO, state, coords, runways) | **OurAirports** | Public-domain CSV, no key (fetched live by `build_dataset.py`) |
+| Reference / geo (name, IATA/ICAO, state, coords, runways) | **OurAirports** | Public-domain CSV, no key |
 | Traffic, seats, distance, load factor, haul mix | **BTS T-100 Segment** | Free, download-only (no API) |
 | Delays, cancellations | **BTS On-Time Performance** | Free, download-only (no API) |
 
-Because BTS has **no live API** (bulk CSV only), the demo ships a **curated
-snapshot** (`data/airports.json`, ~28 major + mid-size airports) so it runs
-offline, free, and key-free. `data/build_dataset.py` documents the exact provenance
-and the path to a full automated BTS ingest (download → DuckDB → aggregate per
-airport/year). This is the honest, thoughtful-design tradeoff for a one-day build.
+Because BTS has **no live API** (bulk CSV only), the app ships a **curated snapshot**
+(`data/airports.json`, ~28 major + mid-size airports) so it runs offline, free, and
+key-free. This is the honest, thoughtful-design tradeoff for a one-day build; the
+snapshot documents the exact BTS tables it is compiled from, and the path to a full
+automated ingest (download → aggregate per airport/year) is straightforward.
 
 ---
 
 ## 6. Key tradeoffs
 
+- **Single Next.js app (one language) vs. a separate Python service.** Folding the
+  agent into TypeScript route handlers makes it one codebase that deploys to Vercel in
+  one click, with the API served same-origin (no CORS, no second host). *Tradeoff:* we
+  don't showcase a separate Python backend, but we gain a dramatically simpler, more
+  reliable deployment — the right call for a demo.
 - **Curated snapshot vs. live ingestion.** A full BTS pipeline (gigabytes of CSVs)
   would be over-engineering for a demo and adds fragility. We bundle a validated
   snapshot and document the scale-up path. *Tradeoff:* data isn't real-time (BTS
@@ -192,10 +200,9 @@ These are surfaced to the user on every answer, not buried here.
 
 ## 8. If we had more time
 
-- Full automated BTS ingestion into DuckDB with multi-year trends (real growth,
-  seasonality).
+- Full automated BTS ingestion with multi-year trends (real growth, seasonality).
 - FAA ASPM demand-vs-capacity ratios for a stronger congestion/unmet signal.
-- A live OpenSky "flights right now" panel (needs OAuth) for real-time flavor.
+- A live OpenSky "flights right now" panel for real-time flavor.
 - Cost side of the investment case (capex, gate/land constraints) to turn the
   demand score into a true ROI ranking.
 - A small map view using the coordinates already in the dataset.
