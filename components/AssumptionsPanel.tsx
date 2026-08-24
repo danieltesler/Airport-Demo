@@ -21,10 +21,13 @@ export function AssumptionsPanel({
 }: AssumptionsPanelProps) {
   const hasAssumptions = !!assumptions && assumptions.length > 0;
   const hasUncertainty = !!uncertainty && uncertainty.trim().length > 0;
-  const hasMeta =
-    !!meta && ((meta.tools_used?.length ?? 0) > 0 || !!meta.data_vintage);
+  // Only real analysis (a tool call) shows the panel. Data vintage is always present,
+  // so it must NOT, by itself, surface the panel on a greeting or small-talk reply.
+  const usedTools = (meta?.tools_used?.length ?? 0) > 0;
 
-  if (!hasAssumptions && !hasUncertainty && !hasMeta) return null;
+  if (!hasAssumptions && !hasUncertainty && !usedTools) return null;
+
+  const hasMeta = usedTools && (!!meta?.data_vintage || (meta?.tools_used?.length ?? 0) > 0);
 
   const lang: Lang = meta?.lang === "he" ? "he" : "en";
   const t = (key: keyof typeof PANEL_LABELS) => PANEL_LABELS[key][lang];

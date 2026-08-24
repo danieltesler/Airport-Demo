@@ -19,6 +19,11 @@ export function detectLang(text: string): Lang {
   return HEBREW_PATTERN.test(text) ? "he" : "en";
 }
 
+/** Text direction for a piece of text: Hebrew → right-to-left, else left-to-right. */
+export function dirFor(text: string): "rtl" | "ltr" {
+  return HEBREW_PATTERN.test(text) ? "rtl" : "ltr";
+}
+
 interface BiList {
   en: string[];
   he: string[];
