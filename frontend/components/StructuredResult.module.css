@@ -1,0 +1,117 @@
+.wrap {
+  margin-top: 0.85rem;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.88rem;
+}
+
+.table th,
+.table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--slate-200);
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:nth-child(even) {
+  background: var(--slate-50);
+}
+
+.thLabel,
+.thNum {
+  background: var(--navy-800);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+}
+
+.thLabel,
+.tdLabel {
+  text-align: left;
+}
+
+.thNum,
+.tdNum {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tdLabel {
+  font-weight: 550;
+  color: var(--navy-900);
+}
+
+.tdNum {
+  color: var(--slate-600);
+}
+
+/* Bar chart */
+.chart {
+  padding: 0.9rem 0.9rem 1rem;
+  border-top: 1px solid var(--slate-200);
+  background: var(--slate-50);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chartCaption {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--slate-500);
+  margin-bottom: 0.15rem;
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: minmax(64px, 130px) 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.barLabel {
+  font-size: 0.82rem;
+  color: var(--navy-800);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barTrack {
+  background: var(--slate-200);
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  transition: width 0.4s ease;
+}
+
+.barValue {
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--slate-600);
+  min-width: 3ch;
+  text-align: right;
+}

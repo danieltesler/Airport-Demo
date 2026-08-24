@@ -1,0 +1,73 @@
+.panel {
+  margin-top: 0.85rem;
+  background: var(--amber-bg);
+  border: 1px solid var(--amber-border);
+  border-left: 3px solid #d9a441;
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.9rem;
+  font-size: 0.85rem;
+  color: var(--amber-text);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 650;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8a6314;
+  margin-bottom: 0.55rem;
+}
+
+.icon {
+  font-size: 0.95rem;
+}
+
+.block {
+  margin-bottom: 0.6rem;
+}
+
+.block:last-of-type {
+  margin-bottom: 0;
+}
+
+.blockLabel {
+  font-weight: 600;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9a7420;
+  margin-bottom: 0.2rem;
+}
+
+.list {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
+.list li {
+  margin: 0.15rem 0;
+  line-height: 1.45;
+}
+
+.uncertainty {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed var(--amber-border);
+  font-size: 0.76rem;
+  color: #9a7420;
+}
+
+.metaItem {
+  font-variant-numeric: tabular-nums;
+}
