@@ -95,7 +95,17 @@ export function rankAirports(
     return { result: { error: `Unknown metric '${metric}'.`, valid_metrics: Object.keys(METRIC_SCORERS) } };
   }
   const airports = data.airportsInScope(scope);
-  if (airports.length === 0) return { result: { error: `No airports found for scope '${scope}'.` } };
+  if (airports.length === 0) {
+    return {
+      result: {
+        error: `No airports in the dataset match scope '${scope}'.`,
+        covered_states: data.coveredStates(),
+        hint:
+          "Valid scopes: a U.S. state (name or 2-letter code), a metro ('LA', " +
+          "'Bay Area', 'NYC', 'DC'), 'new_england', or 'all'. Only use airports that exist here.",
+      },
+    };
+  }
 
   const scorer = METRIC_SCORERS[metric];
   const ranked = airports
@@ -328,7 +338,12 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     input_schema: {
       type: "object",
       properties: {
-        scope: { type: "string", description: "'new_england', 'all', or a state code." },
+        scope: {
+          type: "string",
+          description:
+            "Area to rank within: 'all', 'new_england', a U.S. state (name or 2-letter " +
+            "code, e.g. 'California' or 'CA'), or a metro ('LA', 'Bay Area', 'NYC', 'DC').",
+        },
         metric: { type: "string", enum: ["expansion", "congestion", "unmet_demand"] },
         top_n: { type: "integer", description: "How many to return (default 5)." },
       },

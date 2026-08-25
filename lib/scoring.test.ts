@@ -142,4 +142,12 @@ describe("data layer", () => {
     expect(data.getAirport("SFO")?.iata).toBe("SFO");
     expect(data.getAirport("ZZZ")).toBeUndefined();
   });
+
+  it("resolves state names and metro areas, and rejects unknown scopes", () => {
+    expect(data.airportsInScope("California").some((a) => a.iata === "LAX")).toBe(true);
+    expect(data.airportsInScope("CA").some((a) => a.iata === "LAX")).toBe(true);
+    expect(data.airportsInScope("LA").map((a) => a.iata).sort()).toEqual(["LAX", "SNA"]);
+    expect(data.airportsInScope("Bay Area").map((a) => a.iata).sort()).toEqual(["OAK", "SFO", "SJC"]);
+    expect(data.airportsInScope("Nowhere")).toEqual([]);
+  });
 });
