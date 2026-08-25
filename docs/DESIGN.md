@@ -31,20 +31,35 @@ an **assumptions & uncertainty** panel. It can also pull live data on request �
 
 A **single Next.js (TypeScript) application**. The chat UI and the agent API live in
 one codebase and deploy as one unit — the browser calls the app's own `/api` routes
-(same-origin, no CORS, no separate backend to host).
+(same-origin, no CORS, no separate backend to host). The app is **English-only**, in
+both the typed and the voice paths.
 
-```
-┌───────────────────────────── Next.js app ─────────────────────────────┐
-│                                                                        │
-│  Browser (React chat UI)          Server (Route Handlers)              │
-│  • assistant-ui chat        ──▶   app/api/chat    ──▶  lib/agent.ts     │
-│  • Markdown answers                (POST)               │  LLM loop     │
-│  • structured table/chart   ◀──   { reply, ... }       ▼               │
-│  • assumptions panel                              lib/tools.ts          │
-│  • voice (Whisper + TTS)          app/api/health       │  └▶ lib/scoring.ts
-│                                    (GET)               lib/data.ts       │
-│                                                   (deterministic engine) │
-└────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    U(["Analyst — types or speaks, in English"])
+    UI["Chat UI (assistant-ui)<br/>Markdown · tables/charts · assumptions panel"]
+
+    subgraph NEXT["Single Next.js app"]
+        direction TB
+        CHAT["app/api/chat (POST)"]
+        VOICE["app/api/stt · app/api/tts<br/>speech in / read-aloud"]
+        AGENT["lib/agent.ts — model loop"]
+        TOOLS["lib/tools.ts"]
+        ENGINE["lib/scoring.ts<br/>deterministic engine"]
+        DATA["lib/data.ts → airports.json"]
+    end
+
+    OPENAI["OpenAI<br/>gpt-4o-mini · Whisper · TTS"]
+    ADSB["adsb.lol — live flights"]
+
+    U --> UI
+    UI -->|question| CHAT --> AGENT
+    UI -->|voice| VOICE --> OPENAI
+    AGENT <-->|pick a tool · explain| OPENAI
+    AGENT --> TOOLS
+    TOOLS --> ENGINE --> DATA
+    TOOLS -->|live| ADSB
+    CHAT -->|reply + numbers| UI
 ```
 
 The code is split into small layers, each with one job:

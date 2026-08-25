@@ -5,7 +5,7 @@ questions about airports in ordinary language, and it points you toward the ones
 a terminal expansion is most likely to pay off: places where demand is growing and
 starting to run into the limits of what the airport can handle.
 
-You can type or talk to it.
+You can type or talk to it. **The app is English-only** — both typing and voice.
 
 ## What you can ask
 
@@ -40,12 +40,32 @@ Keeping the numbers out of the model's hands is the point. You can open the code
 see exactly how any score was produced, rather than trusting the model to have added
 it up correctly.
 
-```
-Browser (chat UI)  ──►  /api/chat  ──►  language model picks a tool
-                                          │
-                                          ▼
-                              deterministic scoring engine
-                                     (every number)
+```mermaid
+flowchart TD
+    U(["Analyst — types or speaks, in English"])
+    UI["Chat UI (React / assistant-ui)"]
+
+    subgraph NEXT["Single Next.js app — one Vercel deploy"]
+        direction TB
+        CHAT["/api/chat"]
+        VOICE["/api/stt · /api/tts<br/>(speech in / out)"]
+        AGENT["Agent loop"]
+        TOOLS["Tools"]
+        ENGINE["Deterministic scoring engine<br/>(every number)"]
+        DATA[("airports.json<br/>BTS + OurAirports")]
+    end
+
+    OPENAI["OpenAI<br/>gpt-4o-mini · Whisper · TTS"]
+    ADSB["adsb.lol<br/>live flights"]
+
+    U --> UI
+    UI -->|question| CHAT --> AGENT
+    UI -->|voice| VOICE --> OPENAI
+    AGENT <-->|pick a tool · explain| OPENAI
+    AGENT --> TOOLS
+    TOOLS --> ENGINE --> DATA
+    TOOLS -->|live| ADSB
+    CHAT -->|reply + numbers| UI
 ```
 
 The scoring is written up in [docs/DESIGN.md](docs/DESIGN.md), and the exact
