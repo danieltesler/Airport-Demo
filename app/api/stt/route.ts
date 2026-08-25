@@ -1,0 +1,42 @@
+import OpenAI, { toFile } from "openai";
+
+// The OpenAI SDK needs the Node.js runtime.
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+// Whisper auto-detects the spoken language, so the user can talk in English or
+// Hebrew with no language toggle. whisper-1 handles Hebrew reliably (the newer
+// gpt-4o transcribe models were less accurate on Hebrew in testing).
+const MODEL = process.env.OPENAI_STT_MODEL ?? "whisper-1";
+
+/**
+ * POST /api/stt — transcribe recorded audio to text.
+ * Body: multipart/form-data with an `audio` file. Returns { text, language? }.
+ */
+export async function POST(request: Request) {
+  if (!process.env.OPENAI_API_KEY) {
+    return Response.json({ error: "OPENAI_API_KEY not set" }, { status: 503 });
+  }
+
+  let audio: File | null = null;
+  try {
+    const form = await request.formData();
+    const value = form.get("audio");
+    if (value instanceof File) audio = value;
+  } catch {
+    return Response.json({ error: "bad request" }, { status: 400 });
+  }
+  if (!audio || audio.size === 0) {
+    return Response.json({ error: "no audio" }, { status: 400 });
+  }
+
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  try {
+    const file = await toFile(audio, audio.name || "audio.webm", { type: audio.type });
+    const result = await openai.audio.transcriptions.create({ file, model: MODEL });
+    return Response.json({ text: result.text });
+  } catch (err) {
+    console.error("STT failed:", err);
+    return Response.json({ error: "transcription failed" }, { status: 502 });
+  }
+}

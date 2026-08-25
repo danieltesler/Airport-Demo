@@ -2,65 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/**
- * Minimal, module-local typings for the Web Speech `SpeechRecognition` API.
- * TypeScript's DOM lib does not ship these, and we deliberately avoid a global
- * `Window` augmentation so we don't clash with the one @assistant-ui provides.
- */
-interface SpeechAlternative {
-  readonly transcript: string;
-}
-interface SpeechResult {
-  readonly isFinal: boolean;
-  readonly length: number;
-  readonly [index: number]: SpeechAlternative;
-}
-interface SpeechResultList {
-  readonly length: number;
-  readonly [index: number]: SpeechResult;
-}
-interface SpeechRecognitionEventLike extends Event {
-  readonly resultIndex: number;
-  readonly results: SpeechResultList;
-}
-interface SpeechRecognitionErrorEventLike extends Event {
-  readonly error: string;
-}
-interface SpeechRecognitionLike extends EventTarget {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  maxAlternatives: number;
-  start(): void;
-  stop(): void;
-  abort(): void;
-  onstart: ((event: Event) => void) | null;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
-  onend: ((event: Event) => void) | null;
-}
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
-
-function getRecognitionConstructor(): SpeechRecognitionCtor | null {
-  if (typeof window === "undefined") return null;
-  const ctor = window.SpeechRecognition ?? window.webkitSpeechRecognition;
-  return (ctor as unknown as SpeechRecognitionCtor | undefined) ?? null;
-}
-
 interface UseDictationOptions {
-  /** BCP-47 recognition language, e.g. "en-US" or "he-IL". */
-  lang: string;
-  /** Live partial transcript, for showing text landing in the input. */
-  onInterim: (transcript: string) => void;
-  /** Final transcript once the user stops speaking (drives auto-send). */
+  /** Called with the transcribed text once recording stops (drives auto-send). */
   onFinal: (transcript: string) => void;
 }
 
 export interface Dictation {
-  /** SpeechRecognition is available in this browser. */
+  /** Audio recording + transcription is available in this browser. */
   supported: boolean;
-  /** Recording is in progress. */
-  isListening: boolean;
+  /** The mic is currently recording. */
+  isRecording: boolean;
+  /** Audio is being transcribed after recording stopped. */
+  isTranscribing: boolean;
   /** A short, user-facing message when dictation can't run (e.g. mic blocked). */
   error: string | null;
   start: () => void;
@@ -68,119 +21,83 @@ export interface Dictation {
 }
 
 /**
- * Wraps the Web Speech `SpeechRecognition` API for one-shot dictation.
- *
- * Recognition runs non-continuously with interim results, so it stops on its
- * own when the speaker pauses; the accumulated final transcript is delivered via
- * `onFinal` (the caller uses that to auto-send). Everything is feature-detected
- * and the recognizer is rebuilt when the language changes, so Hebrew speech is
- * recognized as Hebrew rather than silently returning nothing under en-US.
+ * Voice dictation that records audio in the browser and transcribes it with
+ * OpenAI (via /api/stt). Transcription auto-detects the spoken language, so the
+ * user can talk in English or Hebrew with no language toggle: the transcript comes
+ * back in whatever they spoke, the agent replies in that language, and read-aloud
+ * follows suit.
  */
-export function useDictation({ lang, onInterim, onFinal }: UseDictationOptions): Dictation {
+export function useDictation({ onFinal }: UseDictationOptions): Dictation {
   const [supported, setSupported] = useState(false);
-  const [isListening, setIsListening] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const finalTranscriptRef = useRef("");
-
-  // Keep the latest callbacks/lang without rebuilding the recognizer each render.
-  const onInterimRef = useRef(onInterim);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const onFinalRef = useRef(onFinal);
-  const langRef = useRef(lang);
-  onInterimRef.current = onInterim;
   onFinalRef.current = onFinal;
-  langRef.current = lang;
 
   useEffect(() => {
-    const RecognitionCtor = getRecognitionConstructor();
-    if (!RecognitionCtor) return;
+    setSupported(
+      typeof window !== "undefined" &&
+        typeof MediaRecorder !== "undefined" &&
+        Boolean(navigator.mediaDevices?.getUserMedia),
+    );
+  }, []);
 
-    const recognition = new RecognitionCtor();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-
-    recognition.onresult = (event) => {
-      let interim = "";
-      let final = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        const text = result[0]?.transcript ?? "";
-        if (result.isFinal) final += text;
-        else interim += text;
-      }
-      if (final) finalTranscriptRef.current += final;
-      onInterimRef.current((finalTranscriptRef.current + interim).trim());
-    };
-
-    // Let the recognizer itself drive the "listening" state, so the button never
-    // shows a false start (e.g. if the mic is blocked, we never flash "listening").
-    recognition.onstart = () => {
-      setError(null);
-      setIsListening(true);
-    };
-
-    recognition.onerror = (event) => {
-      setIsListening(false);
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-        setError("Microphone access is blocked. Allow it in your browser, then try again.");
-      } else if (event.error === "no-speech") {
-        setError("Didn't catch that — tap the mic and speak again.");
-      } else if (event.error !== "aborted") {
-        setError("Voice input hit a problem. Please try again.");
-      }
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-      const transcript = finalTranscriptRef.current.trim();
-      finalTranscriptRef.current = "";
-      if (transcript) onFinalRef.current(transcript);
-    };
-
-    recognitionRef.current = recognition;
-    setSupported(true);
-
-    return () => {
-      recognition.onstart = null;
-      recognition.onresult = null;
-      recognition.onerror = null;
-      recognition.onend = null;
-      recognition.abort();
-      recognitionRef.current = null;
-    };
+  const transcribe = useCallback(async (blob: Blob) => {
+    if (blob.size === 0) return;
+    setIsTranscribing(true);
+    try {
+      const form = new FormData();
+      form.append("audio", blob, "speech.webm");
+      const response = await fetch("/api/stt", { method: "POST", body: form });
+      if (!response.ok) throw new Error(`stt ${response.status}`);
+      const { text } = (await response.json()) as { text?: string };
+      const clean = (text ?? "").trim();
+      if (clean) onFinalRef.current(clean);
+    } catch {
+      setError("Couldn't transcribe that — please try again.");
+    } finally {
+      setIsTranscribing(false);
+    }
   }, []);
 
   const start = useCallback(async () => {
-    const recognition = recognitionRef.current;
-    if (!recognition || isListening) return;
+    if (isRecording) return;
+    setError(null);
 
-    // Request microphone permission up front. Without this, the very first
-    // recognition.start() is commonly aborted by the browser's permission prompt,
-    // which looks like "it starts listening then immediately stops".
-    if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((track) => track.stop());
-      } catch {
-        setError("Microphone access is blocked. Allow it in your browser, then try again.");
-        return;
-      }
-    }
-
-    finalTranscriptRef.current = "";
-    recognition.lang = langRef.current;
+    let stream: MediaStream;
     try {
-      recognition.start(); // onstart flips isListening to true
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
-      // start() throws only if already active; ignore.
+      setError("Microphone access is blocked. Allow it in your browser, then try again.");
+      return;
     }
-  }, [isListening]);
+
+    const recorder = new MediaRecorder(stream);
+    chunksRef.current = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+    recorder.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+      void transcribe(blob);
+    };
+
+    recorderRef.current = recorder;
+    recorder.start();
+    setIsRecording(true);
+  }, [isRecording, transcribe]);
 
   const stop = useCallback(() => {
-    recognitionRef.current?.stop();
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+    recorderRef.current = null;
+    setIsRecording(false);
   }, []);
 
-  return { supported, isListening, error, start, stop };
+  return { supported, isRecording, isTranscribing, error, start, stop };
 }
