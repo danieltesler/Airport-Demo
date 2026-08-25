@@ -1,31 +1,44 @@
 import type { SpeechSynthesisAdapter } from "@assistant-ui/react";
 import { stripMarkdown } from "./markdown";
 
-/** Hebrew Unicode block (ְ֐–׿). Presence of any Hebrew letter picks he-IL. */
-const HEBREW_PATTERN = /[֐-׿]/;
-
-type SpeechLang = "he-IL" | "en-US";
 type EndReason = "finished" | "cancelled" | "error";
 
 /**
- * Read-aloud adapter for assistant-ui, with two refinements over the built-in
- * one: the reply is Markdown so we strip syntax first, and the spoken language
- * is chosen per-utterance from the actual text (Hebrew → he-IL, otherwise
- * en-US) with a matching voice when the browser offers one. Everything is
- * feature-detected; if speech synthesis is unavailable the utterance ends
- * immediately instead of throwing.
+ * Read-aloud adapter for assistant-ui backed by OpenAI's neural TTS (via /api/tts),
+ * rather than the browser's robotic speechSynthesis. The reply is Markdown, so we
+ * strip the syntax, POST the plain text to /api/tts, and play the returned audio.
+ * The server picks the voice from the text's language, so Hebrew and English each
+ * get their own natural voice.
  */
 export class MarkdownSpeechSynthesisAdapter implements SpeechSynthesisAdapter {
   speak(rawText: string): SpeechSynthesisAdapter.Utterance {
     const text = stripMarkdown(rawText);
     const subscribers = new Set<() => void>();
+    let audio: HTMLAudioElement | null = null;
+    let objectUrl: string | null = null;
+
+    const cleanup = () => {
+      if (audio) {
+        audio.pause();
+        audio.src = "";
+        audio = null;
+      }
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+      }
+    };
+
+    const end = (reason: EndReason, error?: unknown) => {
+      if (result.status.type === "ended") return;
+      cleanup();
+      result.status = { type: "ended", reason, error };
+      subscribers.forEach((cb) => cb());
+    };
 
     const result: SpeechSynthesisAdapter.Utterance = {
       status: { type: "running" },
-      cancel: () => {
-        if (isSupported()) window.speechSynthesis.cancel();
-        end("cancelled");
-      },
+      cancel: () => end("cancelled"),
       subscribe: (callback) => {
         if (result.status.type === "ended") {
           queueMicrotask(callback);
@@ -38,50 +51,33 @@ export class MarkdownSpeechSynthesisAdapter implements SpeechSynthesisAdapter {
       },
     };
 
-    const end = (reason: EndReason, error?: unknown) => {
-      if (result.status.type === "ended") return;
-      result.status = { type: "ended", reason, error };
-      subscribers.forEach((callback) => callback());
-    };
-
-    if (!isSupported()) {
-      queueMicrotask(() => end("error"));
+    if (!text) {
+      queueMicrotask(() => end("finished"));
       return result;
     }
 
-    const lang = detectLanguage(text);
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-    const voice = pickVoice(lang);
-    if (voice) utterance.voice = voice;
+    void (async () => {
+      try {
+        const response = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+        if (!response.ok) throw new Error(`tts ${response.status}`);
 
-    utterance.addEventListener("end", () => end("finished"));
-    utterance.addEventListener("error", (event) => end("error", event.error));
+        const blob = await response.blob();
+        if (result.status.type === "ended") return; // cancelled while fetching
 
-    window.speechSynthesis.speak(utterance);
+        objectUrl = URL.createObjectURL(blob);
+        audio = new Audio(objectUrl);
+        audio.onended = () => end("finished");
+        audio.onerror = () => end("error");
+        await audio.play();
+      } catch (error) {
+        end("error", error);
+      }
+    })();
+
     return result;
   }
-}
-
-function isSupported(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    "speechSynthesis" in window &&
-    "SpeechSynthesisUtterance" in window
-  );
-}
-
-/** Choose the spoken language from the text itself, not a fixed default. */
-function detectLanguage(text: string): SpeechLang {
-  return HEBREW_PATTERN.test(text) ? "he-IL" : "en-US";
-}
-
-/** Prefer an exact locale match, then any voice sharing the base language. */
-function pickVoice(lang: SpeechLang): SpeechSynthesisVoice | undefined {
-  const voices = window.speechSynthesis.getVoices();
-  const base = lang.split("-")[0];
-  return (
-    voices.find((voice) => voice.lang === lang) ??
-    voices.find((voice) => voice.lang.startsWith(base))
-  );
 }
