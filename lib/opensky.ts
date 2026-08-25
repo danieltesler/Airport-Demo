@@ -8,6 +8,13 @@
  * gracefully instead of failing.
  */
 
+import dns from "node:dns";
+
+// Force IPv4-first DNS resolution. On some serverless hosts (e.g. Vercel) the default
+// IPv6-first order stalls connecting to OpenSky's auth host, surfacing as a connect
+// timeout; resolving IPv4 first avoids it. Harmless where IPv6 already works.
+dns.setDefaultResultOrder("ipv4first");
+
 const TOKEN_URL =
   "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token";
 const STATES_URL = "https://opensky-network.org/api/states/all";
