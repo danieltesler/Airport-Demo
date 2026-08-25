@@ -1,7 +1,7 @@
 # Airport Investment Intelligence Agent
 
 **Live demo:** https://airport-demo-pi.vercel.app
-**Stack:** Next.js · TypeScript · OpenAI (tool calling) · Vitest
+**Stack:** Next.js · TypeScript · OpenAI (tool calling) · assistant-ui · Vitest
 
 A chat assistant for analysts who invest in U.S. airport upgrades. You ask it questions
 about airports in ordinary language, and it points you toward the ones with the strongest
