@@ -17,7 +17,6 @@ export function Composer() {
         className={styles.composerInput}
         placeholder="Ask about airport capacity, congestion, or demand…"
         rows={1}
-        dir="auto"
       />
 
       <div className={styles.composerActions}>

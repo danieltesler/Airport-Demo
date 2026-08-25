@@ -188,11 +188,10 @@ with no key.)
   Kept out to stay clear and honest rather than pretend precision.
 - **Cloud speech (OpenAI) vs. the browser's built-in speech.** We record audio and use
   OpenAI Whisper to transcribe questions and OpenAI TTS to read answers back. *Why:* the
-  browser's speech recognition can't auto-detect language (you'd have to pick English or
-  Hebrew up front), and its voices are robotic. Whisper auto-detects the spoken language
-  and the neural voices sound natural. *Tradeoff:* a small per-use cost (fractions of a
-  cent) and a server round-trip, versus the browser's free-but-worse option. English
-  voice is strong; Hebrew read-aloud is weaker (OpenAI's Hebrew TTS), noted for later.
+  browser's built-in voices are robotic and its recognition is less accurate for accented
+  speech; Whisper transcribes well and the neural voices sound natural. *Tradeoff:* a small
+  per-use cost (fractions of a cent) and a server round-trip, versus the browser's
+  free-but-worse option.
 
 ---
 

@@ -27,9 +27,8 @@ const MAX_MS = 20000; // hard cap on a single utterance
 
 /**
  * Voice dictation that records audio in the browser, auto-stops when the speaker
- * pauses, and transcribes with OpenAI (via /api/stt). Transcription auto-detects
- * the language, so the user just talks in English or Hebrew — no toggle, and no
- * second click to send: it stops on silence and the transcript auto-sends.
+ * pauses, and transcribes with OpenAI (via /api/stt). No second click to send: it
+ * stops on silence and the transcript auto-sends.
  */
 export function useDictation({ onFinal }: UseDictationOptions): Dictation {
   const [supported, setSupported] = useState(false);

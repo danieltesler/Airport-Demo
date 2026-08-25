@@ -1,22 +1,16 @@
 import OpenAI from "openai";
-import { detectLang } from "@/lib/i18n";
 
 // The OpenAI SDK needs the Node.js runtime.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MODEL = process.env.OPENAI_TTS_MODEL ?? "gpt-4o-mini-tts";
-// Two natural voices, chosen per the reply's language. Override via env if desired.
-const VOICE: Record<"en" | "he", string> = {
-  en: process.env.OPENAI_TTS_VOICE_EN ?? "nova",
-  he: process.env.OPENAI_TTS_VOICE_HE ?? "shimmer",
-};
+const VOICE = process.env.OPENAI_TTS_VOICE ?? "nova"; // natural English voice
 const MAX_CHARS = 4000; // safety cap on how much text we read aloud
 
 /**
  * Turn text into natural speech with OpenAI TTS, streaming the audio back so the
- * browser can start playing within ~1s instead of waiting for the whole clip. The
- * voice is chosen from the text's language, so read-aloud stays bilingual.
+ * browser can start playing within ~1s instead of waiting for the whole clip.
  *
  * GET  /api/tts?text=...   (used by <audio src> for native progressive playback)
  * POST /api/tts { text }
@@ -25,7 +19,7 @@ async function synthesize(text: string): Promise<Response> {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const speech = await openai.audio.speech.create({
     model: MODEL,
-    voice: VOICE[detectLang(text)],
+    voice: VOICE,
     input: text.slice(0, MAX_CHARS),
   });
   return new Response(speech.body, {

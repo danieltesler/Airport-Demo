@@ -7,8 +7,7 @@ import styles from "./chat.module.css";
 
 /**
  * Mic dictation for the composer. Records audio and transcribes it via OpenAI
- * (/api/stt), which auto-detects the spoken language — so the user just talks in
- * English or Hebrew with no language toggle. Tap to start, tap to stop; the
+ * (/api/stt). Tap to start; it auto-stops when you pause (or tap to stop), and the
  * transcript then auto-sends. Hidden where audio recording isn't available.
  */
 export function VoiceInput() {
@@ -28,7 +27,7 @@ export function VoiceInput() {
       <button
         type="button"
         className={dictation.isRecording ? styles.micActive : styles.iconButton}
-        aria-label={dictation.isRecording ? "Stop recording" : "Speak (English or Hebrew)"}
+        aria-label={dictation.isRecording ? "Stop recording" : "Speak your question"}
         aria-pressed={dictation.isRecording}
         disabled={dictation.isTranscribing}
         onClick={() => (dictation.isRecording ? dictation.stop() : dictation.start())}

@@ -35,8 +35,6 @@ export interface StructuredResult {
 export interface ResponseMeta {
   tools_used?: string[];
   data_vintage?: string;
-  /** Language the deterministic strings were localized to (matches the user's). */
-  lang?: "en" | "he";
 }
 
 /** Response body for POST /api/chat. `reply` is the only guaranteed field. */

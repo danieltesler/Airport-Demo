@@ -5,7 +5,7 @@ questions about airports in ordinary language, and it points you toward the ones
 a terminal expansion is most likely to pay off: places where demand is growing and
 starting to run into the limits of what the airport can handle.
 
-You can type or talk to it, in English or Hebrew.
+You can type or talk to it.
 
 ## What you can ask
 
@@ -74,11 +74,10 @@ npm run build:data  # rebuild data/airports.json from the public sources
 
 ## Voice
 
-Tap the mic and just talk — in English or Hebrew, no toggle. It records your voice,
-transcribes it with OpenAI Whisper (which auto-detects the language), and sends the
-message. The agent replies in whatever language you spoke, and each answer has a
-"Read aloud" button that speaks it back with a natural OpenAI voice (English and
-Hebrew each get their own). Recording needs a browser with microphone support.
+Tap the mic and just talk. It records your voice, transcribes it with OpenAI Whisper,
+and sends the message; it auto-stops when you pause, so there's no second click. Each
+answer also has a "Read aloud" button that speaks it back with a natural OpenAI voice.
+Recording needs a browser with microphone support.
 
 ## Deploying
 
@@ -108,11 +107,11 @@ lib/
   scoring.ts            the deterministic scoring engine
   data.ts               access to the bundled dataset
   liveflights.ts        live ADS-B client (adsb.lol) for the "flights right now" tool
-  i18n.ts               English / Hebrew strings for the code-owned text
+  i18n.ts               the code-owned assumption and label text
   chatModelAdapter.ts   connects assistant-ui to /api/chat
-  speechAdapters.ts     read-aloud via OpenAI TTS (voice per language)
+  speechAdapters.ts     read-aloud via OpenAI TTS
 hooks/
-  useDictation.ts       records audio and transcribes it (Whisper, auto-detects language)
+  useDictation.ts       records audio and transcribes it (Whisper), auto-stop on silence
 scripts/
   build-dataset.mjs     rebuilds the dataset from OurAirports + the BTS ArcGIS API
 data/airports.json      the airport dataset the script produces

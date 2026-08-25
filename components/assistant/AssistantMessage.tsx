@@ -6,7 +6,6 @@ import {
   useAuiState,
 } from "@assistant-ui/react";
 import type { AssistantExtras } from "@/lib/types";
-import { dirFor } from "@/lib/i18n";
 import { StructuredResult } from "@/components/StructuredResult";
 import { AssumptionsPanel } from "@/components/AssumptionsPanel";
 import { useSpeechSupport } from "@/hooks/useSpeechSupport";
@@ -25,7 +24,6 @@ import styles from "./chat.module.css";
 export function AssistantMessage() {
   const extras = useExtras();
   const hasText = useHasText();
-  const text = useMessageText();
   const { synthesis } = useSpeechSupport();
 
   return (
@@ -34,7 +32,7 @@ export function AssistantMessage() {
         ✦
       </span>
 
-      <div className={styles.assistantBody} dir={dirFor(text)}>
+      <div className={styles.assistantBody}>
         <div className={styles.assistantBubble}>
           <MessagePrimitive.Parts
             components={{ Text: MarkdownText, Empty: TypingIndicator }}
@@ -93,11 +91,3 @@ function useHasText(): boolean {
   );
 }
 
-/** The reply's combined text, used to choose its display direction (RTL/LTR). */
-function useMessageText(): string {
-  return useAuiState((state) =>
-    state.message.content
-      .map((part) => (part.type === "text" ? part.text : ""))
-      .join("")
-  );
-}

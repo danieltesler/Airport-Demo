@@ -4,19 +4,16 @@ import OpenAI, { toFile } from "openai";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Whisper auto-detects the spoken language, so the user can talk in English or
-// Hebrew with no language toggle. whisper-1 handles Hebrew reliably (the newer
-// gpt-4o transcribe models were less accurate on Hebrew in testing).
 const MODEL = process.env.OPENAI_STT_MODEL ?? "whisper-1";
 
 // A vocabulary hint biases the transcription toward airport terms and names, which
 // greatly improves accuracy for accented speech (e.g. "congestion levels" instead of
-// "kon sain levels"). Kept bilingual so it helps English and Hebrew alike.
+// "kon sain levels").
 const DOMAIN_PROMPT =
   "Aviation and U.S. airports. Likely terms: compare, congestion, expansion, terminal, " +
   "unmet demand, long-haul, load factor, passengers, runways, capacity. Airports: LAX, " +
   "SFO, SNA, Santa Ana, John Wayne, ANC, Anchorage, BOS, Boston, Logan, JFK, New England, " +
-  "Providence, Hartford. עברית: השווה, עומס, הרחבת טרמינל, ביקוש שאינו נענה, טיסות ארוכות טווח, נמל תעופה.";
+  "Providence, Hartford.";
 
 /**
  * POST /api/stt — transcribe recorded audio to text.
@@ -45,6 +42,7 @@ export async function POST(request: Request) {
     const result = await openai.audio.transcriptions.create({
       file,
       model: MODEL,
+      language: "en", // English-only app: transcribe as English
       prompt: DOMAIN_PROMPT,
     });
     return Response.json({ text: result.text });

@@ -7,8 +7,7 @@ type EndReason = "finished" | "cancelled" | "error";
  * Read-aloud adapter for assistant-ui backed by OpenAI's neural TTS (via /api/tts).
  * It points an <audio> element at the streaming GET endpoint, so the browser plays
  * the speech progressively as it arrives (starts in about a second) instead of
- * waiting for the whole clip. The server picks the voice from the text's language,
- * so Hebrew and English each get their own natural voice.
+ * waiting for the whole clip.
  */
 export class MarkdownSpeechSynthesisAdapter implements SpeechSynthesisAdapter {
   speak(rawText: string): SpeechSynthesisAdapter.Utterance {

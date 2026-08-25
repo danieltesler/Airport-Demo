@@ -18,7 +18,7 @@
  */
 
 import type { Airport } from "./data";
-import { ASSUMPTIONS, UNCERTAINTY, type Lang } from "./i18n";
+import { ASSUMPTIONS, UNCERTAINTY } from "./i18n";
 
 // --------------------------------------------------------------------------- //
 // Reference scales — the anchors that turn raw metrics into 0-1 components.
@@ -87,7 +87,7 @@ export const CONGESTION_WEIGHTS: Record<string, number> = {
   load_pressure: 0.2,
 };
 
-export function congestionScore(a: Airport, lang: Lang = "en"): ScoreResult {
+export function congestionScore(a: Airport): ScoreResult {
   const components = {
     delayed_share: normalize(a.delayed_share, FULL_CONGESTION_DELAYED_SHARE),
     avg_delay: normalize(a.avg_dep_delay_min, FULL_CONGESTION_DELAY_MIN),
@@ -103,8 +103,8 @@ export function congestionScore(a: Airport, lang: Lang = "en"): ScoreResult {
   return {
     score,
     components,
-    assumptions: ASSUMPTIONS.congestion[lang],
-    uncertainty: UNCERTAINTY.congestion[lang],
+    assumptions: ASSUMPTIONS.congestion,
+    uncertainty: UNCERTAINTY.congestion,
   };
 }
 
@@ -139,8 +139,8 @@ export function growthVsCapacity(a: Airport): number {
   return clamp(0.6 * growth + 0.4 * runwayPressure);
 }
 
-export function unmetDemandScore(a: Airport, lang: Lang = "en"): ScoreResult {
-  const congestion = congestionScore(a, lang).score / 100;
+export function unmetDemandScore(a: Airport): ScoreResult {
+  const congestion = congestionScore(a).score / 100;
   const components = {
     load_pressure: loadFactorPressure(a.load_factor),
     congestion,
@@ -155,8 +155,8 @@ export function unmetDemandScore(a: Airport, lang: Lang = "en"): ScoreResult {
   return {
     score,
     components,
-    assumptions: ASSUMPTIONS.unmet[lang],
-    uncertainty: UNCERTAINTY.unmet[lang],
+    assumptions: ASSUMPTIONS.unmet,
+    uncertainty: UNCERTAINTY.unmet,
   };
 }
 
@@ -171,10 +171,10 @@ export const EXPANSION_WEIGHTS: Record<string, number> = {
   volume_upside: 0.15, // scale of passengers who benefit
 };
 
-export function expansionScore(a: Airport, lang: Lang = "en"): ScoreResult {
+export function expansionScore(a: Airport): ScoreResult {
   const components = {
     demand_growth: normalize(a.pax_growth_yoy, STRONG_GROWTH_YOY),
-    congestion: congestionScore(a, lang).score / 100,
+    congestion: congestionScore(a).score / 100,
     load_pressure: loadFactorPressure(a.load_factor),
     volume_upside: normalize(a.annual_passengers, LARGE_AIRPORT_PAX),
   };
@@ -187,13 +187,13 @@ export function expansionScore(a: Airport, lang: Lang = "en"): ScoreResult {
   return {
     score,
     components,
-    assumptions: ASSUMPTIONS.expansion[lang],
-    uncertainty: UNCERTAINTY.expansion[lang],
+    assumptions: ASSUMPTIONS.expansion,
+    uncertainty: UNCERTAINTY.expansion,
   };
 }
 
 /** Registry so tools can look up a scorer by name. */
-export type Scorer = (a: Airport, lang?: Lang) => ScoreResult;
+export type Scorer = (a: Airport) => ScoreResult;
 
 export const METRIC_SCORERS: Record<MetricKey, Scorer> = {
   congestion: congestionScore,

@@ -1,5 +1,5 @@
 import type { ResponseMeta } from "@/lib/types";
-import { PANEL_LABELS, type Lang } from "@/lib/i18n";
+import { PANEL_LABELS } from "@/lib/i18n";
 import styles from "./AssumptionsPanel.module.css";
 
 interface AssumptionsPanelProps {
@@ -10,9 +10,8 @@ interface AssumptionsPanelProps {
 
 /**
  * Subtle, visually distinct panel that surfaces the agent's assumptions,
- * uncertainty, and provenance. It is always shown when any of these are present,
- * and follows the answer's language (labels and direction switch to Hebrew when
- * the conversation is in Hebrew).
+ * uncertainty, and provenance. It only appears when real analysis ran (a tool call),
+ * so greetings and small talk don't drag in a data-vintage panel.
  */
 export function AssumptionsPanel({
   assumptions,
@@ -21,33 +20,24 @@ export function AssumptionsPanel({
 }: AssumptionsPanelProps) {
   const hasAssumptions = !!assumptions && assumptions.length > 0;
   const hasUncertainty = !!uncertainty && uncertainty.trim().length > 0;
-  // Only real analysis (a tool call) shows the panel. Data vintage is always present,
-  // so it must NOT, by itself, surface the panel on a greeting or small-talk reply.
   const usedTools = (meta?.tools_used?.length ?? 0) > 0;
 
   if (!hasAssumptions && !hasUncertainty && !usedTools) return null;
 
-  const hasMeta = usedTools && (!!meta?.data_vintage || (meta?.tools_used?.length ?? 0) > 0);
-
-  const lang: Lang = meta?.lang === "he" ? "he" : "en";
-  const t = (key: keyof typeof PANEL_LABELS) => PANEL_LABELS[key][lang];
+  const hasMeta = usedTools && !!meta?.data_vintage;
 
   return (
-    <aside
-      className={styles.panel}
-      aria-label={t("title")}
-      dir={lang === "he" ? "rtl" : "ltr"}
-    >
+    <aside className={styles.panel} aria-label={PANEL_LABELS.title}>
       <div className={styles.head}>
         <span className={styles.icon} aria-hidden="true">
           ⚑
         </span>
-        {t("title")}
+        {PANEL_LABELS.title}
       </div>
 
       {hasAssumptions && (
         <div className={styles.block}>
-          <div className={styles.blockLabel}>{t("assumptions")}</div>
+          <div className={styles.blockLabel}>{PANEL_LABELS.assumptions}</div>
           <ul className={styles.list}>
             {assumptions!.map((item, i) => (
               <li key={i}>{item}</li>
@@ -58,21 +48,21 @@ export function AssumptionsPanel({
 
       {hasUncertainty && (
         <div className={styles.block}>
-          <div className={styles.blockLabel}>{t("uncertainty")}</div>
+          <div className={styles.blockLabel}>{PANEL_LABELS.uncertainty}</div>
           <p className={styles.uncertainty}>{uncertainty}</p>
         </div>
       )}
 
-      {hasMeta && (
+      {(hasMeta || usedTools) && (
         <div className={styles.metaRow}>
-          {meta!.data_vintage && (
+          {meta?.data_vintage && (
             <span className={styles.metaItem}>
-              {t("dataVintage")}: {meta!.data_vintage}
+              {PANEL_LABELS.dataVintage}: {meta.data_vintage}
             </span>
           )}
-          {meta!.tools_used && meta!.tools_used.length > 0 && (
+          {meta?.tools_used && meta.tools_used.length > 0 && (
             <span className={styles.metaItem}>
-              {t("tools")}: {meta!.tools_used.join(", ")}
+              {PANEL_LABELS.tools}: {meta.tools_used.join(", ")}
             </span>
           )}
         </div>

@@ -17,7 +17,6 @@
 
 import OpenAI from "openai";
 import { dataVintage } from "./data";
-import { detectLang } from "./i18n";
 import { TOOL_SCHEMAS, runTool } from "./tools";
 import type { ChatResponse, ChatTurn, StructuredResult } from "./types";
 
@@ -57,9 +56,7 @@ real-world percentage.
 - Be explicit about assumptions, uncertainty, and scope. The scoring is a demand-side \
 proxy on a curated public-data snapshot — never overclaim precision.
 - Support natural follow-up questions using the conversation so far.
-- Reply in the SAME language the analyst writes in: if they ask in Hebrew, answer \
-entirely in Hebrew (prose, headings, and explanations); if in English, answer in \
-English. Keep airport codes (e.g. BOS, SFO) as-is.
+- Always reply in English.
 
 Formatting: reply in concise Markdown. Use short paragraphs and, where helpful, a \
 compact list. Do not paste large tables in your text — the UI renders the structured \
@@ -86,8 +83,6 @@ function toMessages(history: ChatTurn[], message: string): ChatMessage[] {
 export async function runAgent(message: string, history: ChatTurn[] = []): Promise<ChatResponse> {
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const messages = toMessages(history, message);
-  // The deterministic assumptions/uncertainty are localized to the user's language.
-  const lang = detectLang(message);
 
   // Accumulators for the deterministic transparency layer.
   let structured: StructuredResult | null = null;
@@ -129,7 +124,7 @@ export async function runAgent(message: string, history: ChatTurn[] = []): Promi
       } catch {
         args = {};
       }
-      const output = await runTool(call.function.name, args, lang);
+      const output = await runTool(call.function.name, args);
 
       if (output.structured != null) structured = output.structured;
       for (const a of output.assumptions ?? []) remember(assumptions, a);
@@ -151,7 +146,6 @@ export async function runAgent(message: string, history: ChatTurn[] = []): Promi
     meta: {
       tools_used: [...new Set(toolsUsed)],
       data_vintage: dataVintage(),
-      lang,
     },
   };
 }
