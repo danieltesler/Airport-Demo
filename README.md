@@ -42,8 +42,8 @@ it up correctly.
 
 ```mermaid
 flowchart TD
-    U(["Analyst — types or speaks, in English"])
-    UI["Chat UI (React / assistant-ui)"]
+    U(["Analyst<br/>types or speaks · English"])
+    UI["Chat UI<br/>React / assistant-ui"]
 
     subgraph NEXT["Single Next.js app — one Vercel deploy"]
         direction TB

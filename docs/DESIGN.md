@@ -36,7 +36,7 @@ both the typed and the voice paths.
 
 ```mermaid
 flowchart TD
-    U(["Analyst — types or speaks, in English"])
+    U(["Analyst<br/>types or speaks · English"])
     UI["Chat UI (assistant-ui)<br/>Markdown · tables/charts · assumptions panel"]
 
     subgraph NEXT["Single Next.js app"]
