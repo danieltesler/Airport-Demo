@@ -120,17 +120,22 @@ data/airports.json      the airport dataset the script produces
 docs/                   the design doc and the API contract
 ```
 
-## The data
+## Where the data comes from
 
-A small script (`npm run build:data`) builds the dataset from public sources: airport
-reference details (names, states, coordinates, runways) from OurAirports, and the real
-2024 passenger and departure numbers from BTS T-100 Domestic, pulled through the USDOT's
-ArcGIS API. A few fields the public APIs don't expose per airport — load factor, delays,
-haul mix, and year-over-year growth — are representative estimates, and the dataset flags
-them as such. The app reads the prepared file rather than hitting those sources on every
-request (they update yearly at most). There's also a live source: ask about current
-flight activity near an airport and it calls a live community ADS-B API (adsb.lol) in
-real time. Nothing here costs money except the OpenAI calls.
+| Source | What it provides | Real or estimated |
+|---|---|---|
+| **BTS T-100 Domestic** (USDOT ArcGIS API) | passengers and departures per airport (2024, domestic) | real |
+| **OurAirports** | name, city, state, coordinates, runways | real |
+| **adsb.lol** | live aircraft near an airport, on request | real, live |
+| *(no free API for these)* | load factor, delays, haul mix, year-over-year growth | estimated |
+
+The first two are fetched by `npm run build:data` and written into `data/airports.json`,
+which the app reads (those numbers change yearly at most). **adsb.lol** is called live,
+only when you ask about current flights. The estimated fields are marked as such in the
+dataset. One caveat: the BTS figures are domestic-only, so international traffic isn't
+counted yet.
+
+The only thing that costs anything to run is the OpenAI calls — no other keys needed.
 
 ## What it doesn't do
 
