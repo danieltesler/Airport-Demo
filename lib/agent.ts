@@ -46,7 +46,8 @@ in plain text WITHOUT calling any tool (so no analysis is attached to a non-answ
 candidates" or ranking question (metric='expansion' for expansion candidates) — always \
 rank and show the scores, never answer such a question with a bare list. Use \
 compare_airports for head-to-head questions, long_haul_breakdown for haul-mix questions, \
-unmet_demand for demand-gap questions, airport_profile for a single-airport deep dive.
+unmet_demand for demand-gap questions, airport_profile for a single-airport deep dive, \
+live_flights for real-time / right-now flight activity near an airport (live ADS-B data).
 - Explain your reasoning clearly and concisely: state the headline answer first, then \
 the key drivers behind the score in plain English. Composite scores are on a 0-100 \
 scale; the tool results also include the REAL underlying metrics (delay in minutes, \
@@ -128,7 +129,7 @@ export async function runAgent(message: string, history: ChatTurn[] = []): Promi
       } catch {
         args = {};
       }
-      const output = runTool(call.function.name, args, lang);
+      const output = await runTool(call.function.name, args, lang);
 
       if (output.structured != null) structured = output.structured;
       for (const a of output.assumptions ?? []) remember(assumptions, a);

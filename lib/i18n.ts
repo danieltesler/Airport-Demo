@@ -141,6 +141,33 @@ export function haulAssumptions(
   ];
 }
 
+/** Assumptions and caveat for the live OpenSky flights tool. */
+export function liveFlightsAssumptions(lang: Lang): string[] {
+  if (lang === "he") {
+    return [
+      "המיקומים בזמן אמת מגיעים מרשת OpenSky (ADS-B בשיתוף הקהילה), ונלכדו בתוך תיבה " +
+        "ברדיוס של כ-40 מייל סביב הנמל ברגע השאלה.",
+      "הכיסוי תלוי בקולטנים סמוכים, ולכן הספירה היא חסם תחתון לתנועה בפועל; מטוסים על " +
+        "הקרקע נספרים בנפרד.",
+    ];
+  }
+  return [
+    "Live positions come from the OpenSky Network (crowd-sourced ADS-B), captured " +
+      "within a ~40-mile box around the airport at the moment you asked.",
+    "Coverage depends on nearby receivers, so the count is a lower bound on real " +
+      "traffic; aircraft on the ground are counted separately.",
+  ];
+}
+
+export const LIVE_FLIGHTS_UNCERTAINTY: Bi = {
+  en:
+    "This is a real-time snapshot, not a schedule — the numbers change minute to " +
+    "minute, and low-altitude or non-ADS-B aircraft may be missed.",
+  he:
+    "זהו תצלום מצב בזמן אמת, לא לוח זמנים — המספרים משתנים מדקה לדקה, ומטוסים בגובה " +
+    "נמוך או ללא ADS-B עלולים להישמט.",
+};
+
 /** UI labels for the assumptions & uncertainty panel. */
 export const PANEL_LABELS = {
   title: { en: "Assumptions & uncertainty", he: "הנחות ואי-ודאות" },

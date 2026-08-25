@@ -17,8 +17,8 @@ It was built around four questions to start with:
 - What's the unmet demand at SFO, and why?
 
 It isn't limited to those, though. You can rank any region or state, compare any
-airports side by side, pull up a single airport's full profile, or just follow up on
-a previous answer. When an answer is backed by data it comes with the numbers in a
+airports side by side, pull up a single airport's full profile, check how many flights
+are in the air near an airport right now, or just follow up on a previous answer. When an answer is backed by data it comes with the numbers in a
 small table (and a bar chart where that helps), along with a short note on the
 assumptions behind the score and where the data came from.
 
@@ -69,6 +69,7 @@ A few other scripts:
 npm run build       # production build
 npm run test        # unit tests for the scoring engine and tools
 npm run typecheck   # type-check only
+npm run build:data  # rebuild data/airports.json from the public sources
 ```
 
 ## Voice
@@ -84,8 +85,12 @@ no extra keys, and the controls simply don't appear on browsers that don't suppo
 
 Since it's just a Next.js app, Vercel is the easy path: import the repo, add
 `OPENAI_API_KEY` to the project's environment variables, and deploy. There's nothing
-else to configure. The key lives in the environment and never goes into the repo
+else to configure. Keys live in the environment and never go into the repo
 (`.env.local` is git-ignored).
+
+The live-flights tool is optional. If you want it, add `OPENSKY_CLIENT_ID` and
+`OPENSKY_CLIENT_SECRET` too (free from OpenSky). Without them everything else works and
+that one feature just reports that it's unavailable.
 
 ## Project layout
 
@@ -104,23 +109,29 @@ lib/
   tools.ts              the tools the model can call
   scoring.ts            the deterministic scoring engine
   data.ts               access to the bundled dataset
+  opensky.ts            live OpenSky client for the "flights right now" tool
   i18n.ts               English / Hebrew strings for the code-owned text
   chatModelAdapter.ts   connects assistant-ui to /api/chat
   speechAdapters.ts     read-aloud (language-aware)
 hooks/
   useDictation.ts       mic dictation with the EN/Hebrew toggle
-data/airports.json      the curated airport dataset
+scripts/
+  build-dataset.mjs     rebuilds the dataset from OurAirports + the BTS ArcGIS API
+data/airports.json      the airport dataset the script produces
 docs/                   the design doc and the API contract
 ```
 
 ## The data
 
-The airport figures are a curated snapshot of public data: passengers, seats, and
-flights from the BTS T-100 tables, delays and cancellations from BTS On-Time
-Performance, and airport reference details (names, states, runways) from OurAirports.
-BTS doesn't publish a live API, so the snapshot is bundled with the app; the design
-doc covers how you'd wire up an automated refresh down the line. Nothing here costs
-money to run except the OpenAI calls.
+A small script (`npm run build:data`) builds the dataset from public sources: airport
+reference details (names, states, coordinates, runways) from OurAirports, and the real
+2024 passenger and departure numbers from BTS T-100 Domestic, pulled through the USDOT's
+ArcGIS API. A few fields the public APIs don't expose per airport — load factor, delays,
+haul mix, and year-over-year growth — are representative estimates, and the dataset flags
+them as such. The app reads the prepared file rather than hitting those sources on every
+request (they update yearly at most). There's also a live source: ask about current
+flight activity near an airport and it calls the OpenSky API in real time. Nothing here
+costs money except the OpenAI calls (and OpenSky, which is free).
 
 ## What it doesn't do
 

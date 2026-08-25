@@ -32,8 +32,8 @@ export const LOAD_FACTOR_FLOOR = 0.7; // below this, seats are not a constraint
 export const LOAD_FACTOR_CEILING = 0.9; // at/above this, effectively sold out
 
 export const STRONG_GROWTH_YOY = 0.1; // 10% YoY growth = maximal demand signal
-export const LARGE_AIRPORT_PAX = 50_000_000; // passengers at which volume upside maxes out
-export const HIGH_THROUGHPUT_PER_RUNWAY = 60_000; // departures/runway treated as runway-constrained
+export const LARGE_AIRPORT_PAX = 30_000_000; // domestic enplaned passengers where volume upside maxes out
+export const HIGH_THROUGHPUT_PER_RUNWAY = 85_000; // departures/runway treated as runway-constrained
 
 export function clamp(value: number, low = 0, high = 1): number {
   return Math.max(low, Math.min(high, value));

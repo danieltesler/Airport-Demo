@@ -22,7 +22,8 @@ questions like:
 | What is the unmet flight demand at SFO, and why? | `unmet_demand("SFO")` |
 
 Every answer shows the natural-language explanation, a structured table/chart, and
-an **assumptions & uncertainty** panel.
+an **assumptions & uncertainty** panel. It can also pull live data on request — asking
+"how many flights are in the air near SFO right now" calls the OpenSky API in real time.
 
 ---
 
@@ -90,9 +91,9 @@ comparable:
 
 ### 3.2 Long-haul mix
 
-Not a score but a factual breakdown: share of **departures** by great-circle
-distance — short (<1,100 mi), medium (1,100–2,200), long (>2,200) — from T-100
-segment distances.
+Not a score but a breakdown: share of **departures** by great-circle distance —
+short (<1,100 mi), medium (1,100–2,200), long (>2,200). These shares are estimates
+(see §5 on data sources).
 
 ### 3.3 Unmet-demand proxy (0–100)
 
@@ -139,17 +140,26 @@ place. The loop is also capped (`MAX_AGENT_STEPS`) so it can't run away.
 
 ## 5. Data sources
 
-| Layer | Source | Access |
-|---|---|---|
-| Reference / geo (name, IATA/ICAO, state, coords, runways) | **OurAirports** | Public-domain CSV, no key |
-| Traffic, seats, distance, load factor, haul mix | **BTS T-100 Segment** | Free, download-only (no API) |
-| Delays, cancellations | **BTS On-Time Performance** | Free, download-only (no API) |
+The dataset is built by a script (`scripts/build-dataset.mjs`, run with
+`npm run build:data`) that pulls from public sources and writes `data/airports.json`.
+The app then reads that file — it doesn't hit these sources on every request, which
+would be pointless since the underlying data updates at most yearly.
 
-Because BTS has **no live API** (bulk CSV only), the app ships a **curated snapshot**
-(`data/airports.json`, ~28 major + mid-size airports) so it runs offline, free, and
-key-free. It's a deliberate tradeoff: the snapshot documents the exact BTS tables it
-is compiled from, and the path to a full automated ingest (download → aggregate per
-airport/year) is straightforward.
+| Field | Source | How |
+|---|---|---|
+| Name, city, state, coordinates, runways | **OurAirports** (public domain) | fetched live by the build script |
+| Passengers and departures (2024, domestic) | **BTS T-100 Domestic** via the USDOT NTAD **ArcGIS API** | a real queryable JSON API — no download |
+| Load factor, delays, cancellations, haul mix, YoY growth | representative **estimates** | no free per-airport API exposes these |
+
+So the passenger and departure numbers are the real 2024 figures, and the reference
+details are real; the rest are honest estimates, flagged as such in the dataset's
+metadata. The one caveat worth stating: the ArcGIS layer is **domestic** T-100, so
+passenger counts don't include international traffic (an international-heavy hub like
+SFO looks smaller than its true total). Getting seats, per-segment distance, and
+delays would mean parsing BTS's multi-gigabyte bulk files, which wasn't worth it here.
+
+There's also a **live** source: the OpenSky Network REST API, called at request time
+by the `live_flights` tool for "what's in the air near this airport right now."
 
 ---
 
@@ -196,9 +206,11 @@ These are surfaced to the user on every answer, not buried here.
 
 ## 8. Where I'd take it next
 
-- Full automated BTS ingestion with multi-year trends (real growth, seasonality).
+- Multi-year BTS trends so growth and seasonality come from real data, not an estimate
+  (the current build uses a single year).
+- International T-100 and the On-Time delay tables, so passenger totals and delays are
+  real too, not just the domestic figures and estimated delays.
 - FAA ASPM demand-vs-capacity ratios for a stronger congestion/unmet signal.
-- A live OpenSky "flights right now" panel for real-time flavor.
-- Cost side of the investment case (capex, gate/land constraints) to turn the
+- The cost side of the investment case (capex, gate/land constraints) to turn the
   demand score into a true ROI ranking.
 - A small map view using the coordinates already in the dataset.

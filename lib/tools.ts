@@ -23,7 +23,14 @@ import {
   roundResult,
   type MetricKey,
 } from "./scoring";
-import { ASSUMPTIONS, haulAssumptions, type Lang } from "./i18n";
+import {
+  ASSUMPTIONS,
+  haulAssumptions,
+  liveFlightsAssumptions,
+  LIVE_FLIGHTS_UNCERTAINTY,
+  type Lang,
+} from "./i18n";
+import { flightsNearAirport, isOpenSkyConfigured } from "./opensky";
 import type { StructuredResult } from "./types";
 
 export interface ToolOutput {
@@ -232,11 +239,60 @@ export function unmetDemand(iata: string, lang: Lang = "en"): ToolOutput {
   };
 }
 
+export async function liveFlights(iata: string, lang: Lang = "en"): Promise<ToolOutput> {
+  const a = data.getAirport(iata);
+  if (!a) return unknown(iata);
+
+  if (!isOpenSkyConfigured()) {
+    return {
+      result: {
+        iata: a.iata,
+        available: false,
+        message:
+          "Live flight data isn't configured (OpenSky credentials are missing), so " +
+          "real-time counts aren't available right now.",
+      },
+    };
+  }
+
+  try {
+    const live = await flightsNearAirport(a.lat, a.lon);
+    const columns = ["Live activity (now)", "Count"];
+    const rows = [
+      ["Airborne nearby", live.airborne],
+      ["On the ground", live.onGround],
+      ["Total in area", live.total],
+    ];
+    return {
+      result: {
+        iata: a.iata,
+        name: a.name,
+        available: true,
+        airborne_nearby: live.airborne,
+        on_ground: live.onGround,
+        total_in_area: live.total,
+        sample_callsigns: live.sample.map((f) => f.callsign),
+      },
+      structured: { kind: "metric", columns, rows },
+      assumptions: liveFlightsAssumptions(lang),
+      uncertainty: LIVE_FLIGHTS_UNCERTAINTY[lang],
+    };
+  } catch (err) {
+    return {
+      result: {
+        iata: a.iata,
+        available: false,
+        message: `Couldn't reach the live flight feed: ${(err as Error).message}`,
+      },
+    };
+  }
+}
+
 // --------------------------------------------------------------------------- //
 // Dispatch + schemas
 // --------------------------------------------------------------------------- //
 
-type ToolFn = (args: Record<string, unknown>, lang: Lang) => ToolOutput;
+type ToolFn = (args: Record<string, unknown>, lang: Lang) => ToolOutput | Promise<ToolOutput>;
 
 const DISPATCH: Record<string, ToolFn> = {
   airport_profile: (a, lang) => airportProfile(a.iata as string, lang),
@@ -245,14 +301,19 @@ const DISPATCH: Record<string, ToolFn> = {
   compare_airports: (a, lang) => compareAirports((a.iatas as string[]) ?? [], (a.metric as MetricKey) ?? "congestion", lang),
   long_haul_breakdown: (a, lang) => longHaulBreakdown(a.iata as string, lang),
   unmet_demand: (a, lang) => unmetDemand(a.iata as string, lang),
+  live_flights: (a, lang) => liveFlights(a.iata as string, lang),
 };
 
 /** Execute a tool by name with the LLM-supplied arguments, in the given language. */
-export function runTool(name: string, input: Record<string, unknown>, lang: Lang = "en"): ToolOutput {
+export async function runTool(
+  name: string,
+  input: Record<string, unknown>,
+  lang: Lang = "en",
+): Promise<ToolOutput> {
   const fn = DISPATCH[name];
   if (!fn) return { result: { error: `Unknown tool '${name}'.` } };
   try {
-    return fn(input ?? {}, lang);
+    return await fn(input ?? {}, lang);
   } catch (err) {
     return { result: { error: `Bad arguments for '${name}': ${(err as Error).message}` } };
   }
@@ -323,6 +384,18 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
     description:
       "Estimate unmet flight demand for one airport by IATA code, with the drivers behind " +
       "it. Use for 'unmet demand at X and why'.",
+    input_schema: {
+      type: "object",
+      properties: { iata: { type: "string" } },
+      required: ["iata"],
+    },
+  },
+  {
+    name: "live_flights",
+    description:
+      "Real-time count of aircraft in the air right now near an airport (by IATA code), " +
+      "from live ADS-B data. Use ONLY for questions about current / live / right-now " +
+      "flight activity — not for historical traffic, rankings, or scores.",
     input_schema: {
       type: "object",
       properties: { iata: { type: "string" } },
