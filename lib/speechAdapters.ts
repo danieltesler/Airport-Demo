@@ -4,34 +4,25 @@ import { stripMarkdown } from "./markdown";
 type EndReason = "finished" | "cancelled" | "error";
 
 /**
- * Read-aloud adapter for assistant-ui backed by OpenAI's neural TTS (via /api/tts),
- * rather than the browser's robotic speechSynthesis. The reply is Markdown, so we
- * strip the syntax, POST the plain text to /api/tts, and play the returned audio.
- * The server picks the voice from the text's language, so Hebrew and English each
- * get their own natural voice.
+ * Read-aloud adapter for assistant-ui backed by OpenAI's neural TTS (via /api/tts).
+ * It points an <audio> element at the streaming GET endpoint, so the browser plays
+ * the speech progressively as it arrives (starts in about a second) instead of
+ * waiting for the whole clip. The server picks the voice from the text's language,
+ * so Hebrew and English each get their own natural voice.
  */
 export class MarkdownSpeechSynthesisAdapter implements SpeechSynthesisAdapter {
   speak(rawText: string): SpeechSynthesisAdapter.Utterance {
     const text = stripMarkdown(rawText);
     const subscribers = new Set<() => void>();
     let audio: HTMLAudioElement | null = null;
-    let objectUrl: string | null = null;
 
-    const cleanup = () => {
+    const end = (reason: EndReason, error?: unknown) => {
+      if (result.status.type === "ended") return;
       if (audio) {
         audio.pause();
         audio.src = "";
         audio = null;
       }
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-        objectUrl = null;
-      }
-    };
-
-    const end = (reason: EndReason, error?: unknown) => {
-      if (result.status.type === "ended") return;
-      cleanup();
       result.status = { type: "ended", reason, error };
       subscribers.forEach((cb) => cb());
     };
@@ -56,27 +47,10 @@ export class MarkdownSpeechSynthesisAdapter implements SpeechSynthesisAdapter {
       return result;
     }
 
-    void (async () => {
-      try {
-        const response = await fetch("/api/tts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
-        if (!response.ok) throw new Error(`tts ${response.status}`);
-
-        const blob = await response.blob();
-        if (result.status.type === "ended") return; // cancelled while fetching
-
-        objectUrl = URL.createObjectURL(blob);
-        audio = new Audio(objectUrl);
-        audio.onended = () => end("finished");
-        audio.onerror = () => end("error");
-        await audio.play();
-      } catch (error) {
-        end("error", error);
-      }
-    })();
+    audio = new Audio(`/api/tts?text=${encodeURIComponent(text)}`);
+    audio.onended = () => end("finished");
+    audio.onerror = () => end("error");
+    audio.play().catch((error) => end("error", error));
 
     return result;
   }
