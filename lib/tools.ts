@@ -30,7 +30,7 @@ import {
   LIVE_FLIGHTS_UNCERTAINTY,
   type Lang,
 } from "./i18n";
-import { flightsNearAirport, isOpenSkyConfigured } from "./opensky";
+import { flightsNearAirport } from "./liveflights";
 import type { StructuredResult } from "./types";
 
 export interface ToolOutput {
@@ -242,18 +242,6 @@ export function unmetDemand(iata: string, lang: Lang = "en"): ToolOutput {
 export async function liveFlights(iata: string, lang: Lang = "en"): Promise<ToolOutput> {
   const a = data.getAirport(iata);
   if (!a) return unknown(iata);
-
-  if (!isOpenSkyConfigured()) {
-    return {
-      result: {
-        iata: a.iata,
-        available: false,
-        message:
-          "Live flight data isn't configured (OpenSky credentials are missing), so " +
-          "real-time counts aren't available right now.",
-      },
-    };
-  }
 
   try {
     const live = await flightsNearAirport(a.lat, a.lon);

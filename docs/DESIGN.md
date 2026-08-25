@@ -23,7 +23,7 @@ questions like:
 
 Every answer shows the natural-language explanation, a structured table/chart, and
 an **assumptions & uncertainty** panel. It can also pull live data on request — asking
-"how many flights are in the air near SFO right now" calls the OpenSky API in real time.
+"how many flights are in the air near SFO right now" calls a live ADS-B API in real time.
 
 ---
 
@@ -158,8 +158,11 @@ passenger counts don't include international traffic (an international-heavy hub
 SFO looks smaller than its true total). Getting seats, per-segment distance, and
 delays would mean parsing BTS's multi-gigabyte bulk files, which wasn't worth it here.
 
-There's also a **live** source: the OpenSky Network REST API, called at request time
-by the `live_flights` tool for "what's in the air near this airport right now."
+There's also a **live** source: the adsb.lol community ADS-B API, called at request
+time by the `live_flights` tool for "what's in the air near this airport right now."
+(An earlier version used OpenSky, but OpenSky's server refuses connections from cloud
+datacenter IPs, so it can't be reached from Vercel; adsb.lol is CDN-fronted and free
+with no key.)
 
 ---
 

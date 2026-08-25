@@ -88,9 +88,8 @@ Since it's just a Next.js app, Vercel is the easy path: import the repo, add
 else to configure. Keys live in the environment and never go into the repo
 (`.env.local` is git-ignored).
 
-The live-flights tool is optional. If you want it, add `OPENSKY_CLIENT_ID` and
-`OPENSKY_CLIENT_SECRET` too (free from OpenSky). Without them everything else works and
-that one feature just reports that it's unavailable.
+The live-flights tool needs no key — it uses a free community ADS-B API — so there's
+nothing else to set up.
 
 ## Project layout
 
@@ -109,7 +108,7 @@ lib/
   tools.ts              the tools the model can call
   scoring.ts            the deterministic scoring engine
   data.ts               access to the bundled dataset
-  opensky.ts            live OpenSky client for the "flights right now" tool
+  liveflights.ts        live ADS-B client (adsb.lol) for the "flights right now" tool
   i18n.ts               English / Hebrew strings for the code-owned text
   chatModelAdapter.ts   connects assistant-ui to /api/chat
   speechAdapters.ts     read-aloud (language-aware)
@@ -130,8 +129,8 @@ ArcGIS API. A few fields the public APIs don't expose per airport — load facto
 haul mix, and year-over-year growth — are representative estimates, and the dataset flags
 them as such. The app reads the prepared file rather than hitting those sources on every
 request (they update yearly at most). There's also a live source: ask about current
-flight activity near an airport and it calls the OpenSky API in real time. Nothing here
-costs money except the OpenAI calls (and OpenSky, which is free).
+flight activity near an airport and it calls a live community ADS-B API (adsb.lol) in
+real time. Nothing here costs money except the OpenAI calls.
 
 ## What it doesn't do
 

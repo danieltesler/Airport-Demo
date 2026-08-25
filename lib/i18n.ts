@@ -141,19 +141,19 @@ export function haulAssumptions(
   ];
 }
 
-/** Assumptions and caveat for the live OpenSky flights tool. */
+/** Assumptions and caveat for the live flights tool. */
 export function liveFlightsAssumptions(lang: Lang): string[] {
   if (lang === "he") {
     return [
-      "המיקומים בזמן אמת מגיעים מרשת OpenSky (ADS-B בשיתוף הקהילה), ונלכדו בתוך תיבה " +
-        "ברדיוס של כ-40 מייל סביב הנמל ברגע השאלה.",
+      "המיקומים בזמן אמת מגיעים מעדכון ADS-B קהילתי (adsb.lol), עבור מטוסים ברדיוס של " +
+        "כ-30 מייל ימי סביב הנמל ברגע השאלה.",
       "הכיסוי תלוי בקולטנים סמוכים, ולכן הספירה היא חסם תחתון לתנועה בפועל; מטוסים על " +
         "הקרקע נספרים בנפרד.",
     ];
   }
   return [
-    "Live positions come from the OpenSky Network (crowd-sourced ADS-B), captured " +
-      "within a ~40-mile box around the airport at the moment you asked.",
+    "Live positions come from a community ADS-B feed (adsb.lol), for aircraft within " +
+      "about 30 nautical miles of the airport at the moment you asked.",
     "Coverage depends on nearby receivers, so the count is a lower bound on real " +
       "traffic; aircraft on the ground are counted separately.",
   ];
