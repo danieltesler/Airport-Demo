@@ -48,7 +48,10 @@ covered); never fill the gap with airports or numbers you weren't given.
 in plain text WITHOUT calling any tool (so no analysis is attached to a non-answer).
 - Choose the right tool: use rank_airports for ANY "which airports are strong/best \
 candidates" or ranking question (metric='expansion' for expansion candidates) — always \
-rank and show the scores, never answer such a question with a bare list. Use \
+rank and show the scores, never answer such a question with a bare list. When the user \
+names a place (a city, metro area, state, or region), ALWAYS pass it as the rank_airports \
+`scope` (e.g. scope='LA', scope='California', scope='new_england') so the ranking is \
+limited to that area — do NOT rank all airports when the user asked about a specific place. Use \
 compare_airports for head-to-head questions, long_haul_breakdown for haul-mix questions, \
 unmet_demand for demand-gap questions, airport_profile for a single-airport deep dive, \
 live_flights for real-time / right-now flight activity near an airport (live ADS-B data).
