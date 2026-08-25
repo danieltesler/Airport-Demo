@@ -74,12 +74,11 @@ npm run build:data  # rebuild data/airports.json from the public sources
 
 ## Voice
 
-The mic button dictates into the composer and sends the message when you stop
-talking. There's a small EN / עב toggle next to it so it can listen in English or
-Hebrew. Each answer also has a "Read aloud" button that reads the reply back in the
-right language. All of this uses the browser's built-in Web Speech API, so it needs
-no extra keys, and the controls simply don't appear on browsers that don't support it
-(Chrome and Edge work best).
+Tap the mic and just talk — in English or Hebrew, no toggle. It records your voice,
+transcribes it with OpenAI Whisper (which auto-detects the language), and sends the
+message. The agent replies in whatever language you spoke, and each answer has a
+"Read aloud" button that speaks it back with a natural OpenAI voice (English and
+Hebrew each get their own). Recording needs a browser with microphone support.
 
 ## Deploying
 
@@ -111,9 +110,9 @@ lib/
   liveflights.ts        live ADS-B client (adsb.lol) for the "flights right now" tool
   i18n.ts               English / Hebrew strings for the code-owned text
   chatModelAdapter.ts   connects assistant-ui to /api/chat
-  speechAdapters.ts     read-aloud (language-aware)
+  speechAdapters.ts     read-aloud via OpenAI TTS (voice per language)
 hooks/
-  useDictation.ts       mic dictation with the EN/Hebrew toggle
+  useDictation.ts       records audio and transcribes it (Whisper, auto-detects language)
 scripts/
   build-dataset.mjs     rebuilds the dataset from OurAirports + the BTS ArcGIS API
 data/airports.json      the airport dataset the script produces

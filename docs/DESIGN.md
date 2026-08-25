@@ -41,7 +41,7 @@ one codebase and deploy as one unit — the browser calls the app's own `/api` r
 │  • Markdown answers                (POST)               │  LLM loop     │
 │  • structured table/chart   ◀──   { reply, ... }       ▼               │
 │  • assumptions panel                              lib/tools.ts          │
-│  • voice (Web Speech API)         app/api/health       │  └▶ lib/scoring.ts
+│  • voice (Whisper + TTS)          app/api/health       │  └▶ lib/scoring.ts
 │                                    (GET)               lib/data.ts       │
 │                                                   (deterministic engine) │
 └────────────────────────────────────────────────────────────────────────┘
@@ -186,9 +186,13 @@ with no key.)
 - **Demand-side scoring vs. full investment model.** Scores reflect demand
   opportunity, not construction cost, land/gate availability, or noise curfews.
   Kept out to stay clear and honest rather than pretend precision.
-- **Voice via browser Web Speech API vs. a cloud speech service.** Free, no key, no
-  server load. *Tradeoff:* quality/availability vary by browser (best in
-  Chrome/Edge); controls hide gracefully where unsupported.
+- **Cloud speech (OpenAI) vs. the browser's built-in speech.** We record audio and use
+  OpenAI Whisper to transcribe questions and OpenAI TTS to read answers back. *Why:* the
+  browser's speech recognition can't auto-detect language (you'd have to pick English or
+  Hebrew up front), and its voices are robotic. Whisper auto-detects the spoken language
+  and the neural voices sound natural. *Tradeoff:* a small per-use cost (fractions of a
+  cent) and a server round-trip, versus the browser's free-but-worse option. English
+  voice is strong; Hebrew read-aloud is weaker (OpenAI's Hebrew TTS), noted for later.
 
 ---
 
