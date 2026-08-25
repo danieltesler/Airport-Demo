@@ -19,9 +19,9 @@ export const ASSUMPTIONS = {
     "Growth measured against roughly fixed runway capacity indicates a widening gap.",
   ],
   expansion: [
-    "Investment thesis: terminal expansion is most profitable where strong, growing " +
-      "demand meets a capacity-constrained airport — so renovation unlocks revenue " +
-      "rather than adding idle space.",
+    "Investment thesis (demand-side): the case for terminal expansion is strongest " +
+      "where strong, growing demand meets a capacity-constrained airport — so renovation " +
+      "unlocks revenue rather than adding idle space.",
     "Score blends demand growth, current congestion, seat load pressure, and passenger " +
       "volume; weights are documented and adjustable.",
     "Airport scope is limited to the bundled dataset (major + selected mid-size U.S. airports).",

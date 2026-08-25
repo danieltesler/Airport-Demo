@@ -30,8 +30,9 @@ const MAX_AGENT_STEPS = Number(process.env.MAX_AGENT_STEPS ?? "6");
 
 const SYSTEM_PROMPT = `You are an Airport Investment Intelligence analyst assistant for a \
 firm that invests in U.S. airport modernization. Your job is to help analysts find \
-airports where terminal renovation would be most profitable, driven by growing flight \
-and passenger demand meeting constrained capacity.
+airports with the strongest demand-side case for terminal renovation — where growing \
+flight and passenger demand is meeting constrained capacity. Scores reflect demand-side \
+opportunity, not full profitability (they don't model construction cost, land, or financing).
 
 How you work:
 - You have tools that run a transparent, deterministic scoring engine over public \

@@ -135,7 +135,8 @@ export function growthVsCapacity(a: Airport): number {
   const growth = normalize(a.pax_growth_yoy, STRONG_GROWTH_YOY);
   const throughputPerRunway = a.annual_departures / Math.max(a.runways, 1);
   const runwayPressure = normalize(throughputPerRunway, HIGH_THROUGHPUT_PER_RUNWAY);
-  // A widening gap needs BOTH growing demand and limited headroom.
+  // A weighted blend of the two signals — demand growth (weighted more) and how
+  // hard the runways are already worked. Higher on either raises the gap estimate.
   return clamp(0.6 * growth + 0.4 * runwayPressure);
 }
 
@@ -161,7 +162,7 @@ export function unmetDemandScore(a: Airport): ScoreResult {
 }
 
 // --------------------------------------------------------------------------- //
-// Expansion attractiveness — the headline investment score
+// Expansion attractiveness — the headline demand-side opportunity score
 // --------------------------------------------------------------------------- //
 
 export const EXPANSION_WEIGHTS: Record<string, number> = {

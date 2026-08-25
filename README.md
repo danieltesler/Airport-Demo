@@ -1,11 +1,19 @@
 # Airport Investment Intelligence Agent
 
-A chat assistant for analysts who invest in U.S. airport upgrades. You ask it
-questions about airports in ordinary language, and it points you toward the ones where
-a terminal expansion is most likely to pay off: places where demand is growing and
-starting to run into the limits of what the airport can handle.
+**Live demo:** https://airport-demo-pi.vercel.app
+**Stack:** Next.js · TypeScript · OpenAI (tool calling) · Vitest
+
+A chat assistant for analysts who invest in U.S. airport upgrades. You ask it questions
+about airports in ordinary language, and it points you toward the ones with the strongest
+**demand-side case** for a terminal expansion: places where demand is growing and starting
+to run into the limits of what the airport can handle. (It scores demand-side opportunity,
+not full profitability — see [what it doesn't do](#what-it-doesnt-do).)
 
 You can type or talk to it. **The app is English-only** — both typing and voice.
+
+> **See it live:** [airport-demo-pi.vercel.app](https://airport-demo-pi.vercel.app) — ask
+> *"Which airports in New England are strong candidates for terminal expansion?"* for a
+> ranked table, a bar chart, and an assumptions & uncertainty panel.
 
 ## What you can ask
 

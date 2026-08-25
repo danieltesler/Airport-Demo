@@ -1,7 +1,7 @@
 # Design & Architecture — Airport Investment Intelligence Agent
 
 This is the design write-up for the agent that helps analysts find U.S. airports
-where a terminal expansion is most likely to pay off, i.e. where demand is growing
+where the demand-side case for a terminal expansion is strongest, i.e. where demand is growing
 into the limits of what the airport can handle.
 
 It walks through how the scoring works, the tradeoffs I made along the way, where the
@@ -121,11 +121,13 @@ short (<1,100 mi), medium (1,100–2,200), long (>2,200). These shares are estim
 | Congestion | 0.35 | Delay/throughput gap ⇒ demand above capacity |
 | Growth vs. capacity | 0.25 | Fast growth against fixed runways ⇒ widening gap |
 
-### 3.4 Expansion attractiveness (0–100) — the headline investment score
+### 3.4 Expansion attractiveness (0–100) — the headline demand-side score
 
-The thesis: expansion is most profitable where **strong, growing demand meets a
-capacity-constrained airport**, so renovation unlocks revenue rather than adding
-idle space.
+The thesis: the demand-side case for expansion is strongest where **strong, growing
+demand meets a capacity-constrained airport**, so renovation unlocks revenue rather
+than adding idle space. This is a **demand-side opportunity** score, not a
+profitability estimate — it deliberately doesn't model construction cost, land/gate
+availability, or financing (see §6).
 
 | Component | Weight | Why it matters to the investment |
 |---|---|---|
@@ -172,6 +174,14 @@ metadata. The one caveat worth stating: the ArcGIS layer is **domestic** T-100, 
 passenger counts don't include international traffic (an international-heavy hub like
 SFO looks smaller than its true total). Getting seats, per-segment distance, and
 delays would mean parsing BTS's multi-gigabyte bulk files, which wasn't worth it here.
+
+The estimated fields are the honest soft spot of this prototype: congestion and
+expansion both lean on delays and load factor, which are currently estimates. The
+important part is that this is an **architecture and methodology** — swapping those
+estimates for the real feeds (BTS On-Time for delays, T-100 Segment for seats and
+distance, FAA ASPM for demand-vs-capacity) is a change to `build-dataset.mjs` only.
+The scoring engine, the tools, and the contract don't change, because they read the
+same fields regardless of where the numbers came from.
 
 There's also a **live** source: the adsb.lol community ADS-B API, called at request
 time by the `live_flights` tool for "what's in the air near this airport right now."
