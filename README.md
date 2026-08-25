@@ -11,9 +11,9 @@ not full profitability — see [what it doesn't do](#what-it-doesnt-do).)
 
 You can type or talk to it. **The app is English-only** — both typing and voice.
 
-> **See it live:** [airport-demo-pi.vercel.app](https://airport-demo-pi.vercel.app) — ask
-> *"Which airports in New England are strong candidates for terminal expansion?"* for a
-> ranked table, a bar chart, and an assumptions & uncertainty panel.
+![Airport Investment Intelligence ranking New England airports by expansion opportunity — a ranked table and a bar chart](docs/demo.jpg)
+
+*Live at [airport-demo-pi.vercel.app](https://airport-demo-pi.vercel.app) — try "Which airports in New England are strong candidates for terminal expansion?"*
 
 ## What you can ask
 
