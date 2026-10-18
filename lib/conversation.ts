@@ -62,6 +62,8 @@ export interface ConversationPorts {
   /** Send the transcript as a spoken question. */
   send(text: string): void;
   cancelSpeech(): void;
+  /** End only: stop the chat request that is still waiting for an answer. */
+  cancelChat?(): void;
   wakeLock: { acquire(): Promise<boolean> | boolean; release(): Promise<void> | void };
 }
 
@@ -90,6 +92,9 @@ export const PAUSE_MESSAGE: Record<PauseReason, string> = {
   "no-answer": "Paused, the answer is on screen. Tap the mic to keep talking",
   "voice-failed": "Paused, voice is off for now. The answer is on screen",
 };
+
+/** Conversation mode is on unless the build sets NEXT_PUBLIC_CONVERSATION_MODE=off. */
+export const isConversationModeEnabled = (flag: string | undefined): boolean => flag?.trim().toLowerCase() !== "off";
 
 const OFF: ConversationSnapshot = { phase: "off", pauseReason: null, startFailure: null };
 
@@ -164,9 +169,13 @@ export class ConversationController {
 
   /** End: the user pressed End, or left the mode. Always works, from any phase. */
   end(): void {
+    // Idempotent: React's development remount (mount, unmount, mount) and a second End both land here
+    // with nothing running, and must not touch the ports again.
+    if (this.snapshot.phase === "off") return;
     this.epoch += 1;
     this.clearTimers();
     this.ports.cancelSpeech();
+    this.cancelChatSafely();
     this.ports.stopListening();
     this.ports.closeSession();
     void this.ports.wakeLock.release();
@@ -234,6 +243,15 @@ export class ConversationController {
   }
 
   // ------------------------------------------------------------------------- //
+
+  /** Cleanup must never throw: a failed cancel is logged by name only and End carries on. */
+  private cancelChatSafely(): void {
+    try {
+      this.ports.cancelChat?.();
+    } catch (error) {
+      console.warn(`Conversation: cancelling the chat request failed (${error instanceof Error ? error.name : "unknown error"})`);
+    }
+  }
 
   private running(): boolean {
     return ["starting", "listening", "thinking", "speaking"].includes(this.snapshot.phase);

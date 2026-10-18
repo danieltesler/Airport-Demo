@@ -16,10 +16,11 @@
  */
 
 import OpenAI from "openai";
-import { dataVintage } from "./data";
+import { allAirports, dataVintage, dataYear } from "./data";
 import { TOOL_SCHEMAS, isLiveSourceTool, runTool } from "./tools";
 import { vintageFooter } from "./i18n";
 import { isLiveTool } from "./live";
+import { sanitizeHistory } from "./chatInput";
 import { parseModelReply } from "./replyParse";
 import { buildShownNote, cleanShownNote } from "./shownNote";
 import { guardSpoken } from "./spokenGuard";
@@ -32,7 +33,14 @@ type ChatTool = OpenAI.Chat.Completions.ChatCompletionTool;
 // gpt-4o-mini: strong tool use, very low cost — the right default for this demo.
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 const MAX_TOKENS = Number(process.env.OPENAI_MAX_TOKENS ?? "1500");
-const MAX_AGENT_STEPS = Number(process.env.MAX_AGENT_STEPS ?? "6");
+/** A positive whole number from the environment, else the default (so MAX_AGENT_STEPS=abc cannot disable the loop). */
+const positiveIntFromEnv = (value: string | undefined, fallback: number): number => {
+  const parsed = Math.floor(Number(value));
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : fallback;
+};
+
+// Four model calls cover a tool call, one follow-up tool call and the answer; more only adds cost.
+const MAX_AGENT_STEPS = positiveIntFromEnv(process.env.MAX_AGENT_STEPS, 4);
 
 const SYSTEM_PROMPT = `You are an Airport Investment Intelligence analyst assistant for a \
 firm that invests in U.S. airport modernization. Your job is to help analysts find \
@@ -232,6 +240,12 @@ function toMessages(history: ChatTurn[], message: string, prompt: string): ChatM
   return messages;
 }
 
+/** Every airport name and city in the dataset, so the guard can catch a real but irrelevant place name. */
+const KNOWN_NAMES: string[] = [...new Set(allAirports().flatMap((a) => [a.city, a.name]))];
+
+/** Numbers that are true of the whole app and may be spoken without a tool result. */
+const STATIC_FACTS: number[] = [allAirports().length, dataYear(), dataYear() - 1];
+
 /** What earlier turns showed or said, for the guard to accept a follow-up that refers back. */
 const priorContextOf = (history: ChatTurn[]): string =>
   history
@@ -252,7 +266,14 @@ function verifiedSpoken(
 ): { spoken?: string; rejections?: number } {
   if (!spoken) return {};
   try {
-    const verdict = guardSpoken({ spoken, toolOutputs: outputs, priorContext: priorContextOf(history), userWords: message });
+    const verdict = guardSpoken({
+      spoken,
+      toolOutputs: outputs,
+      priorContext: priorContextOf(history),
+      userWords: message,
+      staticFacts: STATIC_FACTS,
+      knownNames: KNOWN_NAMES,
+    });
     return verdict.ok ? { spoken: verdict.spoken } : { rejections: Math.max(1, verdict.reasons.length) };
   } catch {
     return { rejections: 1 }; // a broken guard must never let an unverified line through
@@ -260,7 +281,8 @@ function verifiedSpoken(
 }
 
 /** Run one conversational turn and return a response matching the API contract. */
-export async function runAgent(message: string, history: ChatTurn[] = []): Promise<ChatResponse> {
+export async function runAgent(message: string, rawHistory: unknown = []): Promise<ChatResponse> {
+  const history = sanitizeHistory(rawHistory); // client-supplied: shape, size and role checked here too
   const startedAt = Date.now();
   const mode = spokenMode();
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -279,8 +301,8 @@ export async function runAgent(message: string, history: ChatTurn[] = []): Promi
     if (note && !list.includes(note)) list.push(note);
   };
 
-  let finalText = "";
-  for (let step = 0; step < MAX_AGENT_STEPS; step++) {
+  /** One model call, timed. `auto` lets the model decide on a tool; `none` forces a written answer. */
+  const callModel = async (toolChoice: "auto" | "none") => {
     const modelStartedAt = Date.now();
     const completion = await client.chat.completions.create({
       model: MODEL,
@@ -289,18 +311,26 @@ export async function runAgent(message: string, history: ChatTurn[] = []): Promi
       messages,
       tools: OPENAI_TOOLS,
       ...(mode === "model" ? { response_format: REPLY_FORMAT } : {}),
-      // Let the model decide whether a tool is needed: data questions call a tool
-      // (and get the analysis panel); greetings / capability questions just reply.
-      tool_choice: "auto",
+      // Data questions call a tool (and get the analysis panel); greetings and capability
+      // questions just reply.
+      tool_choice: toolChoice,
     });
     const hop: TurnTimings["hops"][number] = { model_ms: Date.now() - modelStartedAt, tools: [] };
     hops.push(hop);
+    return { message: completion.choices[0].message, hop };
+  };
 
-    const choice = completion.choices[0].message;
+  let finalText = "";
+  let answered = false;
+  for (let step = 0; step < MAX_AGENT_STEPS; step++) {
+    const { message: choice, hop } = await callModel("auto");
     if (choice.content) finalText = choice.content.trim();
 
     const toolCalls = choice.tool_calls ?? [];
-    if (toolCalls.length === 0) break;
+    if (toolCalls.length === 0) {
+      answered = true;
+      break;
+    }
 
     // Record the assistant's tool-call turn, then answer each call.
     messages.push(choice);
@@ -337,6 +367,14 @@ export async function runAgent(message: string, history: ChatTurn[] = []): Promi
         content: JSON.stringify(output.result),
       });
     }
+  }
+
+  // The step cap ended the loop with tool results the model has not answered yet: one last call
+  // with tools switched off makes it write the answer from what it has, instead of a blank reply
+  // sitting next to a table.
+  if (!answered) {
+    const { message: closing } = await callModel("none");
+    if (closing.content) finalText = closing.content.trim();
   }
 
   // In model mode the final message is {reply, spoken} JSON; any other shape is just the reply.

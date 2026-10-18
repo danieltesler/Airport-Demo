@@ -12,6 +12,7 @@ import {
   fetchJson,
   lookupAirport,
   nowOf,
+  retrievedAtIso,
   round,
   safeReason,
   toNumber,
@@ -208,7 +209,10 @@ export async function airportWeather(args: Record<string, unknown>, deps: LiveDe
       taf,
       ...(issues.length ? { gaps: issues } : {}),
       source: SOURCE,
-      retrieved_at: nowOf(deps).toISOString(),
+      retrieved_at: retrievedAtIso(deps, [
+        metarCache.storedAt(`metar:${icao}`, nowOf(deps).getTime()),
+        tafCache.storedAt(`taf:${icao}`, nowOf(deps).getTime()),
+      ]),
     },
     structured: { kind: "metric", columns: ["Weather (now)", "Value"], rows },
     assumptions: [

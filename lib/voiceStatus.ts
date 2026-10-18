@@ -2,7 +2,7 @@ import { PAUSE_MESSAGE, type ConversationSnapshot } from "./conversation";
 import type { PlaybackStatus } from "./voicePlayback";
 
 /** What the voice chip shows. One state at a time, derived from facts rather than stored. */
-export type VoiceState = "idle" | "listening" | "transcribing" | "thinking" | "speaking" | "blocked" | "paused" | "error";
+export type VoiceState = "idle" | "listening" | "transcribing" | "thinking" | "preparing" | "speaking" | "blocked" | "paused" | "error";
 
 export interface VoiceFacts {
   isRecording: boolean;
@@ -21,6 +21,7 @@ export const VOICE_STATE_LABEL: Record<VoiceState, string> = {
   listening: "Listening, go ahead",
   transcribing: "Got it…",
   thinking: "Checking the data…",
+  preparing: "Preparing voice…",
   speaking: "Speaking (AI voice), tap to interrupt",
   blocked: "Tap to hear the answer",
   paused: "Paused. Tap the mic to keep talking",
@@ -45,7 +46,9 @@ export function deriveVoiceState(facts: VoiceFacts): VoiceState {
   if (facts.micError) return "error";
   if (facts.isThinking) return "thinking";
   if (facts.playback === "blocked") return "blocked";
-  if (facts.playback === "speaking" || facts.playback === "loading") return "speaking";
+  // "loading" is the first clip being fetched: nothing is audible yet, so don't say "Speaking".
+  if (facts.playback === "loading") return "preparing";
+  if (facts.playback === "speaking") return "speaking";
   if (facts.playback === "error") return "error";
   // Between turns of a conversation (the quiet gap) it is still listening.
   if (facts.conversation?.phase === "listening" || facts.conversation?.phase === "starting") return "listening";

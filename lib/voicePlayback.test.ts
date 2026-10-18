@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { SpeechPlayer, fetchClipFromApi, splitSentences, type AudioLike, type PlayerDeps } from "./voicePlayback";
+import { FIRST_CLIP_HEADER_TIMEOUT_MS, SpeechPlayer, fetchClipFromApi, splitSentences, type AudioLike, type PlayerDeps } from "./voicePlayback";
 
 class FakeAudio implements AudioLike {
   src = "";
@@ -315,5 +315,147 @@ describe("clip timeout window", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("cancel leaves nothing running or leaking", () => {
+  it("does not request later clips after a cancel (the already-aborted signal is honoured)", async () => {
+    const calls: Array<{ text: string; aborted: boolean }> = [];
+    const fakeFetch = vi.fn((_url: string, init: RequestInit) => {
+      calls.push({ text: JSON.parse(init.body as string).text, aborted: init.signal!.aborted });
+      return new Promise<Response>((_resolve, reject) => {
+        init.signal!.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+      });
+    });
+    const audio = new FakeAudio();
+    const player = new SpeechPlayer({
+      fetchClip: (text, signal) => fetchClipFromApi(text, signal, fakeFetch as unknown as typeof fetch),
+      createAudio: () => audio,
+      createObjectUrl: () => "blob:x",
+      revokeObjectUrl: () => undefined,
+    });
+    const text = Array.from({ length: 8 }, (_, i) => `Sentence number ${i} is long enough to be a clip.`).join(" ");
+    player.speak(text);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(calls).toHaveLength(4); // the concurrency window
+    player.cancel();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(calls).toHaveLength(4); // nothing further was requested, aborted or not
+  });
+
+  it("fetchClipFromApi throws at once on a signal that is already aborted, without calling fetch", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetchImpl = vi.fn();
+    await expect(fetchClipFromApi("Hello", controller.signal, fetchImpl as unknown as typeof fetch)).rejects.toThrow("aborted");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("cancelling mid-clip revokes the clip's object URL and settles the clip", async () => {
+    const { player, finish, revoked } = setup();
+    player.speak(A);
+    finish(A);
+    await vi.waitFor(() => expect(player.getSnapshot().status).toBe("speaking"));
+    expect(revoked).toHaveLength(0);
+    player.cancel();
+    await vi.waitFor(() => expect(revoked).toHaveLength(1));
+  });
+
+  it("cancelling while autoplay is blocked also revokes the URL", async () => {
+    const { player, audio, finish, revoked } = setup();
+    audio.rejectNextPlay = Object.assign(new Error("blocked"), { name: "NotAllowedError" });
+    player.speak(A);
+    finish(A);
+    await vi.waitFor(() => expect(player.getSnapshot().status).toBe("blocked"));
+    player.cancel();
+    await vi.waitFor(() => expect(revoked).toHaveLength(1));
+  });
+});
+
+describe("patience for the first clip", () => {
+  /** A server that answers its headers after `headersMs` and the body after a further `bodyMs`. */
+  function slowTts(headersMs: number, bodyMs: number) {
+    return vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((resolve, reject) => {
+          const abort = () => reject(new DOMException("aborted", "AbortError"));
+          if (init.signal?.aborted) return abort();
+          init.signal?.addEventListener("abort", abort);
+          setTimeout(() => {
+            resolve({
+              ok: true,
+              headers: new Headers({ "X-TTS-Provider": "openai", "X-TTS-Fallback": "unavailable" }),
+              blob: () =>
+                new Promise<Blob>((resolveBlob, rejectBlob) => {
+                  init.signal?.addEventListener("abort", () => rejectBlob(new DOMException("aborted", "AbortError")));
+                  setTimeout(() => resolveBlob(new Blob(["x"])), bodyMs);
+                }),
+            } as unknown as Response);
+          }, headersMs);
+        }),
+    );
+  }
+
+  it("gives up on a first clip that has no response after 6 seconds (voice is off, the answer is on screen)", async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = fetchClipFromApi("Hello", new AbortController().signal, slowTts(60_000, 0) as unknown as typeof fetch, undefined, FIRST_CLIP_HEADER_TIMEOUT_MS);
+      const assertion = expect(pending).rejects.toThrow("aborted");
+      await vi.advanceTimersByTimeAsync(FIRST_CLIP_HEADER_TIMEOUT_MS + 1);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a first clip whose response arrives at 5 s (an OpenAI fallback) is accepted, and its body has the long window", async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = fetchClipFromApi("Hello", new AbortController().signal, slowTts(5000, 9000) as unknown as typeof fetch, undefined, FIRST_CLIP_HEADER_TIMEOUT_MS);
+      await vi.advanceTimersByTimeAsync(14_100);
+      await expect(pending).resolves.toBeInstanceOf(Blob);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a body that then stalls past the long window is cut off", async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = fetchClipFromApi("Hello", new AbortController().signal, slowTts(1000, 60_000) as unknown as typeof fetch, undefined, FIRST_CLIP_HEADER_TIMEOUT_MS);
+      const assertion = expect(pending).rejects.toThrow("aborted");
+      await vi.advanceTimersByTimeAsync(1000 + 15_001);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("later clips keep the long window for their headers", async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = fetchClipFromApi("Hello", new AbortController().signal, slowTts(10_000, 0) as unknown as typeof fetch);
+      await vi.advanceTimersByTimeAsync(10_100);
+      await expect(pending).resolves.toBeInstanceOf(Blob);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("the player marks only the first clip of an answer as 'first'", async () => {
+    const hints: Array<{ text: string; first: boolean | undefined }> = [];
+    const audio = new FakeAudio();
+    const player = new SpeechPlayer({
+      fetchClip: (text, _signal, hint) => {
+        hints.push({ text, first: hint?.first });
+        return new Promise<Blob>(() => undefined);
+      },
+      createAudio: () => audio,
+      createObjectUrl: () => "blob:x",
+      revokeObjectUrl: () => undefined,
+    });
+    player.speak(`${A} ${B} ${C}`);
+    expect(hints.map((h) => h.first)).toEqual([true, false, false]);
+    expect(player.getSnapshot().status).toBe("loading"); // shown as "Preparing voice…", not "Speaking"
   });
 });

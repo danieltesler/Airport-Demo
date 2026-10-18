@@ -1,8 +1,9 @@
 import type { ChatModelAdapter, ThreadMessage } from "@assistant-ui/react";
 import { scheduleAcknowledgement } from "./acknowledgement";
-import { sendChat } from "./api";
+import { CHAT_CANCELLED, sendChat } from "./api";
 import { buildSpokenText, speakableModelLine } from "./spoken";
 import { getSpeechPlayer } from "./voicePlayback";
+import { bumpVoiceEpoch, currentVoiceEpoch } from "./voiceSession";
 import { consumeVoiceTurn } from "./voiceTurn";
 import type { AssistantExtras, ChatResponse, ChatRole, ChatTurn } from "./types";
 
@@ -14,6 +15,8 @@ import type { AssistantExtras, ChatResponse, ChatRole, ChatTurn } from "./types"
  * assumptions, uncertainty, meta) back via `metadata.custom` so the assistant
  * message component can render them beneath the reply.
  */
+const STOPPED_TEXT = "Stopped.";
+
 export const airportChatAdapter: ChatModelAdapter = {
   async run({ messages, abortSignal }) {
     const latestUserTurn = messages[messages.length - 1];
@@ -22,11 +25,27 @@ export const airportChatAdapter: ChatModelAdapter = {
 
     // Only an answer to a spoken question is read aloud on its own, and only that turn gets the "one moment".
     const askedByVoice = consumeVoiceTurn(message);
+    // A new question makes every earlier pending answer stale. If End, a pause or a tap bumps this
+    // again before the answer arrives, nothing is spoken: the answer just appears on screen.
+    const epoch = bumpVoiceEpoch();
+    const stillWanted = (): boolean => epoch === currentVoiceEpoch() && !abortSignal.aborted;
     const player = getSpeechPlayer();
-    const acknowledgement = askedByVoice && player.autoSpeakAllowed ? scheduleAcknowledgement((phrase) => player.speak(phrase)) : null;
+    const acknowledgement =
+      askedByVoice && player.autoSpeakAllowed
+        ? scheduleAcknowledgement((phrase) => {
+            if (stillWanted()) player.speak(phrase);
+          })
+        : null;
 
-    const response = await sendChat(message, history);
+    const response = await sendChat(message, history, abortSignal);
     const acknowledged = acknowledgement?.stop() ?? false;
+
+    // The user pressed Stop: end quietly. A short neutral line (not an error bubble, no Try again) is
+    // the simplest thing that renders cleanly, and the runtime marks the message as cancelled itself.
+    if (response.error === CHAT_CANCELLED) {
+      if (acknowledged && epoch === currentVoiceEpoch()) player.cancel();
+      return { content: [{ type: "text", text: STOPPED_TEXT }], metadata: { custom: { spoken: null } } };
+    }
 
     const spoken = spokenFor(response);
     const extras: AssistantExtras = {
@@ -39,8 +58,8 @@ export const airportChatAdapter: ChatModelAdapter = {
       error: response.error ?? null,
     };
 
-    if (spoken && askedByVoice && !abortSignal.aborted && player.autoSpeakAllowed) player.speak(spoken);
-    else if (acknowledged) player.cancel(); // never leave a "one moment" hanging with no answer behind it
+    if (spoken && askedByVoice && stillWanted() && player.autoSpeakAllowed) player.speak(spoken);
+    else if (acknowledged && epoch === currentVoiceEpoch()) player.cancel(); // never leave a "one moment" hanging with no answer behind it
 
     return {
       content: [{ type: "text", text: response.reply }],

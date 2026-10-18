@@ -4,9 +4,9 @@ import styles from "./ScoreBreakdown.module.css";
 
 /**
  * Collapsed-by-default "How was this scored?" panel. Rows are components with their
- * weight; each airport column shows the points that component contributed. Points are
- * rounded to 1 decimal, so a column matches the score only up to rounding. A native <details> keeps it keyboard- and
- * screen-reader-accessible without any state.
+ * weight; each airport column shows the points that component contributed. The points
+ * arrive pre-rounded so each column adds up exactly to the score shown. A native <details>
+ * keeps it keyboard- and screen-reader-accessible without any state.
  */
 interface ScoreBreakdownProps {
   explain: ScoreExplanation;
@@ -23,8 +23,7 @@ export function ScoreBreakdown({ explain, notScored = [] }: ScoreBreakdownProps)
         <p className={styles.intro}>
           {explain.metricLabel} score = sum of weight x component (each component is
           normalized to 0-1), scaled to 0-100. Cells show points, with the 0-1 component
-          value beneath. Points are rounded to 1 decimal, so a column can differ from the
-          score by a rounding amount (at most 0.25).
+          value beneath. Points are rounded so each column adds up exactly to the score.
         </p>
 
         <div className={styles.scroll}>

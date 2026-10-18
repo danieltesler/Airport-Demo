@@ -22,6 +22,7 @@
 
 import type { Airport } from "./data";
 import { scaleToAnchor, type Anchor } from "./anchors";
+import { roundTo } from "./rounding";
 import { ASSUMPTIONS, UNCERTAINTY, insufficientDataReason } from "./i18n";
 
 // --------------------------------------------------------------------------- //
@@ -40,7 +41,7 @@ export type AnchorKey =
 
 export const ANCHORS: Record<AnchorKey, Anchor> = {
   avg_dep_delay_min: { low: 10, high: 22 }, // minutes, average departure delay
-  delayed_share: { low: 0.14, high: 0.26 }, // share of departures >15 min late
+  delayed_share: { low: 0.14, high: 0.26 }, // share of departures 15 min or more late (BTS DepDel15)
   cancel_rate: { low: 0.0051, high: 0.026 }, // share of scheduled departures cancelled
   load_factor: { low: 0.73, high: 0.83 }, // passengers / seats on departing segments
   pax_growth_yoy: { low: -0.084, high: 0.066 }, // passengers vs the previous calendar year
@@ -114,10 +115,7 @@ function insufficient(metric: MetricKey, missing: string[], assumptions: string[
   return { score: null, missing, reason: insufficientDataReason(metric, missing), assumptions, uncertainty };
 }
 
-const round = (n: number, dp = 1): number => {
-  const f = 10 ** dp;
-  return Math.round(n * f) / f;
-};
+const round = roundTo;
 
 /** Round an outcome for transport. */
 export function roundResult(result: ScoreOutcome): ScoreOutcome {
@@ -143,14 +141,22 @@ export const CONGESTION_WEIGHTS: Record<string, number> = {
   cancellations: 0.1875,
 };
 
-export function congestionScore(a: Airport): ScoreOutcome {
-  const missing = missingInputs(a, "congestion");
-  if (missing.length > 0) return insufficient("congestion", missing, ASSUMPTIONS.congestion, UNCERTAINTY.congestion);
-  const components = {
+/** The three scaled congestion inputs. Inputs must be non-null (the callers check). */
+function congestionComponents(a: Airport): Record<string, number> {
+  return {
     delayed_share: scaled(a, "delayed_share"),
     avg_delay: scaled(a, "avg_dep_delay_min"),
     cancellations: scaled(a, "cancel_rate"),
   };
+}
+
+/** Congestion as a 0-1 level, for the scores that build on it; same arithmetic as congestionScore / 100. */
+const congestionLevel = (a: Airport): number => weightedSum(CONGESTION_WEIGHTS, congestionComponents(a)) / 100;
+
+export function congestionScore(a: Airport): ScoreOutcome {
+  const missing = missingInputs(a, "congestion");
+  if (missing.length > 0) return insufficient("congestion", missing, ASSUMPTIONS.congestion, UNCERTAINTY.congestion);
+  const components = congestionComponents(a);
   return {
     score: weightedSum(CONGESTION_WEIGHTS, components),
     components,
@@ -193,10 +199,9 @@ export function growthVsCapacity(a: Airport): number {
 export function unmetDemandScore(a: Airport): ScoreOutcome {
   const missing = missingInputs(a, "unmet_demand");
   if (missing.length > 0) return insufficient("unmet_demand", missing, ASSUMPTIONS.unmet, UNCERTAINTY.unmet);
-  const congestion = congestionScore(a) as ScoreResult;
   const components = {
     load_pressure: scaled(a, "load_factor"),
-    congestion: congestion.score / 100,
+    congestion: congestionLevel(a),
     growth_vs_capacity: growthVsCapacity(a),
   };
   return {
@@ -221,10 +226,9 @@ export const EXPANSION_WEIGHTS: Record<string, number> = {
 export function expansionScore(a: Airport): ScoreOutcome {
   const missing = missingInputs(a, "expansion");
   if (missing.length > 0) return insufficient("expansion", missing, ASSUMPTIONS.expansion, UNCERTAINTY.expansion);
-  const congestion = congestionScore(a) as ScoreResult;
   const components = {
     demand_growth: scaled(a, "pax_growth_yoy"),
-    congestion: congestion.score / 100,
+    congestion: congestionLevel(a),
     load_pressure: scaled(a, "load_factor"),
     volume_upside: scaled(a, "annual_passengers"),
   };

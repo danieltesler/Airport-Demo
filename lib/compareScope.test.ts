@@ -60,6 +60,19 @@ describe("compare_airports reads named airports exactly", () => {
     expect(out.structured).toBeUndefined();
   });
 
+  it("asks which New York instead of silently returning the state table", () => {
+    for (const words of ["New York airports", "compare the New York airports", "the New York airports"]) {
+      for (const out of [compareAirports([], "congestion", words, words), compareAirports([], "congestion", undefined, words)]) {
+        expect(out.result).toMatchObject({ status: "ambiguous" });
+        expect((out.result.options as { scope: string }[]).map((o) => o.scope)).toEqual(["NY", "NYC"]);
+        expect(out.structured).toBeUndefined();
+      }
+    }
+    // The chosen option then compares the right airports.
+    expect(codesOf(compareAirports([], "congestion", "NYC", "NYC"))).toEqual(["EWR", "HPN", "JFK", "LGA"]);
+    expect(codesOf(compareAirports([], "congestion", "New York state", "New York state")).sort()).toEqual(["ALB", "BUF", "HPN", "JFK", "LGA", "ROC", "SYR"]);
+  });
+
   it("uses explicit iatas as before and says so in the caption", () => {
     const out = compareAirports(["lax", "SNA"], "congestion");
     expect(out.structured?.caption).toBe("Comparing 2 airports: LAX, SNA · congestion score");
@@ -104,5 +117,59 @@ describe("metro population without a Census key", () => {
     const { airportProfile } = await import("./tools");
     const text = JSON.stringify(airportProfile("SEA").result).toLowerCase();
     expect(text).not.toMatch(/population|residents|inhabitants/);
+  });
+});
+
+describe("delayed-flights wording (BTS DepDel15 means 15 minutes or more)", () => {
+  it("labels the column and the model field accurately without changing the number", async () => {
+    const data = await import("./data");
+    const { COMPONENT_LABELS } = await import("./i18n");
+    const out = compareAirports(["SNA"], "congestion");
+    expect(out.structured?.columns).toContain("Delayed 15+ min");
+    expect(JSON.stringify(out.structured?.columns)).not.toMatch(/>15/);
+    // 0.1923 of SNA's departures: still shown as 19%, now under the accurate label.
+    const index = out.structured!.columns.indexOf("Delayed 15+ min");
+    expect(out.structured?.rows[0][index]).toBe(`${Math.round(data.getAirport("SNA")!.delayed_share! * 100)}%`);
+    const entry = (out.result.comparison as Record<string, unknown>[])[0];
+    expect(entry.pct_flights_delayed_15min_or_more).toBe(19);
+    expect(entry).not.toHaveProperty("pct_flights_delayed_over_15min");
+    expect(COMPONENT_LABELS.delayed_share).toBe("Flights delayed 15 min or more");
+  });
+});
+
+describe("named cities are matched by city component and never dropped silently", () => {
+  const codes = (out: ReturnType<typeof compareAirports>) => (out.result.options as { scope: string }[] | undefined)?.map((o) => o.scope).sort();
+
+  it("'Dallas and Austin' asks which Dallas airport instead of comparing only DAL and AUS", () => {
+    const out = compareAirports([], "congestion", undefined, "Dallas and Austin");
+    expect(out.result).toMatchObject({ status: "ambiguous" });
+    expect(codes(out)).toEqual(["DAL", "DFW"]);
+    expect(out.structured).toBeUndefined();
+  });
+
+  it("'Washington and Baltimore' compares DCA and BWI and says Dulles (IAD) was not included", () => {
+    const out = compareAirports([], "congestion", undefined, "Washington and Baltimore");
+    expect(codesOf(out)).toEqual(["BWI", "DCA"]);
+    expect(String(out.result.scope_note)).toMatch(/same metro area were not compared: IAD/);
+  });
+
+  it("does not add a metro note when the user named airport codes", () => {
+    expect(String(compareAirports([], "congestion", undefined, "DCA and BWI").result.scope_note)).not.toMatch(/metro/);
+  });
+
+  it("'Portland, OR and Seattle' reads OR as Oregon, not as the word 'or'", () => {
+    const out = compareAirports([], "congestion", undefined, "Portland, OR and Seattle");
+    expect(out.result.status).toBeUndefined();
+    expect(codesOf(out)).toEqual(["PDX", "SEA"]);
+    expect(codesOf(compareAirports([], "congestion", undefined, "Portland, ME and Boston"))).toEqual(["BOS", "PWM"]);
+  });
+
+  it("an unqualified Portland among named cities still asks which one", () => {
+    const out = compareAirports([], "congestion", undefined, "Portland and Seattle");
+    expect(out.result).toMatchObject({ status: "ambiguous" });
+  });
+
+  it("a city that is only a component of the airport's city string is found (Raleigh, Fort Worth)", () => {
+    expect(codesOf(compareAirports([], "congestion", undefined, "Raleigh and Boston"))).toEqual(["BOS", "RDU"]);
   });
 });

@@ -18,7 +18,15 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 /** Friendly fallback shown when we can't recover a `reply` from the server. */
 const NETWORK_FALLBACK_REPLY =
-  "I couldn't reach the analysis service just now. Please check that the backend is running and try again.";
+  "Something went wrong reaching the assistant. Please try again.";
+
+/** A chat turn that has not answered by now is abandoned, so a hung server cannot freeze the app. */
+export const CHAT_TIMEOUT_MS = 45_000;
+
+/** The `error` of a request the user stopped on purpose. It is not a failure and never shown as one. */
+export const CHAT_CANCELLED = "cancelled";
+
+const TIMEOUT_REPLY = "That took longer than expected, so I stopped waiting. Please try again.";
 
 /**
  * Send a chat turn to the backend.
@@ -30,18 +38,33 @@ const NETWORK_FALLBACK_REPLY =
  */
 export async function sendChat(
   message: string,
-  history: ChatTurn[]
+  history: ChatTurn[],
+  signal?: AbortSignal
 ): Promise<ChatResponse> {
   const body: ChatRequest = { message, history };
+
+  // The caller's signal (the Stop button) and our own timeout both cancel the same request.
+  const request = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    request.abort();
+  }, CHAT_TIMEOUT_MS);
+  const onCallerAbort = () => request.abort();
+  if (signal?.aborted) request.abort();
+  else signal?.addEventListener("abort", onCallerAbort);
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: request.signal,
     });
 
     const data = await safeParseJson(response);
+    if (timedOut) return { reply: TIMEOUT_REPLY, error: "timeout" };
+    if (signal?.aborted) return { reply: "", error: CHAT_CANCELLED };
 
     // Contract: error responses still carry a `reply`. Prefer it when present.
     if (data && typeof data.reply === "string") {
@@ -53,10 +76,15 @@ export async function sendChat(
       error: `bad_response_${response.status}`,
     };
   } catch (err) {
+    if (timedOut) return { reply: TIMEOUT_REPLY, error: "timeout" };
+    if (signal?.aborted) return { reply: "", error: CHAT_CANCELLED };
     return {
       reply: NETWORK_FALLBACK_REPLY,
       error: err instanceof Error ? err.name : "network_error",
     };
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onCallerAbort);
   }
 }
 

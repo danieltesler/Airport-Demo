@@ -128,7 +128,7 @@ describe("template v2: ranking", () => {
 describe("template v2: comparison, breakdown and metric tables", () => {
   const comparison = (rows: StructuredResult["rows"], scoreColumn = "Congestion score"): StructuredResult => ({
     kind: "comparison",
-    columns: ["Airport", scoreColumn, "Avg delay (min)", "Delayed >15m", "Load factor", "Cancel rate"],
+    columns: ["Airport", scoreColumn, "Avg delay (min)", "Delayed 15+ min", "Load factor", "Cancel rate"],
     rows,
   });
 

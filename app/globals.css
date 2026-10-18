@@ -47,6 +47,8 @@ body {
   padding: 0;
   margin: 0;
   height: 100%;
+  /* A pull-down on the header or composer must not trigger Chrome's pull-to-refresh and wipe the conversation. */
+  overscroll-behavior-y: none;
 }
 
 body {

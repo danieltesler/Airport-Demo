@@ -20,8 +20,8 @@ describe("explainScores", () => {
     const explain = explainScores(airportsInScope("all"), metric, label);
     for (const row of explain.rows) {
       const total = row.parts.reduce((sum, p) => sum + p.points, 0);
-      // Each of up to 4 points is rounded to 1 dp, so allow that much drift.
-      expect(Math.abs(total - row.score)).toBeLessThanOrEqual(0.25);
+      // The points are rounded together (largest remainder), so they add up to the displayed score exactly.
+      expect(Math.round(total * 10) / 10).toBe(row.score);
     }
   });
 

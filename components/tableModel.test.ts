@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StructuredResult } from "@/lib/types";
-import { buildChart, columnKind, columnKinds, displayCell, unscoredLabels } from "./tableModel";
+import { buildChart, columnKind, columnKinds, displayCell, displayOrder, unscoredLabels } from "./tableModel";
 
 const ranking: StructuredResult = {
   kind: "ranking",
@@ -48,6 +48,22 @@ describe("numeric placeholders", () => {
     const columns = ["Airport", "Congestion score"];
     const rows = [["SNA", "insufficient data"], ["ANC", "insufficient data"]];
     expect(columnKinds(columns, rows)).toEqual(["text", "number"]);
+  });
+});
+
+describe("displayOrder", () => {
+  it("puts the label then the key measures first in wide metric tables", () => {
+    const share: StructuredResult = {
+      kind: "metric",
+      columns: ["Carrier", "Seats", "Seat share", "Departures", "Departure share"],
+      rows: [["AA", 1000, "21%", 80, "19%"]],
+    };
+    expect(displayOrder(share)).toEqual([0, 2, 4, 1, 3]);
+  });
+
+  it("leaves ranking, comparison and two-column metric tables unchanged", () => {
+    expect(displayOrder(ranking)).toEqual([0, 1, 2, 3, 4]);
+    expect(displayOrder({ kind: "metric", columns: ["Label", "Value"], rows: [["a", 1]] })).toEqual([0, 1]);
   });
 });
 

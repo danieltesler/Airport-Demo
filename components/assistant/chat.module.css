@@ -54,6 +54,9 @@
   flex: 1;
   overflow-y: auto;
   scroll-behavior: smooth;
+  /* Chrome on Android reloads the page when you pull down at the top of it. Without this, a swipe
+     down past the top of the answer chains out of this list and reloads the app, losing the conversation. */
+  overscroll-behavior-y: contain;
 }
 
 .viewportInner {
@@ -532,6 +535,7 @@
   .sendButton {
     width: 44px;
     height: 44px;
+    flex-shrink: 0; /* a wrapped voice chip (Preparing voice… + Stop) squeezed Send to 39px wide at 360px */
   }
 }
 
@@ -552,4 +556,65 @@
 .endButton:hover {
   background: var(--danger);
   color: #fff;
+}
+
+/* Touch targets: the Conversation toggle, End, Interrupt, Continue, Play, Retry and Stop buttons
+   were 22 to 28px tall; 44px is the minimum a finger can hit reliably on a phone. */
+@media (max-width: 600px), (pointer: coarse) {
+  .chipButton,
+  .endButton {
+    min-height: 44px;
+    padding-inline: 0.9rem;
+    flex-shrink: 0; /* never squeeze the label out of its pill */
+    justify-content: center;
+  }
+}
+
+/* Large OS text size or a very narrow screen: let the voice controls wrap inside their own box so the
+   send button is never pushed past the composer's right edge (it was clipped at 200% text on a 360px phone). */
+.voiceInput {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* Privacy line under the composer; slate-600 on white is well above AA contrast. */
+.disclosure {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--slate-600);
+  overflow-wrap: anywhere;
+}
+
+/* Phones: the question field gets its own full-width row and the mic, Conversation and send controls sit
+   below it. Beside the controls it was only about 145px wide: the placeholder was cut off and a typed
+   question wrapped to six short lines. */
+@media (max-width: 600px) {
+  .composerInput {
+    flex-basis: 100%;
+  }
+}
+
+/* Short viewports (landscape, or a phone with the keyboard open): a compact header leaves the
+   conversation usable. The composer stays pinned below the scroll area, above the keyboard. */
+@media (max-height: 640px) {
+  .header {
+    padding: 0.5rem 0.9rem;
+    gap: 0.6rem;
+  }
+  .mark {
+    width: 30px;
+    height: 30px;
+    font-size: 0.95rem;
+  }
+  .title {
+    font-size: 0.95rem;
+  }
+  .subtitle {
+    display: none;
+  }
+  .composerBar {
+    padding-top: 0.5rem;
+    padding-bottom: 0.6rem;
+  }
 }

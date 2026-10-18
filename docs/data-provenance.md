@@ -24,7 +24,7 @@ in the `meta` block of `data/airports.json`.
 | Load factor | How full the departing flights were | BTS T-100 Segment | 2025 | passengers / seats on departing flights |
 | Haul mix | Short / medium / long flights | BTS T-100 Segment | 2025 | Share of departures by flight distance: under 1,100 mi, 1,100–2,200 mi, over 2,200 mi |
 | Average departure delay | Minutes late, on average, leaving the gate | BTS On-Time Reporting Carrier | 2025 (12 monthly files) | Mean delay of non-cancelled departures; early departures count as 0 |
-| Share delayed >15 min | Part of flights that left more than 15 minutes late | BTS On-Time Reporting Carrier | 2025 | Delayed-15 flights / non-cancelled departures |
+| Share delayed 15 minutes or more | Part of flights that left 15 minutes or more late | BTS On-Time Reporting Carrier | 2025 | Delayed-15 flights / non-cancelled departures |
 | Cancellation rate | Part of scheduled flights cancelled | BTS On-Time Reporting Carrier | 2025 | Cancelled / all scheduled departures |
 | Name, city, coordinates, open runways | The airport's identity and layout | OurAirports (public domain) | snapshot at retrieval | Matched on IATA code; runways counted if open and not helipads |
 | Metro area | The Census metropolitan area that contains the airport | U.S. Census Geocoder | current boundaries | Point-in-polygon on the airport's coordinates |

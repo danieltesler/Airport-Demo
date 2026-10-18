@@ -9,12 +9,20 @@
 // retrieval time and SHA-256, every cached download still matches its SHA-256, and every airport
 // record has the fields the app reads with the right types. Output is a pure function of the
 // staging files, so re-running it on the same build rewrites identical files.
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { ROOT, STAGING_DIR, fail, sha256OfFile } from "./ingest/common.mjs";
 
 const DATA_DIR = `${ROOT}data`;
 const failures = [];
 const check = (condition, message) => condition || failures.push(message);
+/**
+ * Write several files so a failure part-way cannot leave a mix of old and new data: every file is
+ * first written to a temporary name, and only when all of them are on disk are they renamed into place.
+ */
+async function writeAll(files) {
+  for (const [path, text] of files) await writeFile(`${path}.tmp`, text);
+  for (const [path] of files) await rename(`${path}.tmp`, path);
+}
 const readJson = async (path) => JSON.parse(await readFile(path, "utf-8"));
 
 const NUMBER_FIELDS = ["lat", "lon", "runways", "annual_passengers", "annual_departures"];
@@ -113,18 +121,20 @@ async function main() {
   const routeSources = ["bts_t100_current", "bts_t100_previous"];
   const placeSources = ["census_gazetteer_places", "census_place_population"];
 
-  await writeFile(`${DATA_DIR}/airports.json`, JSON.stringify({ meta: airportsMeta(staged.airports, manifest, stagingHashes), airports: staged.airports.airports }, null, 1) + "\n");
-  await writeFile(
-    `${DATA_DIR}/routes.json`,
-    JSON.stringify({
-      meta: { generated_at: manifest.generated_at, columns: staged.routes.meta.columns, filter: manifest.fields.annual_passengers.filter, sources: pickSources(manifest, routeSources) },
-      rows: staged.routes.rows,
-    }) + "\n",
-  );
-  await writeFile(
-    `${DATA_DIR}/places.json`,
-    JSON.stringify({ meta: { generated_at: manifest.generated_at, min_population: staged.places.meta.min_population, sources: pickSources(manifest, placeSources) }, places: staged.places.places }) + "\n",
-  );
+  await writeAll([
+    [`${DATA_DIR}/airports.json`, JSON.stringify({ meta: airportsMeta(staged.airports, manifest, stagingHashes), airports: staged.airports.airports }, null, 1) + "\n"],
+    [
+      `${DATA_DIR}/routes.json`,
+      JSON.stringify({
+        meta: { generated_at: manifest.generated_at, columns: staged.routes.meta.columns, filter: manifest.fields.annual_passengers.filter, sources: pickSources(manifest, routeSources) },
+        rows: staged.routes.rows,
+      }) + "\n",
+    ],
+    [
+      `${DATA_DIR}/places.json`,
+      JSON.stringify({ meta: { generated_at: manifest.generated_at, min_population: staged.places.meta.min_population, sources: pickSources(manifest, placeSources) }, places: staged.places.places }) + "\n",
+    ],
+  ]);
 
   const before = new Set((previous?.airports ?? []).map((a) => a.iata));
   const added = iatas.filter((iata) => !before.has(iata));

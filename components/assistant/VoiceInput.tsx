@@ -8,6 +8,7 @@ import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
 import { warmAcknowledgements } from "@/lib/acknowledgement";
 import type { ConversationController } from "@/lib/conversation";
 import { deriveVoiceState, voiceChipText } from "@/lib/voiceStatus";
+import { bumpVoiceEpoch } from "@/lib/voiceSession";
 import { markVoiceTurn } from "@/lib/voiceTurn";
 import { MicIcon, StopIcon } from "./icons";
 import styles from "./chat.module.css";
@@ -38,7 +39,17 @@ export function VoiceInput() {
     onFinal: sendSpoken,
     onOutcome: (outcome) => controllerRef.current?.outcome(outcome),
   });
-  const { controller, snapshot } = useConversation({ dictation, send: sendSpoken, isThinking, playback: playback.status });
+  const { controller, snapshot } = useConversation({
+    dictation,
+    send: sendSpoken,
+    // The thread is only a placeholder until it is ready (and during a development remount); cancelling it then throws.
+    cancelChat: () => {
+      const thread = aui.thread();
+      if (thread.getState().isRunning) thread.cancelRun();
+    },
+    isThinking,
+    playback: playback.status,
+  });
   controllerRef.current = controller;
 
   if (dictation.insecureContext) {
@@ -58,6 +69,7 @@ export function VoiceInput() {
 
   /** Everything a tap needs, done synchronously inside it: unlock audio, warm the "one moment" clips. */
   const prepareInsideTap = () => {
+    bumpVoiceEpoch(); // the user is talking again: an answer still on its way is stale
     player.unlock();
     warmAcknowledgements();
   };
@@ -126,7 +138,7 @@ export function VoiceInput() {
             Play
           </button>
         )}
-        {state === "speaking" && (
+        {(state === "speaking" || state === "preparing") && (
           <button
             type="button"
             className={styles.chipButton}

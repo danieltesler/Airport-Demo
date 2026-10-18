@@ -130,3 +130,21 @@ export function unscoredLabels(data: StructuredResult): string[] {
   const labelIndex = labelColumnIndex(data.rows, data.columns);
   return data.rows.filter((row) => isMissing(row[measure])).map((row) => labelOf(row, labelIndex));
 }
+
+const KEY_MEASURE_HEADER = /(%|share|change|yoy)/i;
+
+/**
+ * Column display order. Wide metric tables (carrier share, capacity trend) put the label
+ * first and the key measures (percent, share, change) next, so they stay visible on a
+ * narrow screen; ranking, comparison and breakdown tables keep the payload's order.
+ */
+export function displayOrder(data: StructuredResult): number[] {
+  const { kind, columns, rows } = data;
+  const identity = columns.map((_, i) => i);
+  if (kind !== "metric" || columns.length <= 2) return identity;
+
+  const kinds = columnKinds(columns, rows);
+  const label = labelColumnIndex(rows, columns);
+  const isKeyMeasure = (i: number) => i !== label && (kinds[i] === "percent" || KEY_MEASURE_HEADER.test(columns[i]));
+  return [label, ...identity.filter(isKeyMeasure), ...identity.filter((i) => i !== label && !isKeyMeasure(i))];
+}

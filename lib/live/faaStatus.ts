@@ -17,6 +17,7 @@ import {
   fetchText,
   lookupAirport,
   nowOf,
+  retrievedAtIso,
   safeReason,
   unavailable,
   type LiveDeps,
@@ -165,7 +166,7 @@ export async function faaAirportStatus(args: Record<string, unknown>, deps: Live
       airports_with_active_programs_nationwide: feed.activeAirportCount,
       source: SOURCE,
       feed_updated: feed.updateTime,
-      retrieved_at: nowOf(deps).toISOString(),
+      retrieved_at: retrievedAtIso(deps, [feedCache.storedAt(FEED_URL, nowOf(deps).getTime())]),
     },
     structured: { kind: "metric", columns: ["FAA status (now)", "Detail"], rows },
     assumptions: [

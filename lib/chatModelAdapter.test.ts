@@ -6,6 +6,7 @@ vi.mock("./voicePlayback", () => ({ getSpeechPlayer: () => player, warmClipCache
 
 import { ACK_PHRASES, resetAcknowledgementState } from "./acknowledgement";
 import { airportChatAdapter } from "./chatModelAdapter";
+import { bumpVoiceEpoch } from "./voiceSession";
 import { markVoiceTurn } from "./voiceTurn";
 
 const RANKING_RESPONSE = {
@@ -199,5 +200,134 @@ describe("history carries the 'shown on screen' note", () => {
     mockChat(RANKING_RESPONSE);
     const result = await run("q");
     expect(result.metadata.custom.shown).toBeNull();
+  });
+});
+
+describe("a spoken answer goes stale when the user moves on", () => {
+  function slowChat(ms: number, body: unknown) {
+    const fetchMock = vi.fn((_url: string, init: RequestInit) => new Promise<Response>((resolve, reject) => {
+      const timer = setTimeout(() => resolve(new Response(JSON.stringify(body))), ms);
+      init.signal?.addEventListener("abort", () => {
+        clearTimeout(timer);
+        reject(new DOMException("aborted", "AbortError"));
+      });
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+  const SPOKEN = { ...RANKING_RESPONSE, spoken: "Sure, Los Angeles stands out." };
+
+  it("is not spoken after End or a pause bumps the epoch, though it still reaches the screen", async () => {
+    vi.useFakeTimers();
+    slowChat(4000, SPOKEN);
+    markVoiceTurn("top airports in LA");
+    const pending = run("top airports in LA");
+    await vi.advanceTimersByTimeAsync(1600); // the "one moment" has played
+    expect(player.speak).toHaveBeenCalledTimes(1);
+
+    bumpVoiceEpoch(); // End (or a pause)
+    await vi.advanceTimersByTimeAsync(3000);
+    const result = await pending;
+    expect(player.speak).toHaveBeenCalledTimes(1); // the answer was not spoken
+    expect(result.content[0].text).toBe("Here is the ranking."); // but it is on screen
+    expect(player.cancel).not.toHaveBeenCalled(); // and the adapter does not cut off whatever the user started since
+  });
+
+  it("the 'one moment' does not fire after End", async () => {
+    vi.useFakeTimers();
+    slowChat(4000, SPOKEN);
+    markVoiceTurn("top airports in LA");
+    const pending = run("top airports in LA");
+    await vi.advanceTimersByTimeAsync(1000);
+    bumpVoiceEpoch();
+    await vi.advanceTimersByTimeAsync(4000);
+    await pending;
+    expect(player.speak).not.toHaveBeenCalled();
+  });
+
+  it("a newer question makes the older answer stale", async () => {
+    vi.useFakeTimers();
+    slowChat(3000, SPOKEN);
+    markVoiceTurn("first question");
+    const first = run("first question");
+    await vi.advanceTimersByTimeAsync(500);
+    markVoiceTurn("second question");
+    const second = run("second question");
+    await vi.advanceTimersByTimeAsync(3600);
+    await Promise.all([first, second]);
+    // Only the second question's answer is spoken.
+    const spokenLines = player.speak.mock.calls.map((call) => call[0]).filter((line) => line === "Sure, Los Angeles stands out.");
+    expect(spokenLines).toHaveLength(1);
+  });
+
+  it("still speaks when nothing moved", async () => {
+    mockChat(SPOKEN);
+    markVoiceTurn("q");
+    await run("q");
+    expect(player.speak).toHaveBeenCalledWith("Sure, Los Angeles stands out.");
+  });
+
+  it("passes the abort signal to the chat request, which cancels it", async () => {
+    const fetchMock = slowChat(60_000, SPOKEN);
+    vi.useFakeTimers();
+    markVoiceTurn("q");
+    const controller = new AbortController();
+    const pending = run("q", controller.signal);
+    await vi.advanceTimersByTimeAsync(100);
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    // The request's own signal follows the caller's (it also carries the 45 s timeout).
+    expect(init.signal?.aborted).toBe(false);
+
+    controller.abort();
+    expect(init.signal?.aborted).toBe(true);
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await pending;
+    expect(player.speak).not.toHaveBeenCalledWith("Sure, Los Angeles stands out.");
+    expect(result.metadata.custom.spoken ?? null).toBeNull();
+  });
+});
+
+describe("Stop ends quietly; real failures still show the friendly error", () => {
+  type Custom = { error?: string | null; spoken?: string | null };
+
+  it("Stop gives a neutral 'Stopped.' with no error, nothing spoken, and cuts off a 'one moment' that had started", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", vi.fn((_url: string, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+    })));
+    markVoiceTurn("q");
+    const controller = new AbortController();
+    const pending = run("q", controller.signal);
+    await vi.advanceTimersByTimeAsync(2000); // the acknowledgement has started
+    expect(player.speak).toHaveBeenCalledTimes(1);
+
+    controller.abort();
+    const result = await pending;
+    expect(result.content[0].text).toBe("Stopped.");
+    const custom = result.metadata.custom as Custom;
+    expect(custom.error ?? null).toBeNull(); // no red "Something went wrong" bubble, no Try again
+    expect(custom.spoken ?? null).toBeNull();
+    expect(player.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("a 45 second hang still shows the friendly error bubble", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", vi.fn((_url: string, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+    })));
+    const pending = run("q");
+    await vi.advanceTimersByTimeAsync(45_001);
+    const result = await pending;
+    expect((result.metadata.custom as Custom).error).toBe("timeout");
+    expect(result.content[0].text).toMatch(/stopped waiting/);
+  });
+
+  it("a network failure still shows the friendly error bubble", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    }));
+    const result = await run("q");
+    expect((result.metadata.custom as Custom).error).toBe("TypeError");
+    expect(result.content[0].text).toMatch(/Something went wrong reaching the assistant/);
   });
 });

@@ -47,6 +47,11 @@ export interface MetroAlias {
   label: string;
   center: { lat: number; lon: number };
   radius_miles: number;
+  /**
+   * Bare names this area shares with a U.S. state ("New York"). Such a name is ambiguous between
+   * the state and this area, so it is offered as a choice instead of silently meaning the state.
+   */
+  ambiguous_names?: string[];
 }
 
 export type ResolvedAs = "all" | "airport" | "metro" | "state" | "census_division" | "census_region" | "radius";
@@ -146,10 +151,14 @@ export function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: n
 /** Lowercase, drop periods, turn separators into spaces, drop a leading "the". */
 export function normalizeScope(text: string): string {
   return text
+    .normalize("NFD")
+    .replace(/\p{M}+/gu, "") // diacritics: "San José" -> "San Jose"
     .toLowerCase()
     .replace(/\./g, "")
     .replace(/[,_\-/]+/g, " ")
     .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[?!;:]+$/, "") // trailing punctuation: "Texas?"
     .trim()
     .replace(/^the /, "");
 }
@@ -307,15 +316,40 @@ class ScopeResolver<T extends GeoAirport> {
       return matchedResult(input, "all", "all airports", this.airports);
     }
 
+    const direct =
+      this.resolveAirportCode(input, text) ?? this.resolveMetroAlias(input, text) ?? this.resolveMetroField(input, text);
+    if (direct) return direct;
+
+    // An unrecognized radius request ("near Boston area") does not end the search: the named-area
+    // and trimmed-phrase readings still get a turn, and the radius's own explanation is the fallback.
+    const radius = this.resolveRadiusRequest(input, text);
+    if (radius && radius.status !== "unknown") return radius;
     return (
-      this.resolveAirportCode(input, text) ??
-      this.resolveMetroAlias(input, text) ??
-      this.resolveMetroField(input, text) ??
-      this.resolveRadiusRequest(input, text) ??
       this.resolveNamedArea(input, text) ??
+      this.resolveExplicitState(input, text) ??
       this.resolveTrimmedPhrase(input, text) ??
+      radius ??
       this.unknown(input, text)
     );
+  }
+
+  /**
+   * "New York state" and "upstate New York" name the state outright, which settles a name that is
+   * otherwise ambiguous with a city area. The word 'upstate' is not a boundary the dataset knows,
+   * so the note says every airport in the state is included.
+   */
+  private resolveExplicitState(input: string, text: string): ScopeResolution<T> | null {
+    const match = text.match(/^(upstate )?(.+?)( state)?$/);
+    if (!match || (!match[1] && !match[3])) return null;
+    const state = this.findState(match[2]);
+    if (!state) return null;
+    const result = this.stateResult(input, state);
+    if (!match[1]) return result;
+    return {
+      ...result,
+      reinterpreted: true,
+      notes: [...result.notes, `'upstate' is not a boundary in the data: every airport in ${state.name} is included, downstate ones too.`],
+    };
   }
 
   /**
@@ -325,7 +359,7 @@ class ScopeResolver<T extends GeoAirport> {
    */
   private resolveTrimmedPhrase(input: string, text: string): ScopeResolution<T> | null {
     const head = text.split(/ (?:including|plus|with|especially) /)[0];
-    const trimmed = head.replace(/ (?:us|usa|area|region|states)$/, "");
+    const trimmed = head.replace(/ (?:us|usa|area|region|states|airports?)$/, "");
     if (trimmed === text || !trimmed) return null;
     const retried = this.resolve(trimmed);
     if (retried.status === "unknown") return null;
@@ -398,8 +432,26 @@ class ScopeResolver<T extends GeoAirport> {
     return this.resolveAround(input, request.anchorText, request.radiusMiles, request.explicitRadius);
   }
 
-  /** Radius search around an airport code, a metro alias center, or a place name. */
+  /**
+   * Radius search around an airport code, a metro alias center, or a place name. A trailing
+   * "airport(s)" or "area" is dropped when the words as typed are not recognized ("near JFK airport",
+   * "near Boston area"); it is tried second so "near Bay Area" still finds the Bay Area alias.
+   */
   private resolveAround(
+    input: string,
+    anchorText: string,
+    radiusMiles: number,
+    explicitRadius: boolean,
+  ): ScopeResolution<T> | null {
+    const first = this.resolveAroundAnchor(input, anchorText, radiusMiles, explicitRadius);
+    if (first?.status !== "unknown") return first;
+    const stripped = normalizeScope(anchorText).replace(/ (?:airports?|area)$/, "");
+    if (stripped === normalizeScope(anchorText) || !stripped) return first;
+    const second = this.resolveAroundAnchor(input, stripped, radiusMiles, explicitRadius);
+    return second && second.status !== "unknown" ? second : first;
+  }
+
+  private resolveAroundAnchor(
     input: string,
     anchorText: string,
     radiusMiles: number,
@@ -446,8 +498,16 @@ class ScopeResolver<T extends GeoAirport> {
     const state = this.findState(text);
     if (state) {
       interpretations.push({
-        option: { label: state.name, scope: state.code },
+        option: { label: `${state.name} (state)`, scope: state.code },
         resolve: () => this.stateResult(input, state),
+      });
+    }
+    const sharedWithAlias = this.aliases.find((a) => a.ambiguous_names?.some((n) => normalizeScope(n) === text));
+    if (sharedWithAlias) {
+      const aliasText = normalizeScope(sharedWithAlias.names[0]);
+      interpretations.push({
+        option: { label: sharedWithAlias.label, scope: sharedWithAlias.names[0] },
+        resolve: () => this.resolveMetroAlias(input, aliasText)!,
       });
     }
     const division = DIVISIONS.find((d) => [d.name, ...d.aliases].some((n) => normalizeScope(n) === text));

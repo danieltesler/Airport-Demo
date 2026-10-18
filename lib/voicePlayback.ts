@@ -33,7 +33,8 @@ export interface AudioLike {
 }
 
 export interface PlayerDeps {
-  fetchClip(text: string, signal: AbortSignal): Promise<Blob>;
+  /** `first` is the clip the listener is waiting on in silence, so it gets the shorter patience. */
+  fetchClip(text: string, signal: AbortSignal, hints?: { first: boolean }): Promise<Blob>;
   createAudio(): AudioLike;
   createObjectUrl(blob: Blob): string;
   revokeObjectUrl(url: string): void;
@@ -44,6 +45,11 @@ const MIN_SENTENCE_CHARS = 20; // shorter fragments ("U.S.", "Hi.") are merged i
 // Covers the slow path: ElevenLabs gives up after 2.5 s, then the OpenAI fallback clip took 9-12 s
 // when measured. The normal ElevenLabs clip arrives in about 0.7 s, so this only bounds a dead server.
 const CLIP_TIMEOUT_MS = 15000;
+// The first clip is the one the listener waits on in silence. ElevenLabs answers in about 0.7 s, and
+// the OpenAI fallback sends its headers after the 2.5 s ElevenLabs timeout plus its own start, so 6 s
+// to the response headers covers both. Once headers arrive (the server has produced audio, with or
+// without X-TTS-Fallback), the body gets the long window above. Past 6 s with nothing: voice is off.
+export const FIRST_CLIP_HEADER_TIMEOUT_MS = 6000;
 const MAX_FAILURES_BEFORE_MUTE = 2;
 
 const IDLE: PlaybackSnapshot = { status: "idle", text: null };
@@ -101,6 +107,8 @@ export class SpeechPlayer {
   private runId = 0;
   private controller: AbortController | null = null;
   private resumeWaiter: (() => void) | null = null;
+  /** Ends the clip that is playing, so a cancel never leaves its promise (and object URL) hanging. */
+  private settleCurrentClip: (() => void) | null = null;
   private consecutiveFailures = 0;
 
   constructor(private readonly deps: PlayerDeps) {}
@@ -155,6 +163,7 @@ export class SpeechPlayer {
     }
     this.resumeWaiter?.();
     this.resumeWaiter = null;
+    this.settleCurrentClip?.();
     this.setSnapshot(IDLE);
   }
 
@@ -179,7 +188,9 @@ export class SpeechPlayer {
   private requestClips(sentences: string[], signal: AbortSignal): Promise<Blob>[] {
     const clips: Promise<Blob>[] = [];
     sentences.forEach((sentence, i) => {
-      const request = () => this.deps.fetchClip(sentence, signal);
+      // A clip behind the concurrency window is requested later; by then the answer may be cancelled.
+      const request = () =>
+        signal.aborted ? Promise.reject(new DOMException("aborted", "AbortError")) : this.deps.fetchClip(sentence, signal, { first: i === 0 });
       clips.push(
         i < MAX_CONCURRENT_CLIPS ? request() : clips[i - MAX_CONCURRENT_CLIPS].catch(() => null).then(request),
       );
@@ -213,12 +224,14 @@ export class SpeechPlayer {
     const url = this.deps.createObjectUrl(blob);
     try {
       await new Promise<void>((resolve, reject) => {
+        this.settleCurrentClip = () => resolve();
         audio.onended = () => resolve();
         audio.onerror = () => reject(new Error("playback failed"));
         audio.src = url;
         this.startPlaying(runId, audio).catch(reject);
       });
     } finally {
+      this.settleCurrentClip = null;
       this.deps.revokeObjectUrl(url);
     }
   }
@@ -259,15 +272,21 @@ export class SpeechPlayer {
   }
 }
 
-/** POST one sentence to /api/tts and return its audio, aborting after CLIP_TIMEOUT_MS. */
+/**
+ * POST one sentence to /api/tts and return its audio. It gives up if no response arrives within
+ * `headerTimeoutMs`, and, once one has, if the audio takes longer than CLIP_TIMEOUT_MS to read.
+ */
 export async function fetchClipFromApi(
   text: string,
   signal: AbortSignal,
   fetchImpl: typeof fetch = fetch,
   onProvider?: (provider: string) => void,
+  headerTimeoutMs: number = CLIP_TIMEOUT_MS,
 ): Promise<Blob> {
+  // An abort event that already happened is never delivered to a listener added now.
+  if (signal.aborted) throw new DOMException("aborted", "AbortError");
   const timeout = new AbortController();
-  const timer = setTimeout(() => timeout.abort(), CLIP_TIMEOUT_MS);
+  let timer = setTimeout(() => timeout.abort(), headerTimeoutMs);
   const abortBoth = () => timeout.abort();
   signal.addEventListener("abort", abortBoth);
   try {
@@ -277,6 +296,8 @@ export async function fetchClipFromApi(
       body: JSON.stringify({ text }),
       signal: timeout.signal,
     });
+    clearTimeout(timer);
+    timer = setTimeout(() => timeout.abort(), CLIP_TIMEOUT_MS); // headers are in: the body gets the long window
     if (!response.ok) throw new Error(`tts ${response.status}`);
     const provider = response.headers.get("X-TTS-Provider");
     if (provider) onProvider?.(provider);
@@ -313,11 +334,17 @@ let sharedPlayer: SpeechPlayer | null = null;
 /** The one player for the page, created on first use so nothing touches `Audio` during SSR. */
 export function getSpeechPlayer(): SpeechPlayer {
   sharedPlayer ??= new SpeechPlayer({
-    fetchClip: (text, signal) => {
+    fetchClip: (text, signal, hints) => {
       const warm = warmClips.get(text);
       return warm
         ? Promise.resolve(warm)
-        : fetchClipFromApi(text, signal, fetch, (provider) => sharedPlayer?.noteProvider(provider));
+        : fetchClipFromApi(
+            text,
+            signal,
+            fetch,
+            (provider) => sharedPlayer?.noteProvider(provider),
+            hints?.first ? FIRST_CLIP_HEADER_TIMEOUT_MS : CLIP_TIMEOUT_MS,
+          );
     },
     createAudio: () => new Audio(),
     createObjectUrl: (blob) => URL.createObjectURL(blob),

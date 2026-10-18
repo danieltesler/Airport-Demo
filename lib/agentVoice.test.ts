@@ -23,7 +23,7 @@ vi.mock("./spokenGuard", () => ({ guardSpoken: guardMock }));
 
 import { runAgent, spokenMode, systemPrompt } from "./agent";
 import { buildShownNote, cleanShownNote, MAX_SHOWN_CHARS } from "./shownNote";
-import { parseModelReply } from "./replyParse";
+import { UNREADABLE_REPLY, parseModelReply } from "./replyParse";
 import { loadFixture } from "../test/fixtures/tool-outputs/cases";
 
 const toolCall = (name: string, args: object) => ({
@@ -144,7 +144,7 @@ describe("{reply, spoken} output", () => {
   it("falls back to the plain text as the reply, with no spoken line, when the JSON is invalid", async () => {
     scripted.push(finalText('{"reply": "Boston leads", "spoken":'));
     const res = await runAgent("hello");
-    expect(res.reply).toBe('{"reply": "Boston leads", "spoken":'); // never a crash
+    expect(res.reply).toBe(UNREADABLE_REPLY); // never raw JSON, never a crash
     expect(res.spoken).toBeUndefined();
     expect(guardMock).not.toHaveBeenCalled();
   });
@@ -154,6 +154,14 @@ describe("{reply, spoken} output", () => {
     const res = await runAgent("hello");
     expect(res.reply).toBe("Hi! Ask me about U.S. airports.");
     expect(res.spoken).toBeUndefined();
+  });
+
+  it("unwraps JSON in a code fence and never shows a cut-off '{' reply", () => {
+    const fence = String.fromCharCode(96).repeat(3);
+    const wrapped = [fence + "json", '{"reply":"a","spoken":"b"}', fence].join("\n");
+    expect(parseModelReply(wrapped)).toEqual({ reply: "a", spoken: "b", structured: true });
+    expect(parseModelReply('{"reply":"A long answer that was cut off by max_tokens')).toMatchObject({ reply: UNREADABLE_REPLY, spoken: null });
+    expect(parseModelReply("{}")).toMatchObject({ reply: UNREADABLE_REPLY });
   });
 
   it("parseModelReply handles every shape without throwing", () => {
@@ -269,5 +277,55 @@ describe("history: 'Shown on screen last turn'", () => {
     expect(assistant.content.length).toBeLessThan(5 + MAX_SHOWN_CHARS + 40);
     expect(again.content).toBe("again");
     expect(cleanShownNote("a\r\nb [c]")).toBe("a b c");
+  });
+});
+
+describe("step cap and configuration", () => {
+  it("makes a final tool-free call when the step cap ends the loop with tool results unanswered", async () => {
+    const saved = process.env.MAX_AGENT_STEPS;
+    process.env.MAX_AGENT_STEPS = "2";
+    vi.resetModules();
+    try {
+      const { runAgent: capped } = await import("./agent");
+      scripted.push(
+        toolCall("airport_profile", { iata: "BOS" }),
+        toolCall("airport_profile", { iata: "JFK" }),
+        finalJson("Boston and New York are both steady.", "Both are steady."),
+      );
+      const res = await capped("Tell me about BOS and JFK");
+      expect(createMock).toHaveBeenCalledTimes(3);
+      expect((requestAt(2) as unknown as { tool_choice: string }).tool_choice).toBe("none");
+      expect(res.reply).toBe("Boston and New York are both steady.");
+      expect(res.meta?.timings?.model_calls).toBe(3);
+    } finally {
+      if (saved === undefined) delete process.env.MAX_AGENT_STEPS;
+      else process.env.MAX_AGENT_STEPS = saved;
+      vi.resetModules();
+    }
+  });
+
+  it("falls back to 4 steps for a non-numeric MAX_AGENT_STEPS instead of never running the loop", async () => {
+    const saved = process.env.MAX_AGENT_STEPS;
+    process.env.MAX_AGENT_STEPS = "abc";
+    vi.resetModules();
+    try {
+      const { runAgent: safe } = await import("./agent");
+      scripted.push(finalJson("Hello.", "Hello."));
+      const res = await safe("hi");
+      expect(res.reply).toBe("Hello.");
+      expect(createMock).toHaveBeenCalledTimes(1);
+    } finally {
+      if (saved === undefined) delete process.env.MAX_AGENT_STEPS;
+      else process.env.MAX_AGENT_STEPS = saved;
+      vi.resetModules();
+    }
+  });
+
+  it("passes known airport names and static facts to the guard", async () => {
+    scripted.push(finalJson("Hi.", "Hi."));
+    await runAgent("hello");
+    const input = guardMock.mock.calls[0][0] as unknown as { knownNames: string[]; staticFacts: number[] };
+    expect(input.knownNames).toEqual(expect.arrayContaining(["Boston", "Santa Ana", "Los Angeles"]));
+    expect(input.staticFacts).toEqual(expect.arrayContaining([102, 2025, 2024]));
   });
 });

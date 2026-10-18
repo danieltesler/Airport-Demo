@@ -12,8 +12,15 @@ export interface ParsedModelReply {
   structured: boolean;
 }
 
+/** Shown instead of text that looks like JSON but could not be read (a cut-off or malformed model reply). */
+export const UNREADABLE_REPLY = "I had trouble putting that answer together. Could you ask it again?";
+
+const FENCE = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
+
 export function parseModelReply(content: string): ParsedModelReply {
-  const text = content.trim();
+  let text = content.trim();
+  const fenced = text.match(FENCE);
+  if (fenced) text = fenced[1].trim(); // JSON wrapped in a code fence
   if (text.startsWith("{")) {
     try {
       const value: unknown = JSON.parse(text);
@@ -25,8 +32,10 @@ export function parseModelReply(content: string): ParsedModelReply {
         }
       }
     } catch {
-      // fall through: plain text
+      // cut off by the token limit or malformed: handled below
     }
+    // Never show raw JSON to the user.
+    return { reply: UNREADABLE_REPLY, spoken: null, structured: false };
   }
   return { reply: text, spoken: null, structured: false };
 }

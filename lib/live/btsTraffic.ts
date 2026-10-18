@@ -18,6 +18,7 @@ import {
   fetchJson,
   lookupAirport,
   nowOf,
+  retrievedAtIso,
   round,
   safeReason,
   toNumber,
@@ -57,7 +58,7 @@ const cache = new TtlCache<MonthRow[]>(6 * 60 * 60 * 1000); // monthly dataset: 
 // Pure helpers
 // --------------------------------------------------------------------------- //
 
-/** Parse + aggregate raw Socrata rows into one row per month, newest first. */
+/** Parse raw Socrata rows into one row per month (duplicates dropped), newest first. */
 export function parseMonthRows(body: unknown): MonthRow[] {
   if (!Array.isArray(body)) throw new LiveFetchError("upstream returned an unexpected shape");
   const byMonth = new Map<string, MonthRow>();
@@ -69,12 +70,16 @@ export function parseMonthRows(body: unknown): MonthRow[] {
     if (!month || !/^\d{4}-\d{2}$/.test(month) || passengers === null || departures === null || seats === null) {
       continue;
     }
-    const existing = byMonth.get(month) ?? { month, passengers: 0, departures: 0, seats: 0, domesticPassengers: 0 };
-    existing.passengers += passengers;
-    existing.departures += departures;
-    existing.seats += seats;
-    existing.domesticPassengers += toNumber(raw.domestic_passengers) ?? 0;
-    byMonth.set(month, existing);
+    // One row per month: a repeated month is a duplicate of the same figures, so the first is kept
+    // rather than summed (summing would double that month's traffic).
+    if (byMonth.has(month)) continue;
+    byMonth.set(month, {
+      month,
+      passengers,
+      departures,
+      seats,
+      domesticPassengers: toNumber(raw.domestic_passengers) ?? 0,
+    });
   }
   return [...byMonth.values()].sort((a, b) => b.month.localeCompare(a.month));
 }
@@ -239,7 +244,7 @@ export async function btsAirportTraffic(args: Record<string, unknown>, deps: Liv
       passenger_growth_yoy: passengerGrowthYoy,
       ...bundledDatasetNote(airport.annual_passengers, t12.passengers, summary, deps.datasetVintage),
       source: SOURCE,
-      retrieved_at: nowOf(deps).toISOString(),
+      retrieved_at: retrievedAtIso(deps, [cache.storedAt(airport.iata, nowOf(deps).getTime())]),
     },
     structured: { kind: "metric", columns: ["BTS T-100 (live query)", "Value"], rows: rowsOut },
     assumptions: [

@@ -18,6 +18,7 @@ import {
   fetchJson,
   lookupAirport,
   nowOf,
+  retrievedAtIso,
   safeReason,
   toNumber,
   unavailable,
@@ -175,7 +176,7 @@ export async function faaAirportInfrastructure(args: Record<string, unknown>, de
       operational_status: facility.status,
       faa_record_effective: facility.recordEffective,
       source: SOURCE,
-      retrieved_at: nowOf(deps).toISOString(),
+      retrieved_at: retrievedAtIso(deps, [cache.storedAt(airport.icao.toUpperCase(), nowOf(deps).getTime())]),
     },
     structured: {
       kind: "metric",

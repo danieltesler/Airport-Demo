@@ -30,6 +30,14 @@ export interface ScreenWakeLock {
 export function createScreenWakeLock(nav: NavigatorWithWakeLock | undefined = typeof navigator === "undefined" ? undefined : navigator): ScreenWakeLock {
   let sentinel: WakeLockSentinelLike | null = null;
   let wanted = false;
+  // Requests and releases run one after another: an acquire, release, acquire in quick succession
+  // must not leave the first lock held with nothing pointing at it.
+  let tail: Promise<unknown> = Promise.resolve();
+  const enqueue = <T>(job: () => Promise<T>): Promise<T> => {
+    const run = tail.then(job, job);
+    tail = run.then(() => undefined, () => undefined);
+    return run;
+  };
 
   async function request(): Promise<boolean> {
     if (!nav?.wakeLock) return false;
@@ -53,18 +61,22 @@ export function createScreenWakeLock(nav: NavigatorWithWakeLock | undefined = ty
   }
 
   return {
-    async acquire() {
+    acquire() {
       wanted = true;
-      return request();
+      return enqueue(request);
     },
-    async release() {
+    release() {
       wanted = false;
-      const lock = sentinel;
-      sentinel = null;
-      await lock?.release().catch(() => undefined);
+      return enqueue(async () => {
+        const lock = sentinel;
+        sentinel = null;
+        await lock?.release().catch(() => undefined);
+      });
     },
     async onVisible() {
-      if (wanted && !sentinel) await request();
+      await enqueue(async () => {
+        if (wanted && !sentinel) await request();
+      });
     },
     get held() {
       return sentinel !== null;

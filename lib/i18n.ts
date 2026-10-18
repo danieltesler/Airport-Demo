@@ -20,7 +20,7 @@ const SUPPRESSION_RULE =
 export const ASSUMPTIONS = {
   congestion: [
     "Congestion is proxied by operational strain: average departure delay, the share of " +
-      "departures more than 15 minutes late, and the cancellation rate (BTS On-Time " +
+      "departures 15 minutes or more late, and the cancellation rate (BTS On-Time " +
       "Reporting Carrier data, calendar year 2025). Seat load factor is scored separately " +
       "in the unmet-demand and expansion scores.",
     "Metrics are compared as rates (per flight), not totals, so large hubs and small " +
@@ -136,7 +136,7 @@ export const METRIC_LABELS = {
 
 /** Plain-language names for scoring components, keyed by the keys used in scoring.ts. */
 export const COMPONENT_LABELS: Record<string, string> = {
-  delayed_share: "Flights delayed >15 min",
+  delayed_share: "Flights delayed 15 min or more",
   avg_delay: "Average departure delay",
   cancellations: "Cancellation rate",
   load_pressure: "Load-factor pressure",

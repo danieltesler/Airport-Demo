@@ -26,6 +26,8 @@ const streamIsLive = (stream: MediaStream): boolean => stream.getAudioTracks().s
 
 export class MicSession {
   private current: { stream: MediaStream; audioCtx: AudioContext } | null = null;
+  /** The open() still in flight, so a second tap shares it instead of opening a second microphone. */
+  private opening: { promise: Promise<SessionResult>; audioCtx: AudioContext | null } | null = null;
 
   constructor(
     private readonly deps: MicDeps,
@@ -41,8 +43,25 @@ export class MicSession {
     return this.current?.audioCtx ?? null;
   }
 
-  /** Open (or reuse) the session. The first lines run synchronously, so call this inside the tap. */
-  async open(): Promise<SessionResult> {
+  /**
+   * Open (or reuse) the session. The first lines run synchronously, so call this inside the tap.
+   * A second call while one is still opening gets the same result (and resumes the context inside
+   * its own tap), so a double tap cannot leave an orphaned stream running with the mic indicator on.
+   */
+  open(): Promise<SessionResult> {
+    if (this.opening) {
+      void this.opening.audioCtx?.resume().catch(() => undefined);
+      return this.opening.promise;
+    }
+    const attempt: { promise: Promise<SessionResult>; audioCtx: AudioContext | null } = { promise: Promise.resolve("unsupported"), audioCtx: null };
+    this.opening = attempt;
+    attempt.promise = this.openOnce((audioCtx) => (attempt.audioCtx = audioCtx)).finally(() => {
+      if (this.opening === attempt) this.opening = null;
+    });
+    return attempt.promise;
+  }
+
+  private async openOnce(onContext: (audioCtx: AudioContext) => void): Promise<SessionResult> {
     if (!this.deps.createAudioContext) return "unsupported";
 
     const existing = this.current;
@@ -54,6 +73,7 @@ export class MicSession {
     this.close();
 
     const audioCtx = this.deps.createAudioContext();
+    onContext(audioCtx);
     void audioCtx.resume().catch(() => undefined);
 
     let stream: MediaStream;

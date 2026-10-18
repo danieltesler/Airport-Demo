@@ -1,8 +1,10 @@
 import type { StructuredResult as StructuredData } from "@/lib/types";
 import { ScoreBreakdown } from "./ScoreBreakdown";
+import { ScrollRegion } from "./ScrollRegion";
 import {
   buildChart,
   columnKinds,
+  displayOrder,
   displayCell,
   isMissing,
   labelColumnIndex,
@@ -29,17 +31,18 @@ export function StructuredResult({ data }: StructuredResultProps) {
   const scoreIndex = scoreColumnIndex(columns);
   const firstTextIndex = labelColumnIndex(rows, columns);
   const notScored = unscoredLabels(data);
+  const order = displayOrder(data);
 
   return (
     <section className={styles.wrap} aria-label={`${kind} result`}>
-      <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Table, scrolls sideways">
+      <ScrollRegion label="Table, scrolls sideways">
         <table className={styles.table}>
           {caption && <caption className={styles.caption}>{caption}</caption>}
           <thead>
             <tr>
-              {columns.map((col, i) => (
+              {order.map((i) => (
                 <th key={i} scope="col" className={kinds[i] === "text" ? styles.thLabel : styles.thNum}>
-                  {col}
+                  {columns[i]}
                 </th>
               ))}
             </tr>
@@ -47,10 +50,10 @@ export function StructuredResult({ data }: StructuredResultProps) {
           <tbody>
             {rows.map((row, r) => (
               <tr key={r}>
-                {columns.map((col, c) => (
+                {order.map((c) => (
                   <Cell
                     key={c}
-                    text={displayCell(row[c], col, c === scoreIndex)}
+                    text={displayCell(row[c], columns[c], c === scoreIndex)}
                     missing={isMissing(row[c])}
                     kind={kinds[c]}
                     isRowLabel={c === firstTextIndex}
@@ -60,7 +63,7 @@ export function StructuredResult({ data }: StructuredResultProps) {
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
 
       {chart && (
         <div className={styles.chart} role="img" aria-label={chart.ariaLabel}>

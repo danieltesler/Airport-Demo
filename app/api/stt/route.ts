@@ -1,8 +1,11 @@
 import OpenAI, { toFile } from "openai";
+import { MAX_AUDIO_BYTES, isAllowedAudioType } from "@/lib/audioUpload";
+import { rejectCrossSite } from "@/lib/requestGuards";
 
 // The OpenAI SDK needs the Node.js runtime.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 const MODEL = process.env.OPENAI_STT_MODEL ?? "whisper-1";
 
@@ -20,8 +23,17 @@ const DOMAIN_PROMPT =
  * Body: multipart/form-data with an `audio` file. Returns { text, language? }.
  */
 export async function POST(request: Request) {
+  const crossSite = rejectCrossSite(request);
+  if (crossSite) return crossSite;
+
   if (!process.env.OPENAI_API_KEY) {
     return Response.json({ error: "OPENAI_API_KEY not set" }, { status: 503 });
+  }
+
+  // Refuse an oversized upload before reading it when the client declared its size.
+  const declared = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_AUDIO_BYTES + 100_000) {
+    return Response.json({ error: "audio too large" }, { status: 413 });
   }
 
   let audio: File | null = null;
@@ -35,6 +47,12 @@ export async function POST(request: Request) {
   if (!audio || audio.size === 0) {
     return Response.json({ error: "no audio" }, { status: 400 });
   }
+  if (audio.size > MAX_AUDIO_BYTES) {
+    return Response.json({ error: "audio too large" }, { status: 413 });
+  }
+  if (!isAllowedAudioType(audio.type)) {
+    return Response.json({ error: "unsupported audio type" }, { status: 415 });
+  }
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   try {
@@ -47,7 +65,7 @@ export async function POST(request: Request) {
     });
     return Response.json({ text: result.text });
   } catch (err) {
-    console.error("STT failed:", err);
+    console.error("STT failed:", err instanceof Error ? err.name : "unknown", (err as { status?: number })?.status ?? "");
     return Response.json({ error: "transcription failed" }, { status: 502 });
   }
 }

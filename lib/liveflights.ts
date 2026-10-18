@@ -11,6 +11,7 @@
 
 const BASE = "https://api.adsb.lol/v2";
 const RADIUS_NM = 30; // "near the airport"
+const TIMEOUT_MS = 6000; // a stuck feed must not hold the request open
 
 // A descriptive User-Agent is a courtesy: it tells adsb.lol who is calling and where to reach us.
 const USER_AGENT =
@@ -36,14 +37,24 @@ interface AdsbAircraft {
 
 /** Live aircraft currently within ~30 nm of the given airport coordinates. */
 export async function flightsNearAirport(lat: number, lon: number): Promise<LiveFlightsResult> {
-  const response = await fetch(`${BASE}/lat/${lat}/lon/${lon}/dist/${RADIUS_NM}`, {
-    headers: { Accept: "application/json", "User-Agent": USER_AGENT },
-  });
-  if (!response.ok) {
-    throw new Error(`Live flight feed returned ${response.status}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  let data: { ac?: AdsbAircraft[] };
+  try {
+    const response = await fetch(`${BASE}/lat/${lat}/lon/${lon}/dist/${RADIUS_NM}`, {
+      headers: { Accept: "application/json", "User-Agent": USER_AGENT },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Live flight feed returned ${response.status}`);
+    }
+    data = (await response.json()) as { ac?: AdsbAircraft[] };
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError") throw new Error("Live flight feed timed out");
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-
-  const data = (await response.json()) as { ac?: AdsbAircraft[] };
   const aircraft = data.ac ?? [];
 
   const flights: LiveFlight[] = aircraft.map((a) => ({

@@ -14,6 +14,8 @@
  * Pure module: no I/O.
  */
 
+import { clean } from "./rounding";
+
 export const ANCHOR_LOW_PERCENTILE = 0.05;
 export const ANCHOR_HIGH_PERCENTILE = 0.95;
 export const ANCHOR_SIGNIFICANT_FIGURES = 2;
@@ -56,9 +58,13 @@ export function roundSignificant(
   const round = ROUNDERS[direction];
   const magnitude = Math.floor(Math.log10(Math.abs(value)));
   const exponent = digits - 1 - magnitude;
-  // Multiply/divide by an exact power of ten, then clean residual binary noise
-  // (0.07300000000000001) by re-reading the value at the requested precision.
-  const rounded = exponent >= 0 ? round(value * 10 ** exponent) / 10 ** exponent : round(value / 10 ** -exponent) * 10 ** -exponent;
+  // Multiply/divide by a power of ten and clean binary noise BEFORE rounding directionally, so an
+  // exact value such as 0.14 (0.14 * 100 = 14.000000000000002) is not pushed up a step; then clean
+  // the result again (0.07300000000000001) by re-reading it at the requested precision.
+  const rounded =
+    exponent >= 0
+      ? round(clean(value * 10 ** exponent)) / 10 ** exponent
+      : round(clean(value / 10 ** -exponent)) * 10 ** -exponent;
   return Number(rounded.toPrecision(digits));
 }
 

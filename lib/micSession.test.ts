@@ -145,6 +145,44 @@ describe("MicSession.open", () => {
   });
 });
 
+describe("MicSession double tap", () => {
+  it("a second open while the first is in flight shares it: one microphone, one context, nothing orphaned", async () => {
+    const { session, streams, contexts, deps } = setup();
+    const first = session.open();
+    const second = session.open();
+    expect(await Promise.all([first, second])).toEqual(["ok", "ok"]);
+    expect(deps.getUserMedia).toHaveBeenCalledTimes(1);
+    expect(streams).toHaveLength(1);
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0].resumeCalls).toBeGreaterThanOrEqual(2); // the second tap resumed it inside its own gesture
+    expect(streams[0].track.stopped).toBe(0); // the one stream is the one in use
+
+    session.close();
+    expect(streams[0].track.stopped).toBe(1);
+    expect(contexts[0].closed).toBe(true);
+  });
+
+  it("shares a refusal too, and can try again afterwards", async () => {
+    let allow = false;
+    const { session, deps } = setup();
+    (deps.getUserMedia as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      if (!allow) throw new DOMException("denied", "NotAllowedError");
+      return new FakeStream() as unknown as MediaStream;
+    });
+    expect(await Promise.all([session.open(), session.open()])).toEqual(["denied", "denied"]);
+    expect(deps.getUserMedia).toHaveBeenCalledTimes(1);
+    allow = true;
+    expect(await session.open()).toBe("ok");
+  });
+
+  it("a tap after the first open finished reuses the session as before", async () => {
+    const { session, deps } = setup();
+    await session.open();
+    await session.open();
+    expect(deps.getUserMedia).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("MicSession between turns", () => {
   it("is ready while live and running, and not once the microphone ended or it was closed", async () => {
     const { session, streams } = setup({ startsRunning: true, resumable: true });

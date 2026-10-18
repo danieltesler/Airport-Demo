@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SpeechUnavailableError, createSpeechService } from "./speechSynthesis";
+import { SpeechBudgetError, SpeechUnavailableError, createSpeechService } from "./speechSynthesis";
 
 const SECRET = "xi-test-secret-value";
 const ENV = { ELEVENLABS_API_KEY: SECRET, ELEVENLABS_VOICE_ID: "voice123" };
@@ -125,11 +125,12 @@ describe("credit protection", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("limits each client's characters per hour, then falls back", async () => {
+  it("limits each client's characters per hour, then refuses", async () => {
     const fetchImpl = vi.fn(async () => audioResponse());
     const speech = service({ ...ENV, ELEVENLABS_CLIENT_CHARS_PER_HOUR: "100" }, fetchImpl as unknown as typeof fetch);
     expect((await speech.speak("x".repeat(60), "greedy")).provider).toBe("elevenlabs");
-    expect(await speech.speak("x".repeat(60), "greedy")).toMatchObject({ provider: "openai", fallback: "rate-limit" });
+    await expect(speech.speak("x".repeat(60), "greedy")).rejects.toBeInstanceOf(SpeechBudgetError);
+    expect(openai).not.toHaveBeenCalled(); // spent budget is refused, never passed to the paid fallback
     expect((await speech.speak("x".repeat(60), "polite")).provider).toBe("elevenlabs");
   });
 
@@ -137,17 +138,8 @@ describe("credit protection", () => {
     const fetchImpl = vi.fn(async () => audioResponse());
     const speech = service({ ...ENV, ELEVENLABS_CHARS_PER_DAY: "100" }, fetchImpl as unknown as typeof fetch);
     expect((await speech.speak("x".repeat(60), "one")).provider).toBe("elevenlabs");
-    expect(await speech.speak("x".repeat(60), "two")).toMatchObject({ provider: "openai", fallback: "rate-limit" });
-  });
-
-  it("does not charge a client for a request that never reached ElevenLabs credits", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(new Response("err", { status: 500 }))
-      .mockResolvedValue(audioResponse());
-    const speech = service({ ...ENV, ELEVENLABS_CLIENT_CHARS_PER_HOUR: "70" }, fetchImpl as unknown as typeof fetch);
-    await speech.speak("x".repeat(60), "a"); // fails, refunded
-    expect((await speech.speak("x".repeat(60), "a")).provider).toBe("elevenlabs");
+    await expect(speech.speak("x".repeat(60), "two")).rejects.toBeInstanceOf(SpeechBudgetError);
+    expect(openai).not.toHaveBeenCalled();
   });
 
   it("queues beyond the concurrency cap instead of switching voice", async () => {
@@ -164,5 +156,31 @@ describe("credit protection", () => {
     const results = await Promise.all(Array.from({ length: 5 }, (_, i) => speech.speak(`Sentence ${i} here.`, `ip${i}`)));
     expect(peak).toBe(2);
     expect(results.every((result) => result.provider === "elevenlabs")).toBe(true);
+  });
+});
+
+describe("budgets cover the OpenAI path too", () => {
+  it("meters OpenAI-only speech and refuses once the client budget is spent", async () => {
+    const speech = createSpeechService({ env: { ELEVENLABS_CLIENT_CHARS_PER_HOUR: "100" }, openai });
+    expect((await speech.speak("x".repeat(60), "c")).provider).toBe("openai");
+    await expect(speech.speak("x".repeat(60), "c")).rejects.toBeInstanceOf(SpeechBudgetError);
+    expect(openai).toHaveBeenCalledTimes(1);
+    expect((await speech.speak("x".repeat(60), "other")).provider).toBe("openai"); // another client is unaffected
+  });
+
+  it("meters the ElevenLabs-failure fallback: it spends the same characters, not extra", async () => {
+    const fetchImpl = vi.fn(async () => new Response("x", { status: 500 }));
+    const speech = service({ ...ENV, ELEVENLABS_CLIENT_CHARS_PER_HOUR: "100" }, fetchImpl as unknown as typeof fetch);
+    expect(await speech.speak("x".repeat(60), "a")).toMatchObject({ provider: "openai", fallback: "unavailable" });
+    await expect(speech.speak("x".repeat(60), "a")).rejects.toBeInstanceOf(SpeechBudgetError);
+  });
+
+  it("refunds the budget when no provider produced audio", async () => {
+    const failing = vi.fn(async () => {
+      throw new Error("down");
+    });
+    const speech = createSpeechService({ env: { ELEVENLABS_CLIENT_CHARS_PER_HOUR: "70" }, openai: failing });
+    await expect(speech.speak("x".repeat(60), "a")).rejects.toThrow("down");
+    await expect(speech.speak("x".repeat(60), "a")).rejects.toThrow("down"); // not budget-blocked: the first was refunded
   });
 });

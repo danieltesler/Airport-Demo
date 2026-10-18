@@ -129,7 +129,7 @@ derived values after a data refresh.
 | Input | Low anchor (scores 0) | High anchor (scores 1) | Source |
 |---|---|---|---|
 | Average departure delay | 10 min | 22 min | BTS On-Time, 2025 |
-| Share of departures delayed >15 min | 14% | 26% | BTS On-Time, 2025 |
+| Share of departures delayed 15 minutes or more | 14% | 26% | BTS On-Time, 2025 |
 | Cancellation rate | 0.51% | 2.6% | BTS On-Time, 2025 |
 | Load factor (passengers / seats) | 0.73 | 0.83 | BTS T-100 Segment, 2025 |
 | Passenger growth, 2025 vs 2024 | −8.4% | +6.6% | BTS T-100 Segment, 2024–2025 |
@@ -154,7 +154,7 @@ comparable:
 
 | Component | Weight |
 |---|---|
-| Share of departures delayed >15 min | 0.4375 |
+| Share of departures delayed 15 minutes or more | 0.4375 |
 | Average departure delay | 0.375 |
 | Cancellation rate | 0.1875 |
 
@@ -213,7 +213,7 @@ growth vs. capacity blends two inputs. Flattened to the underlying inputs:
 | Input | Congestion | Unmet demand | Expansion |
 |---|---|---|---|
 | Load-factor pressure | — | 40.0% | 25.0% |
-| Share delayed >15 min | 43.75% | 15.3125% | 13.125% |
+| Share delayed 15 minutes or more | 43.75% | 15.3125% | 13.125% |
 | Average departure delay | 37.5% | 13.125% | 11.25% |
 | Cancellation rate | 18.75% | 6.5625% | 5.625% |
 | Passenger growth | — | 15.0% | 30.0% |
@@ -263,7 +263,7 @@ npm test
 |---|---|---|
 | Passengers, departures, seats → load factor, haul mix, international share | **BTS T-100 Segment (All Carriers)**, scheduled passenger service (class F, freight-configured aircraft excluded) | calendar year 2025 |
 | Passenger growth | the same table, 2025 vs 2024 | 2024–2025 |
-| Average delay, share delayed >15 min, cancellation rate | **BTS On-Time Reporting Carrier** performance, by origin airport | calendar year 2025 (12 monthly files) |
+| Average delay, share delayed 15 minutes or more, cancellation rate | **BTS On-Time Reporting Carrier** performance, by origin airport | calendar year 2025 (12 monthly files) |
 | Name, city, state, coordinates, ICAO, open runways | **OurAirports** (public domain) | snapshot at retrieval |
 | Metro area (CBSA title and code) | **U.S. Census Geocoder**, point-in-polygon on each airport | current Census boundaries |
 | Place names for "near <city>" | **U.S. Census Gazetteer** (places) joined with the Census **2025 population estimates**, places of 10,000+ people | 2025 |
@@ -390,8 +390,9 @@ Operational limitations of the current build:
 
 - **No authentication or rate limiting** on `/api/chat`, `/api/stt`, or `/api/tts`.
   Each triggers paid calls (OpenAI, and ElevenLabs credits when configured), so a public
-  deployment is open to cost abuse. The ElevenLabs path has character and concurrency
-  budgets, but they are in memory and reset per instance.
+  deployment is open to cost abuse. Input is size-capped on every route, cross-site browser
+  requests are refused, and speech has character and concurrency budgets shared by both
+  providers, but the budgets are in memory and reset per instance.
 - **Single-year growth.** One soft year moves the growth input for every airport; a
   multi-year trend would be steadier.
 

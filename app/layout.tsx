@@ -11,6 +11,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: "#0f2033",
+  // Chrome Android 108+ overlays the keyboard by default; this resizes the layout so the composer stays above it.
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

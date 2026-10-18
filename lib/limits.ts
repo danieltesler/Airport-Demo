@@ -18,7 +18,9 @@ export function createCharBudget(options: { limit: number; windowMs: number; now
   const { limit, windowMs, now = Date.now } = options;
   const buckets = new Map<string, { used: number; resetAt: number }>();
 
-  // Spoofed client ids must not grow memory without bound: drop expired, then oldest.
+  // Spoofed client ids must not grow memory without bound: drop expired, then oldest. Known limit:
+  // 1,001 distinct ids evict the oldest bucket, which resets that client's budget, so the global
+  // budget (not this per-client one) is the real bound on spend.
   const prune = () => {
     if (buckets.size <= MAX_TRACKED_KEYS) return;
     const current = now();

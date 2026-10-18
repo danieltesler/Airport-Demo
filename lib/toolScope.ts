@@ -43,7 +43,14 @@ export function scopeProblem(resolution: ScopeResolution<Airport>): ToolOutput {
  * ("northeast" -> "new england"). When the two disagree the difference is recorded as
  * a note so the reply and caption never claim more or less than what was resolved.
  */
-export function resolveToolScope(scope: string | undefined, userWords?: string): ScopeResolution<Airport> {
+/** Longest place text the resolver reads. Real places are far shorter; the cap keeps a huge input from costing CPU. */
+export const MAX_PLACE_CHARS = 200;
+
+export const capPlaceText = (text: string | undefined): string | undefined => text?.slice(0, MAX_PLACE_CHARS);
+
+export function resolveToolScope(rawScope: string | undefined, rawUserWords?: string): ScopeResolution<Airport> {
+  const scope = capPlaceText(rawScope);
+  const userWords = capPlaceText(rawUserWords);
   const words = (userWords ?? "").trim();
   // With no scope passed, unrecognized words must stay unrecognized instead of silently meaning "all".
   const passed = data.resolveAirportScope(scope?.trim() ? scope : words || scope);
@@ -56,6 +63,36 @@ export function resolveToolScope(scope: string | undefined, userWords?: string):
     a.length === b.length && a.every((x) => b.some((y) => y.iata === x.iata));
   const agrees = passed.status === "matched" && sameAirports(passed.airports, fromWords.airports);
   if (agrees) return fromWords;
+
+  // A point-like scope the model settled on (an airport, or "near Springfield, IL" picked from an
+  // ambiguity option) that lies inside the user's wider words ("Illinois") is the narrower, more
+  // specific reading: keep it instead of widening the answer to the whole state.
+  const pointLike = passed.resolvedAs === "radius" || passed.resolvedAs === "airport";
+  const matchedInside =
+    passed.status === "matched" &&
+    pointLike &&
+    passed.airports.length > 0 &&
+    passed.airports.length < fromWords.airports.length &&
+    passed.airports.every((x) => fromWords.airports.some((y) => y.iata === x.iata));
+  // A place inside the user's state with no covered airport nearby ("50 mi around Springfield, IL")
+  // is "empty": say so (with the nearest covered airport) rather than answering for the whole state.
+  const stateOfPlace = passed.label.match(/, ([A-Z]{2})$/)?.[1];
+  const emptyInside =
+    passed.status === "empty" &&
+    passed.resolvedAs === "radius" &&
+    stateOfPlace !== undefined &&
+    fromWords.airports.some((y) => y.state === stateOfPlace);
+  const insideUsersArea = matchedInside || emptyInside;
+  if (insideUsersArea) {
+    return {
+      ...passed,
+      notes: [
+        ...passed.notes,
+        `The passed scope '${scope!.trim()}' lies inside the user's words '${words}', so the narrower scope was kept. ` +
+          `Describe the area as ${passed.label}.`,
+      ],
+    };
+  }
 
   const asked = scope?.trim() ? `'${scope.trim()}'` : "no scope";
   return {

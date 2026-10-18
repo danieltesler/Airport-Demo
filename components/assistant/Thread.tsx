@@ -6,6 +6,7 @@ import { ExampleChips } from "./ExampleChips";
 import { UserMessage } from "./UserMessage";
 import { AssistantMessage } from "./AssistantMessage";
 import { Composer } from "./Composer";
+import { VoiceDisclosure } from "./VoiceDisclosure";
 import styles from "./chat.module.css";
 
 /**
@@ -42,6 +43,7 @@ export function Thread() {
 
       <div className={styles.composerBar}>
         <Composer />
+        <VoiceDisclosure />
       </div>
     </ThreadPrimitive.Root>
   );

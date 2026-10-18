@@ -14,8 +14,9 @@
 
 import * as data from "./data";
 import type { Airport } from "./data";
-import { SCOPE_DESCRIPTION, USER_WORDS_DESCRIPTION, resolveToolScope, scopeProblem, unknownAirport } from "./toolScope";
+import { SCOPE_DESCRIPTION, USER_WORDS_DESCRIPTION, capPlaceText, resolveToolScope, scopeProblem, unknownAirport } from "./toolScope";
 import { ROUTE_TOOLS, routeToolSchemas } from "./routeTools";
+import { RouteDataError } from "./routes";
 
 import {
   METRIC_SCORERS,
@@ -40,7 +41,8 @@ import {
   LIVE_SOURCE_NAMES,
   liveCaption,
 } from "./i18n";
-import { namedAirports } from "./namedAirports";
+import { clean as cleanComparisonWords, namedAirports } from "./namedAirports";
+import { roundTo } from "./rounding";
 import { percentText, percentValue } from "./percent";
 import { explainScores } from "./explain";
 import { flightsNearAirport } from "./liveflights";
@@ -65,7 +67,6 @@ const SCORE_COLUMN: Record<MetricKey, string> = {
 };
 
 const airportLabel = (a: Airport): string => `${a.iata} — ${a.city}`;
-const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 /** Table text for a suppressed (null) source value. Never a number, so it cannot be misread as one. */
 const NOT_AVAILABLE = "n/a";
@@ -147,6 +148,15 @@ function countFacts(requested: number, returned: number, matched: number): Recor
   return facts;
 }
 
+/** Most airports one ranking returns. */
+const MAX_RANKED = 25;
+
+/** A usable top-N: a whole number from 1 to MAX_RANKED; anything else (NaN, text, 0) becomes the default. */
+function rankLimit(raw: unknown, fallback = 5): number {
+  const n = typeof raw === "number" ? Math.floor(raw) : Number.NaN;
+  return Number.isFinite(n) && n >= 1 ? Math.min(n, MAX_RANKED) : fallback;
+}
+
 export function rankAirports(
   scope: string = "all",
   metric: MetricKey = "expansion",
@@ -156,6 +166,7 @@ export function rankAirports(
   if (!(metric in METRIC_SCORERS)) {
     return { result: { error: `Unknown metric '${metric}'.`, valid_metrics: Object.keys(METRIC_SCORERS) } };
   }
+  topN = rankLimit(topN);
   const resolution = resolveToolScope(scope, userWords);
   if (resolution.status !== "matched") return scopeProblem(resolution);
   const airports = resolution.airports;
@@ -176,7 +187,7 @@ export function rankAirports(
   const rows = ranked.map(({ a, res }, i) => [
     i + 1,
     airportLabel(a),
-    round1(res.score),
+    roundTo(res.score),
     pct(a.pax_growth_yoy, 1),
     loadFactorCell(a.load_factor),
     orNotAvailable(a.avg_dep_delay_min),
@@ -204,7 +215,7 @@ export function rankAirports(
       ranking: ranked.map(({ a, res }) => ({
         iata: a.iata,
         city: a.city,
-        score: round1(res.score),
+        score: roundTo(res.score),
         pax_growth_yoy_pct: pctNumber(a.pax_growth_yoy, 1),
         load_factor: a.load_factor,
         load_factor_pct: percentValue(a.load_factor),
@@ -244,7 +255,16 @@ interface AreaChoice {
 
 /** Airport codes for "compare everything in <scope>": the busiest airports, capped. */
 function iatasFromScope(scope: string, userWords: string | undefined): { choice?: AreaChoice; problem?: ToolOutput } {
-  const resolution = resolveToolScope(scope, userWords);
+  let resolution = resolveToolScope(scope, userWords);
+  if (resolution.status === "unknown") {
+    // The model may pass the whole request ("compare the New York airports"); retry on the place alone.
+    const placeScope = cleanComparisonWords(scope);
+    const placeWords = cleanComparisonWords(userWords ?? "");
+    if (placeScope || placeWords) {
+      const retried = resolveToolScope(placeScope, placeWords);
+      if (retried.status !== "unknown") resolution = retried;
+    }
+  }
   if (resolution.status !== "matched") return { problem: scopeProblem(resolution) };
   const busiest = [...resolution.airports].sort((a, b) => b.annual_passengers - a.annual_passengers);
   const chosen = busiest.slice(0, MAX_COMPARED_FROM_SCOPE).map((a) => a.iata);
@@ -255,6 +275,21 @@ function iatasFromScope(scope: string, userWords: string | undefined): { choice?
     : `Compared all ${busiest.length} airports matched in ${resolution.label}.`;
   const reading = ` in ${resolution.label}${kind ? ` (${kind})` : ""}${capped ? `, the busiest of ${busiest.length}` : ""}`;
   return { choice: { iatas: chosen, note, reading } };
+}
+
+/**
+ * When a city NAME picked the airports ("Washington" is DCA, not Dulles), say which airports of the
+ * same metro area were not compared, so a missing airport is stated rather than silently dropped.
+ */
+function sameMetroNote(viaCity: boolean, picked: Airport[]): string {
+  if (!viaCity) return "";
+  const pickedCodes = new Set(picked.map((a) => a.iata));
+  const metros = new Set(picked.map((a) => a.metro_code).filter(Boolean));
+  const others = data
+    .allAirports()
+    .filter((a) => a.metro_code && metros.has(a.metro_code) && !pickedCodes.has(a.iata))
+    .map((a) => a.iata);
+  return others.length > 0 ? ` Matched by city name; other airports in the same metro area were not compared: ${others.join(", ")}.` : "";
 }
 
 /** A part of the request such as "New York" that matches several airports: ask, never expand silently. */
@@ -278,6 +313,10 @@ export function compareAirports(
   if (!(metric in METRIC_SCORERS)) {
     return { result: { error: `Unknown metric '${metric}'.`, valid_metrics: Object.keys(METRIC_SCORERS) } };
   }
+  // Bound what the model can make us scan: place text to 200 characters, airport codes to 20.
+  scope = capPlaceText(scope);
+  userWords = capPlaceText(userWords);
+  iatas = Array.isArray(iatas) ? iatas.slice(0, 20) : [];
   let scopeNote: string | undefined;
   let reading = "";
   if (iatas.length === 0 && (scope?.trim() || userWords?.trim())) {
@@ -286,7 +325,7 @@ export function compareAirports(
     if (named?.kind === "ambiguous") return ambiguousAirportName(named.part, named.candidates);
     if (named) {
       iatas = named.airports.map((a) => a.iata);
-      scopeNote = `Compared exactly the airports named: ${iatas.join(", ")}.`;
+      scopeNote = `Compared exactly the airports named: ${iatas.join(", ")}.${sameMetroNote(named.viaCity, named.airports)}`;
     } else {
       const fromScope = iatasFromScope(scope ?? "", userWords);
       if (fromScope.problem) return fromScope.problem;
@@ -304,6 +343,9 @@ export function compareAirports(
   const scorer = METRIC_SCORERS[metric];
   // The same airport named twice (e.g. "LAX, lax") is compared once.
   const unique = resolved.filter((r, i) => resolved.findIndex((o) => o.a!.iata === r.a!.iata) === i);
+  if (unique.length === 0) {
+    return { result: { error: "Name at least one airport (iatas) or an area (scope / user_words) to compare.", known_airports: data.knownIatas() } };
+  }
   const scored = unique.map((r) => ({ a: r.a as Airport, res: scorer(r.a as Airport) }));
   // Highest score first; airports with insufficient data go last.
   scored.sort((x, y) => Number(isScored(y.res)) - Number(isScored(x.res)) || (isScored(x.res) && isScored(y.res) ? y.res.score - x.res.score : 0));
@@ -313,13 +355,13 @@ export function compareAirports(
     "Airport",
     SCORE_COLUMN[metric],
     "Avg delay (min)",
-    "Delayed >15m",
+    "Delayed 15+ min",
     "Load factor",
     "Cancel rate",
   ];
   const rows = scored.map(({ a, res }) => [
     airportLabel(a),
-    isScored(res) ? round1(res.score) : INSUFFICIENT_DATA,
+    isScored(res) ? roundTo(res.score) : INSUFFICIENT_DATA,
     orNotAvailable(a.avg_dep_delay_min),
     pct(a.delayed_share),
     loadFactorCell(a.load_factor),
@@ -335,10 +377,10 @@ export function compareAirports(
       comparison: scored.map(({ a, res }) => ({
         iata: a.iata,
         city: a.city,
-        score: isScored(res) ? round1(res.score) : null,
+        score: isScored(res) ? roundTo(res.score) : null,
         ...(isScored(res) ? {} : { insufficient_data: res.reason }),
         avg_dep_delay_min: a.avg_dep_delay_min,
-        pct_flights_delayed_over_15min: pctNumber(a.delayed_share, 0),
+        pct_flights_delayed_15min_or_more: pctNumber(a.delayed_share, 0),
         cancel_rate_pct: pctNumber(a.cancel_rate, 1),
         load_factor: a.load_factor,
         load_factor_pct: percentValue(a.load_factor),
@@ -401,7 +443,7 @@ export function unmetDemand(iata: string): ToolOutput {
     result: {
       iata: a.iata,
       name: a.name,
-      unmet_demand_score: round1(res.score),
+      unmet_demand_score: roundTo(res.score),
       drivers: comp,
       context: {
         load_factor: a.load_factor,
@@ -504,11 +546,14 @@ const DISPATCH: Record<string, ToolFn> = {
 export async function runTool(name: string, input: Record<string, unknown>): Promise<ToolOutput> {
   // Live public-API tools (lib/live) validate their own input and never throw.
   if (isLiveTool(name)) return withLiveSource(name, await runLiveTool(name, input ?? {}));
-  const fn = DISPATCH[name];
+  const fn = Object.hasOwn(DISPATCH, name) ? DISPATCH[name] : undefined;
   if (!fn) return { result: { error: `Unknown tool '${name}'.` } };
   try {
     return await fn(input ?? {});
   } catch (err) {
+    if (err instanceof RouteDataError) {
+      return { result: { error: "The route data could not be loaded right now. No route figures are available; try again shortly." } };
+    }
     return { result: { error: `Bad arguments for '${name}': ${(err as Error).message}` } };
   }
 }
@@ -544,7 +589,7 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
         scope: { type: "string", description: SCOPE_DESCRIPTION },
         user_words: { type: "string", description: USER_WORDS_DESCRIPTION },
         metric: { type: "string", enum: ["expansion", "congestion", "unmet_demand"] },
-        top_n: { type: "integer", description: "How many to return (default 5)." },
+        top_n: { type: "integer", description: "How many to return (default 5, at most 25)." },
       },
       required: ["metric"],
     },

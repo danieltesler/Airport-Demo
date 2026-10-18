@@ -34,14 +34,14 @@ describe("T-100 monthly parsing and aggregation", () => {
     expect(summary.trailing12.to).toBe("2026-04");
   });
 
-  it("merges duplicate rows for the same month and skips unusable rows", () => {
+  it("keeps one row per month (a duplicate is dropped, not summed) and skips unusable rows", () => {
     const rows = parseMonthRows([
       { reporting_month: "2026-01-01T00:00:00.000", total_passengers: "10", total_departures: "2", total_seats: "20" },
       { reporting_month: "2026-01-01T00:00:00.000", total_passengers: "5", total_departures: "1", total_seats: "10" },
       { reporting_month: "2026-02-01T00:00:00.000", total_passengers: "n/a", total_departures: "1", total_seats: "10" },
       {},
     ]);
-    expect(rows).toEqual([{ month: "2026-01", passengers: 15, departures: 3, seats: 30, domesticPassengers: 0 }]);
+    expect(rows).toEqual([{ month: "2026-01", passengers: 10, departures: 2, seats: 20, domesticPassengers: 0 }]);
   });
 
   it("returns no growth when only 12-23 months exist, and null when a gap breaks the window", () => {

@@ -17,7 +17,7 @@
           "city": "Santa Ana",
           "score": 40.2,
           "avg_dep_delay_min": 15.2,
-          "pct_flights_delayed_over_15min": 19,
+          "pct_flights_delayed_15min_or_more": 19,
           "cancel_rate_pct": 1.1,
           "load_factor": 0.7985,
           "load_factor_pct": 79.9
@@ -27,7 +27,7 @@
           "city": "Los Angeles",
           "score": 28.6,
           "avg_dep_delay_min": 13.82,
-          "pct_flights_delayed_over_15min": 18,
+          "pct_flights_delayed_15min_or_more": 18,
           "cancel_rate_pct": 0.7,
           "load_factor": 0.817,
           "load_factor_pct": 81.7
@@ -40,7 +40,7 @@
         "Airport",
         "Congestion score",
         "Avg delay (min)",
-        "Delayed >15m",
+        "Delayed 15+ min",
         "Load factor",
         "Cancel rate"
       ],
@@ -67,7 +67,7 @@
         "metricLabel": "Congestion",
         "components": [
           {
-            "label": "Flights delayed >15 min",
+            "label": "Flights delayed 15 min or more",
             "weight": 0.4375
           },
           {
@@ -108,7 +108,7 @@
               },
               {
                 "value": 0.318,
-                "points": 11.9
+                "points": 12
               },
               {
                 "value": 0.086,
@@ -120,7 +120,7 @@
       }
     },
     "assumptions": [
-      "Congestion is proxied by operational strain: average departure delay, the share of departures more than 15 minutes late, and the cancellation rate (BTS On-Time Reporting Carrier data, calendar year 2025). Seat load factor is scored separately in the unmet-demand and expansion scores.",
+      "Congestion is proxied by operational strain: average departure delay, the share of departures 15 minutes or more late, and the cancellation rate (BTS On-Time Reporting Carrier data, calendar year 2025). Seat load factor is scored separately in the unmet-demand and expansion scores.",
       "Metrics are compared as rates (per flight), not totals, so large hubs and small airports are judged on the same footing. Each input is scaled 0-1 between anchors set by one rule: the 5th and 95th percentile of that input across the dataset's airports, rounded to two significant figures."
     ],
     "uncertainty": "Delays are 2025 averages for the large reporting carriers (and their regional partners) on domestic flights. Short-term peaks are smoothed out, weather is mixed with true capacity saturation, and a smaller airport's delays often originate at the hubs its flights go to. Rates are never defaulted: an airport with under 5,000 scheduled departures in the BTS On-Time data, or under 365 departures in T-100, has that rate suppressed and the score is shown as insufficient data."

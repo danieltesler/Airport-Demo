@@ -12,7 +12,7 @@ describe("deriveVoiceState", () => {
     [{ isRecording: true }, "listening"],
     [{ isTranscribing: true }, "transcribing"],
     [{ isThinking: true }, "thinking"],
-    [{ playback: "loading" }, "speaking"],
+    [{ playback: "loading" }, "preparing"],
     [{ playback: "speaking" }, "speaking"],
     [{ playback: "blocked" }, "blocked"],
     [{ playback: "error" }, "error"],
@@ -50,6 +50,19 @@ describe("Conversation mode in the chip", () => {
     expect(voiceChipText("listening")).toBe("Listening, go ahead");
     expect(voiceChipText("transcribing")).toBe("Got it…");
     expect(voiceChipText("thinking")).toBe("Checking the data…");
+    expect(voiceChipText("error")).toBe("Voice is off for now. The answer is on screen.");
+  });
+});
+
+describe("preparing versus speaking", () => {
+  it("shows 'Preparing voice…' while the first clip loads, and 'Speaking' only once audio plays", () => {
+    expect(deriveVoiceState({ ...quiet, playback: "loading" })).toBe("preparing");
+    expect(voiceChipText("preparing")).toBe("Preparing voice…");
+    expect(deriveVoiceState({ ...quiet, playback: "speaking" })).toBe("speaking");
+  });
+
+  it("a failed first clip lands in the error state with the answer on screen", () => {
+    expect(deriveVoiceState({ ...quiet, playback: "error" })).toBe("error");
     expect(voiceChipText("error")).toBe("Voice is off for now. The answer is on screen.");
   });
 });

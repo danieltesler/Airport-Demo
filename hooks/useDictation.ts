@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { uploadFilename } from "@/lib/audioMime";
 import type { ListenOutcome, SessionResult } from "@/lib/conversation";
 import { ENDPOINT_DEFAULTS, createEndpointer, type Endpointer } from "@/lib/endpointing";
+import { micBlockedMessage } from "@/lib/micBlockedMessage";
 import { MicSession } from "@/lib/micSession";
 import { isGhostTranscript } from "@/lib/transcript";
 
@@ -52,7 +53,7 @@ const POLL_MS = 100;
 const STT_TIMEOUT_MS = 10000;
 const HANDS_FREE_MIN_WORDS = 2; // a one-word clip in hands-free mode is far more likely a cough than a question
 
-const MIC_BLOCKED = "Microphone access is blocked. Allow it in your browser, then try again.";
+const micBlockedText = (): string => micBlockedMessage(typeof navigator === "undefined" ? "" : navigator.userAgent);
 const NOT_CAUGHT = "I didn't catch that. Tap the mic and try again, or type your question.";
 const NOT_HEARD = "I didn't hear anything. Tap the mic and try again, or type your question.";
 const TRANSCRIBE_FAILED = "Couldn't transcribe that. Retry, or type your question.";
@@ -65,6 +66,8 @@ interface Turn {
   /** The microphone was opened just for this turn (tap-to-talk) and closes with it. */
   ownsSession: boolean;
   endpointer: Endpointer | null;
+  /** The level-meter nodes for this turn; disconnected whenever the turn ends, however it ends. */
+  meter: { source: MediaStreamAudioSourceNode; analyser: AnalyserNode } | null;
   /** The level meter is reliable: the audio context was running, so silence means silence. */
   meterReliable: boolean;
   stopReason: string | null;
@@ -191,6 +194,10 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
   const finishTurn = useCallback(
     (turn: Turn) => {
       clearMeter();
+      // Over a long hands-free session these would pile up if only the silence detector disconnected them.
+      turn.meter?.source.disconnect();
+      turn.meter?.analyser.disconnect();
+      turn.meter = null;
       turnRef.current = null;
       setIsRecording(false);
       // The microphone goes quiet between turns, and stays quiet while the assistant speaks.
@@ -233,7 +240,7 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
     if (!browserSupported()) return "unsupported";
     // The first lines of MicSession.open run synchronously: this must be called inside the user's tap.
     const result = await mic.open();
-    if (result === "denied") setError(MIC_BLOCKED);
+    if (result === "denied") setError(micBlockedText());
     return result;
   }, [mic]);
 
@@ -258,6 +265,7 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
         handsFree,
         ownsSession: !handsFree && ownedByTapToTalk.current,
         endpointer: null,
+        meter: null,
         meterReliable: audioCtx?.state === "running",
         stopReason: null,
       };
@@ -275,6 +283,7 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
       analyser.fftSize = 1024;
       const source = audioCtx.createMediaStreamSource(stream);
       source.connect(analyser);
+      turn.meter = { source, analyser };
       const buffer = new Uint8Array(analyser.fftSize);
       const endpointer = createEndpointer(Date.now(), { ...ENDPOINT_DEFAULTS, noSpeechMs: options.handsFree?.noSpeechMs ?? 0 });
       turn.endpointer = endpointer;
@@ -289,15 +298,13 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
         const reason = endpointer.update(Math.sqrt(sumSquares / buffer.length), Date.now());
         if (!reason) return;
         turn.stopReason = reason;
-        source.disconnect();
         stop();
       }, POLL_MS);
     },
     [finishTurn, mic, stop],
   );
 
-  const start = useCallback(async () => {
-    if (turnRef.current) return;
+  const startTurnOnce = useCallback(async () => {
     setError(null);
     setCanRetry(false);
     failedBlobRef.current = null;
@@ -311,6 +318,18 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
     listen();
     ownedByTapToTalk.current = false;
   }, [listen, openSession]);
+
+  const startingRef = useRef(false);
+
+  const start = useCallback(async () => {
+    if (turnRef.current || startingRef.current) return; // a second tap while the microphone is opening does nothing
+    startingRef.current = true;
+    try {
+      await startTurnOnce();
+    } finally {
+      startingRef.current = false;
+    }
+  }, [startTurnOnce]);
 
   useEffect(
     () => () => {

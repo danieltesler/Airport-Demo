@@ -11,7 +11,7 @@
 import { createCharBudget, createSemaphore } from "./limits";
 
 export type SpeechProvider = "elevenlabs" | "openai";
-export type FallbackReason = "rate-limit" | "too-long" | "unavailable";
+export type FallbackReason = "too-long" | "unavailable";
 
 export interface SpeechResult {
   body: BodyInit;
@@ -22,6 +22,13 @@ export interface SpeechResult {
 
 /** Neither provider can speak this request. */
 export class SpeechUnavailableError extends Error {}
+
+/** The caller's (or the day's) character budget is spent. */
+export class SpeechBudgetError extends Error {
+  constructor(readonly scope: "client" | "global") {
+    super(`speech budget spent (${scope})`);
+  }
+}
 
 export interface SpeechServiceOptions {
   env: Record<string, string | undefined>;
@@ -103,27 +110,42 @@ export function createSpeechService({ env, openai, fetchImpl = fetch, now = Date
   }
 
   async function speak(text: string, clientId: string): Promise<SpeechResult> {
-    let fallback: FallbackReason | null = null;
+    if (!elevenLabsConfigured && !openai) throw new SpeechUnavailableError("no speech provider available");
 
+    // The budgets cover BOTH providers: OpenAI is paid too, so it is never an unlimited fallback.
+    // Once spent, the request is refused (the route answers 429) instead of falling through.
+    if (!perClient.tryConsume(clientId, text.length)) throw new SpeechBudgetError("client");
+    if (!global.tryConsume("all", text.length)) {
+      perClient.refund(clientId, text.length);
+      throw new SpeechBudgetError("global");
+    }
+    const refundBoth = () => {
+      perClient.refund(clientId, text.length);
+      global.refund("all", text.length);
+    };
+
+    let fallback: FallbackReason | null = null;
     if (elevenLabsConfigured) {
       if (now() < pausedUntil) fallback = "unavailable";
       else if (text.length > maxChars) fallback = "too-long";
-      else if (!perClient.tryConsume(clientId, text.length)) fallback = "rate-limit";
-      else if (!global.tryConsume("all", text.length)) {
-        perClient.refund(clientId, text.length);
-        fallback = "rate-limit";
-      } else {
+      else {
         const audio = await callElevenLabs(text);
         if (audio) return { body: audio, provider: "elevenlabs", fallback: null };
-        // Nothing was generated, so give the characters back.
-        perClient.refund(clientId, text.length);
-        global.refund("all", text.length);
         fallback = "unavailable";
       }
     }
 
-    if (!openai) throw new SpeechUnavailableError("no speech provider available");
-    return { body: await openai(text), provider: "openai", fallback };
+    // A failure within budget falls back to OpenAI on the characters already spent.
+    if (!openai) {
+      refundBoth();
+      throw new SpeechUnavailableError("no speech provider available");
+    }
+    try {
+      return { body: await openai(text), provider: "openai", fallback };
+    } catch (err) {
+      refundBoth(); // nothing was generated
+      throw err;
+    }
   }
 
   return { speak, configured: elevenLabsConfigured || Boolean(openai) };

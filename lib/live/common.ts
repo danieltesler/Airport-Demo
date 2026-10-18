@@ -13,6 +13,7 @@
  * resolution is injected (see LiveDeps) so the tools stay decoupled and testable.
  */
 
+import { roundTo } from "../rounding";
 import type { StructuredResult } from "../types";
 
 /** The minimum airport facts the live tools need. Structurally satisfied by data.Airport. */
@@ -76,7 +77,7 @@ export class LiveFetchError extends Error {}
 const ALL_CACHES: TtlCache<unknown>[] = [];
 
 export class TtlCache<T> {
-  private readonly entries = new Map<string, { value: T; expires: number }>();
+  private readonly entries = new Map<string, { value: T; expires: number; storedAt: number }>();
 
   constructor(private readonly ttlMs: number, private readonly maxEntries = 200) {
     ALL_CACHES.push(this as TtlCache<unknown>);
@@ -97,7 +98,13 @@ export class TtlCache<T> {
       const oldest = this.entries.keys().next().value;
       if (oldest !== undefined) this.entries.delete(oldest);
     }
-    this.entries.set(key, { value, expires: nowMs + this.ttlMs });
+    this.entries.set(key, { value, expires: nowMs + this.ttlMs, storedAt: nowMs });
+  }
+
+  /** When the cached value was fetched (ms since epoch), so a cached answer reports its real retrieval time. */
+  storedAt(key: string, nowMs: number): number | undefined {
+    const hit = this.entries.get(key);
+    return hit && hit.expires > nowMs ? hit.storedAt : undefined;
   }
 
   clear(): void {
@@ -117,6 +124,31 @@ export function clearLiveCaches(): void {
 export interface FetchOptions {
   timeoutMs?: number;
   accept?: string;
+}
+
+/**
+ * Read a response body without buffering more than MAX_BODY_CHARS: the stream is cancelled as
+ * soon as it passes the cap, so an oversized or endless upstream cannot fill memory first.
+ */
+async function readBodyCapped(response: Response): Promise<string> {
+  if (!response.body) {
+    const text = await response.text();
+    if (text.length > MAX_BODY_CHARS) throw new LiveFetchError("upstream response too large");
+    return text;
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+    if (text.length > MAX_BODY_CHARS) {
+      await reader.cancel().catch(() => undefined);
+      throw new LiveFetchError("upstream response too large");
+    }
+  }
+  return text + decoder.decode();
 }
 
 /**
@@ -141,9 +173,7 @@ export async function fetchText(
       throw new LiveFetchError(`upstream redirected (HTTP ${response.status}), likely a key or access policy`);
     }
     if (!response.ok) throw new LiveFetchError(`upstream returned HTTP ${response.status}`);
-    const body = await response.text();
-    if (body.length > MAX_BODY_CHARS) throw new LiveFetchError("upstream response too large");
-    return body;
+    return await readBodyCapped(response);
   } catch (err) {
     if (err instanceof LiveFetchError) throw err;
     if ((err as Error)?.name === "AbortError") throw new LiveFetchError("upstream timed out");
@@ -195,6 +225,15 @@ export function lookupAirport(args: Record<string, unknown>, deps: LiveDeps): Ai
   return { ok: true, airport };
 }
 
+/**
+ * The retrieval time to report: the oldest fetch time among the cached values the answer used,
+ * or now when none is known. A value served from cache was fetched earlier than "now".
+ */
+export function retrievedAtIso(deps: Pick<LiveDeps, "now">, stamps: (number | undefined)[]): string {
+  const known = stamps.filter((stamp): stamp is number => stamp !== undefined);
+  return known.length > 0 ? new Date(Math.min(...known)).toISOString() : nowOf(deps).toISOString();
+}
+
 export function nowOf(deps: Pick<LiveDeps, "now">): Date {
   return (deps.now ?? (() => new Date()))();
 }
@@ -230,7 +269,4 @@ export const toNumber = (value: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-export const round = (n: number, dp = 1): number => {
-  const f = 10 ** dp;
-  return Math.round(n * f) / f;
-};
+export const round = roundTo;

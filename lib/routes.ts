@@ -43,9 +43,17 @@ function toRows(file: RoutesFile): RouteRow[] {
 
 /** All route rows, loaded once on first use. */
 export function loadRoutes(): Promise<RouteRow[]> {
-  cached ??= import("@/data/routes.json").then((module) => toRows((module.default ?? module) as unknown as RoutesFile));
+  cached ??= import("@/data/routes.json")
+    .then((module) => toRows((module.default ?? module) as unknown as RoutesFile))
+    .catch((error: unknown) => {
+      cached = null; // a failed load is not remembered: the next call tries again
+      throw new RouteDataError(error instanceof Error ? error.message : "route data could not be loaded");
+    });
   return cached;
 }
+
+/** The route table could not be loaded (as opposed to the model sending bad arguments). */
+export class RouteDataError extends Error {}
 
 /** Route rows departing one airport (IATA, case-insensitive), optionally for one year. */
 export async function routesFrom(origin: string, year?: number): Promise<RouteRow[]> {

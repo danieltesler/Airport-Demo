@@ -279,8 +279,30 @@ describe("ambiguity is reported, never silently picked", () => {
     expect(codes("Washington DC")).toEqual(["BWI", "DCA", "IAD"]);
   });
 
-  it("does not call a state and its same-named city ambiguous (New York)", () => {
-    expect(data.resolveAirportScope("New York").resolvedAs).toBe("state");
+  it("treats a bare 'New York' as ambiguous between the state and the city area, like Portland and Washington", () => {
+    for (const words of ["New York", "New York airports", "the New York airports"]) {
+      const resolution = data.resolveAirportScope(words);
+      expect(resolution.status).toBe("ambiguous");
+      expect(resolution.airports).toEqual([]);
+      expect(resolution.options).toEqual([
+        { label: "New York (state)", scope: "NY" },
+        { label: "New York City area", scope: "NYC" },
+      ]);
+    }
+  });
+
+  it("resolves the unambiguous New York spellings", () => {
+    expect(codes("NYC")).toEqual(["EWR", "HPN", "JFK", "LGA"]);
+    expect(codes("New York City")).toEqual(["EWR", "HPN", "JFK", "LGA"]);
+    expect(data.resolveAirportScope("New York City").resolvedAs).toBe("metro");
+    for (const words of ["New York state", "NY", "upstate New York"]) {
+      const resolution = data.resolveAirportScope(words);
+      expect(resolution.resolvedAs).toBe("state");
+      expect(codes(words)).toEqual(["ALB", "BUF", "HPN", "JFK", "LGA", "ROC", "SYR"]);
+    }
+    expect(data.resolveAirportScope("upstate New York").notes.join(" ")).toContain("every airport in New York is included");
+    // Each option the ambiguity offers resolves cleanly.
+    expect(data.resolveAirportScope("NYC").status).toBe("matched");
   });
 
   it("flags a radius anchor that matches several places and offers a scope per option", () => {

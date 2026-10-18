@@ -25,8 +25,9 @@ import {
   routeAssumptions,
   routeSearchCaption,
 } from "./i18n";
+import { largestRemainder, roundTo } from "./rounding";
 import { loadRoutes, routesFrom, type RouteRow } from "./routes";
-import { SCOPE_DESCRIPTION, USER_WORDS_DESCRIPTION, resolveToolScope, scopeProblem, unknownAirport } from "./toolScope";
+import { MAX_PLACE_CHARS, SCOPE_DESCRIPTION, USER_WORDS_DESCRIPTION, resolveToolScope, scopeProblem, unknownAirport } from "./toolScope";
 import type { ToolOutput, ToolSchema } from "./tools";
 
 type ToolArgs = Record<string, unknown>;
@@ -58,7 +59,9 @@ const fail = (error: string, extra: Record<string, unknown> = {}): Parsed<never>
 
 const shown = (raw: unknown): string => String(raw).slice(0, 40);
 const isBlank = (raw: unknown): boolean => raw === undefined || raw === null || (typeof raw === "string" && raw.trim() === "");
-const text = (raw: unknown): string | undefined => (typeof raw === "string" && raw.trim() ? raw.trim() : undefined);
+/** A trimmed, length-capped string argument (place words never need more than 200 characters). */
+const text = (raw: unknown): string | undefined =>
+  typeof raw === "string" && raw.trim() ? raw.trim().slice(0, MAX_PLACE_CHARS) : undefined;
 
 /** The two calendar years the route table holds: the data year and the one before. */
 function routeYears(): { prior: number; current: number } {
@@ -219,18 +222,14 @@ function groupRows(rows: RouteRow[], keyOf: (row: RouteRow) => string): Map<stri
   return groups;
 }
 
-const round1 = (n: number): number => Math.round(n * 10) / 10;
 
 /** Percent change from `prior` to `current`; null when there was no prior to compare with. */
 function percentChange(current: number, prior: number): number | null {
-  return prior > 0 ? round1(((current - prior) / prior) * 100) : null;
+  return prior > 0 ? roundTo(((current - prior) / prior) * 100) : null;
 }
 
 const signedPercent = (pct: number | null, fallback: string): string =>
   pct === null ? fallback : `${pct > 0 ? "+" : ""}${pct.toFixed(1)}%`;
-
-/** Share in tenths of a percent (so displayed shares add up exactly); null when the total is zero. */
-const shareTenths = (part: number, total: number): number | null => (total > 0 ? Math.round((part / total) * 1000) : null);
 
 function carrierFacts(code: string): { code: string; name: string | null; operating_carrier: boolean; label: string } {
   const info = describeCarrier(code);
@@ -396,28 +395,31 @@ export async function carrierShare(args: ToolArgs): Promise<ToolOutput> {
   const rest = carriers.slice(topN.value);
   const restTotals = sumRows(rest.flatMap((c) => rowsByCarrier.get(c.code) ?? []));
 
-  const seatTenths = top.map((c) => shareTenths(c.totals.seats, total.seats));
-  const departureTenths = top.map((c) => shareTenths(c.totals.departures, total.departures));
-  // The bucket is what is left of 100%, so the displayed shares add up exactly.
-  const remainder = (tenths: (number | null)[]): number | null =>
-    tenths.some((t) => t === null) ? null : 1000 - (tenths as number[]).reduce((a, b) => a + b, 0);
-  const pctOf = (tenths: number | null): number | null => (tenths === null ? null : tenths / 10);
+  // One largest-remainder pass over every row, Other included, so the displayed shares add up to
+  // exactly 100.0 and none can be negative (rounding each share separately drifts by 0.1-0.2).
+  const sharesOf = (parts: number[], whole: number): (number | null)[] =>
+    whole > 0 ? largestRemainder(parts.map((part) => (part / whole) * 100), 100, 1) : parts.map(() => null);
+  const seatShares = sharesOf([...top.map((c) => c.totals.seats), ...(rest.length > 0 ? [restTotals.seats] : [])], total.seats);
+  const departureShares = sharesOf(
+    [...top.map((c) => c.totals.departures), ...(rest.length > 0 ? [restTotals.departures] : [])],
+    total.departures,
+  );
 
   const entries = top.map((c, i) => ({
     ...carrierFacts(c.code),
     seats: c.totals.seats,
-    seat_share_pct: pctOf(seatTenths[i]),
+    seat_share_pct: seatShares[i],
     departures: c.totals.departures,
-    departure_share_pct: pctOf(departureTenths[i]),
+    departure_share_pct: departureShares[i],
   }));
   const other =
     rest.length > 0
       ? {
           carrier_count: rest.length,
           seats: restTotals.seats,
-          seat_share_pct: pctOf(remainder(seatTenths)),
+          seat_share_pct: seatShares[top.length],
           departures: restTotals.departures,
-          departure_share_pct: pctOf(remainder(departureTenths)),
+          departure_share_pct: departureShares[top.length],
         }
       : null;
 

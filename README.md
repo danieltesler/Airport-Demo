@@ -174,8 +174,8 @@ button. If audio is blocked or a step fails, the text answer is always on screen
 or "Retry" button where it helps. Recording needs a browser with microphone support and a
 secure (https or localhost) page; on a phone, open the https address.
 
-**Conversation (hands-free).** Behind `NEXT_PUBLIC_CONVERSATION_MODE` (`on` or `off`; unset is
-on in development and off in a production build): press "Conversation" and just talk. It
+**Conversation (hands-free).** Behind `NEXT_PUBLIC_CONVERSATION_MODE` (on unless set to `off`
+at build time, which hides the button): press "Conversation" and just talk. It
 listens, answers aloud, and listens again, with an End button always showing. It never listens
 while it speaks (so it cannot hear itself); to interrupt, tap the mic. It pauses itself, with a
 message, after 8 seconds of silence, 3 empty turns, 10 turns without a tap, or when the page
@@ -217,7 +217,7 @@ text, and the code tells it what is covered. Nothing about an area is hard-coded
 app/
   api/chat/route.ts     the agent turn (POST /api/chat)
   api/stt/route.ts      speech to text (POST /api/stt, OpenAI Whisper)
-  api/tts/route.ts      text to speech (GET/POST /api/tts, ElevenLabs with OpenAI fallback)
+  api/tts/route.ts      text to speech (POST /api/tts, ElevenLabs with OpenAI fallback)
   api/health/route.ts   a health check
   layout.tsx, page.tsx  the app shell and the single chat page
   globals.css           design tokens and Markdown styles
@@ -277,7 +277,7 @@ Every number comes from an official or open source; nothing is hand-typed. The f
 | Source | What it provides | When |
 |---|---|---|
 | **BTS T-100 Segment (All Carriers)** | passengers (domestic + international), departures, load factor, haul mix, 2025 vs 2024 growth, route table | build time, calendar year 2025 |
-| **BTS On-Time Reporting Carrier** | average departure delay, share delayed >15 min, cancellation rate | build time, calendar year 2025 |
+| **BTS On-Time Reporting Carrier** | average departure delay, share delayed 15 minutes or more, cancellation rate | build time, calendar year 2025 |
 | **OurAirports** | name, city, state, coordinates, open runways | build time |
 | **U.S. Census Bureau** (Geocoder, Gazetteer, population estimates) | each airport's metro area (CBSA); city names and coordinates for "near <city>" | build time |
 | **adsb.lol** | live aircraft near an airport, on request | live |
@@ -315,15 +315,23 @@ they are.
 
 - **No authentication or rate limiting** on the `/api` routes. Chat, speech-to-text, and
   text-to-speech each trigger paid calls (OpenAI, and ElevenLabs credits when configured),
-  so a public deployment is exposed to cost abuse. Text-to-speech has guards: text is
-  capped at 4,000 characters, and the ElevenLabs path adds a per-request character cap
-  (600), a per-client hourly budget (3,000 characters), a global daily budget (8,000
-  characters) and a concurrency cap (3), all configurable. Chat has no length cap.
+  so a public deployment is exposed to cost abuse. Each route bounds its input: chat takes a
+  message of up to 1,000 characters and the last 12 turns; speech-to-text takes at most 1 MB of
+  audio in a few allowed formats; text-to-speech takes at most 600 characters, with a
+  per-client hourly budget (3,000 characters) and a global daily budget (8,000 characters)
+  shared by both voice providers, plus a concurrency cap (3), all configurable. Requests a
+  browser marks as cross-site are refused. There is no `GET` form of the speech route.
 - **The voice guards are a speed bump, not security.** The budgets are held in memory, so
   each serverless instance counts separately and they reset on restart, and the client key
-  comes from a forwarded header that can be spoofed. The ElevenLabs monthly allowance
+  comes from a forwarded header that can be spoofed outside Vercel (which overwrites it), and
+  1,001 distinct client ids evict the oldest bucket. The ElevenLabs monthly allowance
   depends on the plan in use, so set the daily budget below it. Real authentication is the
   next step.
+- **Conversation history is not signed.** The client sends the earlier turns and the
+  "shown on screen" note, and the server validates their shape and size only. Figures still
+  come from tool calls.
+- **Next.js 14.** Most published advisories for it concern features this deployment does not
+  use (the image optimizer, middleware). An upgrade is planned.
 - **Scores are relative to large U.S. airports.** Each input is scaled between its 5th
   and 95th percentile across the 102 airports, so 50 means mid-pack among them, not an
   absolute condition. Anchors are re-derived (and tested) whenever the data is refreshed.

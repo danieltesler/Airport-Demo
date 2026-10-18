@@ -89,3 +89,12 @@
   background: var(--surface);
   box-shadow: 1px 0 0 var(--slate-200);
 }
+
+/* A finger needs 44px: the "How was this scored?" row was 40px tall. */
+@media (max-width: 600px), (pointer: coarse) {
+  .summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}

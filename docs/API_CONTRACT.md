@@ -10,7 +10,7 @@ Base URL (local dev): `http://localhost:3000`
 |---|---|---|
 | `/api/chat` | POST | One conversational turn (OpenAI tool-calling agent) |
 | `/api/stt` | POST | Speech to text (OpenAI Whisper) |
-| `/api/tts` | GET, POST | Text to speech: ElevenLabs when configured, OpenAI TTS as the automatic fallback and default |
+| `/api/tts` | POST | Text to speech: ElevenLabs when configured, OpenAI TTS as the automatic fallback and default |
 | `/api/health` | GET | Liveness and dataset vintage |
 
 All routes run on the Node.js runtime and are evaluated per request (never cached).
@@ -46,12 +46,22 @@ Send a user message plus prior conversation and receive the agent's answer.
     never a source of figures: asked for numbers, the model calls a tool again. Omit it and
     nothing changes.
 
+### Input limits
+
+Because every turn costs money, the route bounds its input:
+
+- `message` over 1,000 characters: `413` with `{ "reply": "...", "error": "too_long" }`. A request body declared larger than 100 KB is refused the same way before it is read.
+- `history` that is not an array is treated as empty (no error). Otherwise only turns with role `user` or `assistant` and string content are kept, content is cut to 2,000 characters, and only the last 12 turns are used.
+- A request the browser marks as coming from another site (`Sec-Fetch-Site` present and not `same-origin`) is refused with `403` and `error: "forbidden"`. A request without the header (a non-browser client) is allowed; this stops other websites from driving a visitor's browser into spending credits, not a script.
+- A failed turn returns the fixed code `agent_error`; only the error's name is logged, never its text.
+- The route stops after 30 seconds (`maxDuration`).
+
 ### How a turn is processed
 
 The agent calls OpenAI (`gpt-4o-mini` by default) with tool calling enabled and loops:
 the model may call tools, the server runs them and returns the results to the model,
 and this repeats until the model answers in text or the step cap is reached
-(`MAX_AGENT_STEPS`, default 6). Every number comes from the tools and the
+(`MAX_AGENT_STEPS`, default 4). Every number comes from the tools and the
 deterministic scoring engine behind them; the structured table, assumptions, and
 uncertainty text are collected from the tool outputs, not written by the model.
 
@@ -59,8 +69,8 @@ Tools available to the model:
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `rank_airports` | `metric` (`expansion` \| `congestion` \| `unmet_demand`), `scope` (optional), `top_n` (default 5) | `ranking` table |
-| `compare_airports` | `iatas` (array), or `scope` / `user_words`: when the words name specific airports ("LAX and SNA", "JFK vs EWR", "Los Angeles and Santa Ana") exactly those are compared; when they name an area the busiest 8 airports in it are compared. `metric` (default `congestion`) | `comparison` table, highest score first (insufficient data last); the caption says how the airports were read, e.g. `Comparing 2 airports: LAX, SNA` or `Comparing 3 airports in San Francisco Bay Area (metro area)`. A named city that matches several airports (New York) returns `ambiguous` with the airport options instead of widening. |
+| `rank_airports` | `metric` (`expansion` \| `congestion` \| `unmet_demand`), `scope` (optional), `top_n` (default 5, at most 25; a non-number falls back to 5) | `ranking` table |
+| `compare_airports` | `iatas` (array), or `scope` / `user_words`: when the words name specific airports ("LAX and SNA", "JFK vs EWR", "Los Angeles and Santa Ana") exactly those are compared; when they name an area the busiest 8 airports in it are compared. `metric` (default `congestion`) | `comparison` table, highest score first (insufficient data last); the caption says how the airports were read, e.g. `Comparing 2 airports: LAX, SNA` or `Comparing 3 airports in San Francisco Bay Area (metro area)`. A city name is matched against the airport's city (and its components, so `Dallas` is found in `Dallas-Fort Worth`); one that matches several airports (`New York`, `Dallas`) returns `ambiguous` with the airport options instead of choosing, `Portland, OR` reads `OR` as Oregon, and when a city name picked the airports the note lists airports of the same metro area that were not compared (`Washington` is DCA; IAD is not included). |
 | `long_haul_breakdown` | `iata` | `breakdown` table |
 | `unmet_demand` | `iata` | `metric` table of score drivers |
 | `airport_profile` | `iata` | Full metrics and all three scores (no table) |
@@ -119,14 +129,14 @@ and the table the UI renders for it (`structured`, kind `metric`):
 }
 ```
 
-`route_search` returns `routes[]` (rank, destination, carriers, passengers, seats, departures, distance_mi, yoy_pct), `carrier_share` returns `carriers[]` plus an `other` bucket whose share is what is left of 100% (so the shares add up exactly), and `airport_search` returns `airports[]` (iata, name, city, state, metro_area, passengers).
+`route_search` returns `routes[]` (rank, destination, carriers, passengers, seats, departures, distance_mi, yoy_pct), `carrier_share` returns `carriers[]` plus an `other` bucket whose share is what is left of 100%: the shares of every row, Other included, are rounded together (largest remainder), so each column adds up to exactly 100.0 and none is negative, and `airport_search` returns `airports[]` (iata, name, city, state, metro_area, passengers).
 
 #### Live-data tools
 
 The last five tools query public APIs at question time (code in `lib/live/`). They take only an IATA code, validated against the dataset's airport list; nothing the model writes is placed in a URL. Every result carries `source`, `retrieved_at` and a limitations note, and on failure returns `available: false` with a short message and a `fallback` instruction (say the live source is unavailable, use the dataset figure labelled as a snapshot, never invent a value).
 
 - **Scores never use live values.** Rankings, comparisons, profiles and all three scores are computed from the bundled dataset only, so they are reproducible. A live tool answers a live question and may show a more recent figure than the dataset; `bts_airport_traffic` then adds a `bundled_dataset` block with the dataset's figure, its vintage and a `differs_materially` flag so the two are presented with their own periods.
-- **Tables.** A live tool's `metric` table is returned as `structured` only when no analysis table (ranking, comparison, breakdown) was produced earlier in the same turn; it never replaces one. Failed live calls add no table. Every live table carries a code-built `caption` such as `Source: FAA NAS Status · retrieved 14:32 UTC`, using the tool's own retrieval time; like all captions it is never sent to the model. Load factor in every table (comparison, ranking, live BTS traffic) is a percentage with one decimal, for example `79.9%`; the model's tool result carries the same figure as `load_factor_pct`.
+- **Tables.** A live tool's `metric` table is returned as `structured` only when no analysis table (ranking, comparison, breakdown) was produced earlier in the same turn; it never replaces one. Failed live calls add no table. The `retrieved_at` in a live result is the time the data was actually fetched: a figure served from the tool's short cache keeps its original fetch time (the oldest, when several cached values were combined). Every live table carries a code-built `caption` such as `Source: FAA NAS Status · retrieved 14:32 UTC`, using the tool's own retrieval time; like all captions it is never sent to the model. Load factor in every table (comparison, ranking, live BTS traffic) is a percentage with one decimal, for example `79.9%`; the model's tool result carries the same figure as `load_factor_pct`.
 - **Population without a key.** The dataset has no population field. When `metro_population` cannot answer (no `CENSUS_API_KEY`, no metro area, no published estimate) its result is `available: false` with `do_not_estimate: true` and a fallback telling the model to say so plainly and give no number from memory. Every unavailable live result carries `do_not_estimate: true`.
 - **Source facts.** The FAA NAS Status feed lists only airports with an active program, so "none reported" is not "no delays". BTS T-100 lags real time by several months and the result states the latest month covered. FAA closure entries are NOTAM text and can be general-aviation only. Census figures are survey estimates, one metro area per airport. The hosts have not yet been tested from a Vercel datacenter IP.
 
@@ -143,14 +153,14 @@ Resolution order is deterministic:
 | a named metro alias (`LA`, `Bay Area`, `NYC`, `DC`, ...) | `metro` | alias row in `data/geography.json`: center + radius |
 | a Census metro area: CBSA title (`Boston-Cambridge-Newton, MA-NH`), title without states, `<principal city> metro`, or CBSA code (`14460`) | `metro` | the CBSA that contains each airport (Census Geocoder); two CBSAs matching the same words are `ambiguous` |
 | `near <city or airport>`, `within N miles/km of <city or airport>` | `radius` | great-circle distance to each airport's lat/lon (default 50 mi, max 1000); city coordinates from the Census Gazetteer (places of 10,000+ people) or the airports' own cities |
-| a U.S. state or territory (name or postal code) | `state` | airport's state code |
+| a U.S. state or territory (name, postal code, or `<name> state`) | `state` | airport's state code |
 | a Census division (New England, Pacific, Mountain, ...) | `census_division` | U.S. Census Bureau definition, by state code |
 | a Census region (Northeast, Midwest, South, West) | `census_region` | U.S. Census Bureau definition, by state code |
 | a bare city name | `radius` | same as `near <city>` |
 
 Natural filler is tolerated ("Northeast US", "Texas area", "Northeast including New York"): the leading phrase is used, the resolution is marked `reinterpreted`, the notes say what was ignored, and the caption shows `read from "..."`.
 
-Matching ignores case, whitespace, punctuation and a leading "the". A named alias
+Matching ignores case, whitespace, punctuation, diacritics (`San José`), trailing punctuation (`Texas?`) and a leading "the"; after `near` or `within N miles of`, a trailing `airport` or `area` is dropped when the words as typed are not recognized (`near JFK airport`, `near Boston area`). The scope text read is capped at 200 characters. A named alias
 outranks a postal code of the same spelling (`LA` is the Los Angeles metro, not
 Louisiana); the result carries a note saying so.
 
@@ -162,7 +172,11 @@ tool result:
 - `empty`: understood, but no dataset airport falls inside (for example a state the
   dataset does not cover, such as Kansas). Notes name the nearest covered airport for radius scopes.
 - `ambiguous`: more than one meaning (`Portland` is Oregon, Maine and others; `Washington`
-  is the state or DC). `options[]` lists each meaning with a `scope` string that resolves
+  is the state or DC; a bare `New York` is the state or the New York City area, with the options
+  `NY` and `NYC`, so a request such as "compare the New York airports" asks which one rather than
+  returning a state table). `NYC` and `New York City` are the city area; `New York state`, `NY`
+  and `upstate New York` are the state (`upstate` is not a boundary in the data, so the note says
+  every airport in the state is included). `options[]` lists each meaning with a `scope` string that resolves
   unambiguously. Nothing is picked silently, with two documented exceptions: a place name
   shared by several places resolves to the largest when it has at least ten times the
   population of the next (`Dallas` is Texas), and a city shares a state's name only from
@@ -185,7 +199,7 @@ unknown; the agent does not invent them.
   "reply": "**Santa Ana (SNA)** is more congested than **LAX** ...",
   "structured": {
     "kind": "comparison",
-    "columns": ["Airport", "Congestion score", "Avg delay (min)", "Delayed >15m", "Load factor", "Cancel rate"],
+    "columns": ["Airport", "Congestion score", "Avg delay (min)", "Delayed 15+ min", "Load factor", "Cancel rate"],
     "rows": [
       ["SNA — Santa Ana", 40.2, 15.2, "19%", "79.9%", "1.1%"],
       ["LAX — Los Angeles", 28.6, 13.82, "18%", "82.0%", "0.7%"]
@@ -194,7 +208,7 @@ unknown; the agent does not invent them.
     "explain": {
       "metricLabel": "Congestion",
       "components": [
-        { "label": "Flights delayed >15 min", "weight": 0.4375 },
+        { "label": "Flights delayed 15 min or more", "weight": 0.4375 },
         { "label": "Average departure delay", "weight": 0.375 },
         { "label": "Cancellation rate", "weight": 0.1875 }
       ],
@@ -247,7 +261,8 @@ unknown; the agent does not invent them.
     `{ metricLabel, components: [{ label, weight }], rows: [{ airport, score, parts: [{ value, points }] }] }`.
     `parts` follows the order of `components`; `value` is the normalized 0-1 component
     and `points` is its contribution to the 0-100 score (weight x value x 100). Points are
-    rounded to 1 decimal, so a column can differ from `score` by a rounding amount.
+    rounded together to 1 decimal (largest remainder), so a row's points add up exactly to its
+    displayed `score`.
   - `caption` and `explain` are produced by code from the scoring engine and are never
     sent to the model.
 - `assumptions` — array of short strings, de-duplicated across tool calls, or `null`.
@@ -260,8 +275,7 @@ unknown; the agent does not invent them.
 - `meta.spoken_guard_rejections` — present only when the model wrote a spoken line and it was rejected: the number of checks that failed. A count only, never the rejected text; use it to measure the fallback rate.
 - `meta.timings` — `{ total_ms, model_calls, model_ms, tools_ms, hops }`, where each hop is one model call with its duration and the tools it triggered (`{ name, ms }`).
 - Reply style: the model is instructed to answer in two to four sentences (about 70 words), lead with the insight, never restate the table rows, and add one caveat only when it changes the conclusion. In `SPOKEN_MODE=model` the final model message is strict JSON `{ reply, spoken }`; if it is not valid JSON the plain text becomes `reply` and there is no `spoken`.
-- If the step cap is reached without any text, `reply` is a short "could you rephrase"
-  message.
+- If the step cap is reached with tool results still unanswered, one final model call with tools switched off writes the answer from what was gathered; only if that also yields no text is `reply` a short "could you rephrase" message. A model reply that is JSON wrapped in a code fence is unwrapped, and text that starts with `{` but cannot be read (for example cut off by the token limit) is never shown: the user sees a short "ask again" line instead.
 
 ### Error responses
 
@@ -301,10 +315,13 @@ improve accuracy on airport names and codes.
   (`speech.webm`, `speech.mp4` for Safari), because the filename is forwarded to the
   transcription service.
 - Response 200: `{ "text": "..." }`
+- Limits: audio over 1,000,000 bytes is refused with 413 (the browser stops recording at 20 seconds, which is well under 200 KB of compressed speech), and only `audio/webm`, `audio/ogg`, `audio/mp4`, `audio/mpeg` and `audio/wav` are accepted (a `;codecs=` suffix is fine); anything else is 415. The same cross-site check as `/api/chat` applies.
 
 | Condition | Status | Body |
 |---|---|---|
 | `OPENAI_API_KEY` not configured | 503 | `{ "error": "OPENAI_API_KEY not set" }` |
+| Audio over 1,000,000 bytes | 413 | `{ "error": "audio too large" }` |
+| Audio type not allowed | 415 | `{ "error": "unsupported audio type" }` |
 | Unreadable form data | 400 | `{ "error": "bad request" }` |
 | Missing or empty `audio` | 400 | `{ "error": "no audio" }` |
 | Transcription failed | 502 | `{ "error": "transcription failed" }` |
@@ -325,11 +342,11 @@ Convert text to natural speech. Two providers, chosen on the server:
   401 or 402 ElevenLabs is skipped for 5 minutes. OpenAI audio is streamed back.
 
 Response headers: `X-TTS-Provider: elevenlabs|openai`, and `X-TTS-Fallback:
-rate-limit|too-long|unavailable` when ElevenLabs was configured but OpenAI spoke. No
+too-long|unavailable` when ElevenLabs was configured but OpenAI spoke. No
 provider detail, status or key is ever returned. Audio is `audio/mpeg`. Text is truncated to
-4,000 characters.
+600 characters (the web app posts one short sentence at a time).
 
-Credit guards (ElevenLabs path only; the OpenAI path is unchanged): at most
+Credit guards (both providers: the OpenAI fallback spends the same budget, so it is never an unlimited path): at most
 `ELEVENLABS_MAX_CHARS` (600) per request, `ELEVENLABS_CLIENT_CHARS_PER_HOUR` (3000) per
 client (first `x-forwarded-for` address), `ELEVENLABS_CHARS_PER_DAY` (8000) in total, and
 `ELEVENLABS_MAX_CONCURRENT` (3) calls in flight (extra calls wait).
@@ -340,25 +357,21 @@ defaults are therefore 600 credits per client per hour and 1,600 credits per day
 Multilingual); at that daily cap a 30-day month is 48,000 credits, so lower
 `ELEVENLABS_CHARS_PER_DAY` if the plan allowance is smaller. **The plan allowance itself is
 unverified**: the API key lacks the `user_read` permission, so it could not be read back;
-check the dashboard. The browser waits up to 15 s for a clip, because an OpenAI fallback clip
-took 9-12 s when measured; the normal ElevenLabs clip takes about 0.7 s. Over a limit, the request
-is served by OpenAI, or fails with 502 if OpenAI is not configured, and the app shows the
-text answer. **These limits live in memory: they reset on restart and each serverless
-instance counts separately, and `x-forwarded-for` can be spoofed (a caller who rotates it
-gets a fresh per-client budget), so the per-client limit is a courtesy and **the global daily
+check the dashboard. The browser gives the first clip of an answer 6 s to start responding (the normal ElevenLabs clip takes about 0.7 s, and an OpenAI fallback answers its headers after the 2.5 s ElevenLabs timeout), shows "Preparing voice…" until audio plays, and then reads its body for up to 15 s (an OpenAI fallback clip took 9-12 s to finish when measured). Later clips get 15 s throughout. Past that the chip says voice is off and the answer is on screen. Over the per-client or daily budget the request is refused with `429` (the app shows the text answer); a request that ElevenLabs fails within budget is served by OpenAI on the characters already spent, and fails with 502 only if no provider can speak (the characters are then given back). **These limits live in memory: they reset on restart and each serverless
+instance counts separately, and `x-forwarded-for` can be spoofed outside Vercel, which overwrites it with the real client address (a caller who rotates it gets a fresh per-client budget, and 1,001 distinct ids evict the oldest bucket and so reset it), so the per-client limit is a courtesy and **the global daily
 cap is the real bound** on spend through this endpoint (per instance).**
 They are a speed bump against burning paid credits, not authentication; real auth is the
 next step.
 
 - `POST /api/tts` with JSON `{ "text": "..." }` — what the web app uses: one request
   per sentence, so the text never appears in a URL or an access log.
-- `GET /api/tts?text=...` — same result; kept for compatibility with existing clients
-  (the web app no longer calls it).
+- There is no `GET` form: text in a URL would land in access logs. A cross-site browser request is refused with 403, as on the other routes.
 
 | Condition | Status | Body |
 |---|---|---|
 | No provider configured (neither key set) | 503 | plain text `no speech provider configured` |
 | Invalid JSON (POST) | 400 | plain text `bad request` |
+| Per-client or daily character budget spent | 429 | plain text `speech budget used up` |
 | Empty `text` | 400 | plain text `empty text` |
 | Synthesis failed on every available provider | 502 | plain text `tts failed` |
 
@@ -378,7 +391,7 @@ It does not check OpenAI or adsb.lol connectivity.
 | `OPENAI_API_KEY` | — (required) | OpenAI access for chat and STT, and for TTS as the default and fallback provider |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Chat model |
 | `OPENAI_MAX_TOKENS` | `1500` | Per-completion token cap |
-| `MAX_AGENT_STEPS` | `6` | Max model/tool iterations per turn |
+| `MAX_AGENT_STEPS` | `4` | Max model/tool iterations per turn (a non-numeric value falls back to the default) |
 | `SPOKEN_MODE` | `model` | `model`: the model also writes a voice line that the server verifies before returning it as `spoken`. `template`: plain-text replies only, no `spoken`; the client builds the voice line from the table. Switch to `template` to turn the model voice line off. |
 | `OPENAI_STT_MODEL` | `whisper-1` | Speech-to-text model |
 | `OPENAI_TTS_MODEL` | `gpt-4o-mini-tts` | Text-to-speech model |
@@ -418,6 +431,7 @@ The live-flights, FAA status, weather, BTS traffic and FAA infrastructure tools 
   instead (cut only between sentences, 600 characters at most). Each sentence is requested with
   `POST /api/tts` (up to four at once) and played in order. Answers to typed questions are
   not spoken unless the user taps "Read aloud".
+- Hung requests: the browser stops waiting for `/api/chat` after 45 s and shows a friendly error with "Try again" (`error: "timeout"` is client-side only, never sent by the server). The Stop button cancels the request and returns to idle, in tap-to-talk, typed and Conversation modes alike.
 - Voice history: each assistant answer's `shown` note is sent back as `history[].shown`, so
   "what about the second one?" still has a referent now that replies do not restate the rows.
 - "One moment": for a spoken question whose answer takes more than 1.5 seconds, the app says one
@@ -428,8 +442,8 @@ The live-flights, FAA status, weather, BTS traffic and FAA infrastructure tools 
   ("I didn't hear anything"), and a transcript that is only filler ("Thank you.", "you") is
   treated as not heard. This stops speech recognition inventing a question from silence.
 - Conversation mode (hands-free, client only, no API change): behind
-  `NEXT_PUBLIC_CONVERSATION_MODE` (`on`/`off`; unset means on in development and off in a
-  production build). It repeats listen, send, answer, listen on its own. It is half-duplex (the
+  `NEXT_PUBLIC_CONVERSATION_MODE` (on everywhere unless set to `off` at build time, which hides
+  the button). It repeats listen, send, answer, listen on its own. It is half-duplex (the
   microphone is off while the assistant speaks; listening resumes after a 400 ms gap), interrupted
   by a tap only, and has an End button whenever it is on. It pauses itself, with a chip message
   and the answer still on screen, after 8 s of silence, 3 empty turns in a row, 10 turns without
@@ -443,11 +457,17 @@ The live-flights, FAA status, weather, BTS traffic and FAA infrastructure tools 
 
 - **No authentication or rate limiting on any `/api` route.** `/api/chat`, `/api/stt`,
   and `/api/tts` each trigger paid calls (OpenAI, and ElevenLabs credits when configured),
-  so an open deployment is exposed to cost abuse (denial of wallet). `/api/chat` does not
-  cap message or history length. `/api/tts` caps text at 4,000 characters, and on the
-  ElevenLabs path adds in-memory character and concurrency budgets; those reset per
-  serverless instance and are a speed bump, not authentication (see `/api/tts` above).
-  The ElevenLabs monthly allowance depends on the plan in use.
+  so an open deployment is exposed to cost abuse (denial of wallet). The routes bound their
+  input (chat: 1,000-character message, 12 turns of at most 2,000 characters; stt: 1 MB and an
+  allow-list of audio types; tts: 600 characters, one character budget per client and one
+  global budget shared by both providers) and refuse cross-site browser requests. The budgets
+  are in memory: they reset per serverless instance and on restart, and are a speed bump, not
+  authentication. The ElevenLabs monthly allowance depends on the plan in use.
+- **Conversation history and the `shown` note are not signed.** They come from the client and
+  are validated for shape and size only; every figure still comes from a tool call, but a caller
+  can put any earlier turns in the history. Real authentication is the next step.
+- **Dependencies.** The app runs Next.js 14; most published advisories for it concern features
+  this deployment does not use (the image optimizer, middleware). Upgrading is planned.
 - **Data definitions.** Scores use calendar-year 2025 BTS data: T-100 Segment (all
   carriers, international included) for passengers, departures, load factor, haul mix and
   growth (2025 vs 2024), and On-Time Reporting Carrier data for delays and cancellations,
@@ -462,7 +482,7 @@ The live-flights, FAA status, weather, BTS traffic and FAA infrastructure tools 
   | Input | Congestion | Unmet demand | Expansion |
   |---|---|---|---|
   | Load-factor pressure | — | 40.0% | 25.0% |
-  | Share of departures delayed >15 min | 43.75% | 15.3125% | 13.125% |
+  | Share of departures delayed 15 minutes or more | 43.75% | 15.3125% | 13.125% |
   | Average departure delay | 37.5% | 13.125% | 11.25% |
   | Cancellation rate | 18.75% | 6.5625% | 5.625% |
   | Passenger growth | — | 15.0% | 30.0% |
@@ -491,8 +511,8 @@ The live-flights, FAA status, weather, BTS traffic and FAA infrastructure tools 
 ## Next steps
 
 - Authentication and per-client rate limiting and usage caps on all `/api` routes;
-  a message and history length limit on chat (TTS already caps text at 4,000
-  characters; chat has no cap).
+  signed conversation history, and a Next.js upgrade (chat, speech and the TTS budgets
+  already have size caps).
 - An evaluation suite that runs fixed question sets end to end and checks tool choice,
   numbers, and the "no invented airports" rule, to catch regressions when prompts or
   models change.

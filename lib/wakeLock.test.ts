@@ -88,15 +88,24 @@ describe("screen wake lock", () => {
 
   it("releases a lock granted after End was pressed while the request was in flight", async () => {
     let grant: (sentinel: WakeLockSentinelLike) => void = () => undefined;
+    let requested = false;
     const late = fakeSentinel();
     const nav: NavigatorWithWakeLock = {
-      wakeLock: { request: () => new Promise<WakeLockSentinelLike>((resolve) => (grant = resolve)) },
+      wakeLock: {
+        request: () =>
+          new Promise<WakeLockSentinelLike>((resolve) => {
+            requested = true;
+            grant = resolve;
+          }),
+      },
     };
     const lock = createScreenWakeLock(nav);
     const pending = lock.acquire();
-    await lock.release();
+    const releasing = lock.release(); // runs after the request settles
+    await vi.waitFor(() => expect(requested).toBe(true));
     grant(late);
     expect(await pending).toBe(false);
+    await releasing;
     expect(late.released).toBe(1);
     expect(lock.held).toBe(false);
   });
@@ -109,5 +118,46 @@ describe("screen wake lock", () => {
       throw new Error("already released");
     });
     await expect(lock.release()).resolves.toBeUndefined();
+  });
+
+  it("acquire, release, acquire in quick succession ends with exactly one lock held and none leaked", async () => {
+    const sentinels: ReturnType<typeof fakeSentinel>[] = [];
+    const grants: Array<() => void> = [];
+    const nav: NavigatorWithWakeLock = {
+      wakeLock: {
+        request: () =>
+          new Promise<WakeLockSentinelLike>((resolve) => {
+            const sentinel = fakeSentinel();
+            sentinels.push(sentinel);
+            grants.push(() => resolve(sentinel));
+          }),
+      },
+    };
+    const lock = createScreenWakeLock(nav);
+    const first = lock.acquire();
+    const released = lock.release();
+    const second = lock.acquire();
+
+    await vi.waitFor(() => expect(grants).toHaveLength(1));
+    grants[0]();
+    await first;
+    await vi.waitFor(() => expect(grants).toHaveLength(2)); // the second request starts only after the first settled
+    grants[1]();
+    await Promise.all([released, second]);
+
+    expect(sentinels).toHaveLength(2);
+    expect(sentinels[0].released).toBe(1); // the first lock was let go
+    expect(sentinels[1].released).toBe(0); // the second is the one held
+    expect(lock.held).toBe(true);
+  });
+
+  it("release, acquire, release in quick succession ends with nothing held", async () => {
+    const { nav, sentinels } = fakeNavigator();
+    const lock = createScreenWakeLock(nav);
+    await lock.acquire();
+    const operations = [lock.release(), lock.acquire(), lock.release()];
+    await Promise.all(operations);
+    expect(lock.held).toBe(false);
+    expect(sentinels.every((sentinel) => sentinel.released === 1)).toBe(true);
   });
 });

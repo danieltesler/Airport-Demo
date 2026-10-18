@@ -22,6 +22,7 @@ import {
   fetchJson,
   lookupAirport,
   nowOf,
+  retrievedAtIso,
   round,
   safeReason,
   toNumber,
@@ -190,7 +191,10 @@ export async function metroPopulation(args: Record<string, unknown>, deps: LiveD
         population_growth_yoy: growth,
         median_household_income_usd: current.medianHouseholdIncome,
         source: SOURCE,
-        retrieved_at: nowOf(deps).toISOString(),
+        retrieved_at: retrievedAtIso(deps, [
+          metroCache.storedAt(airport.iata, nowOf(deps).getTime()),
+          acsCache.storedAt(`${year}:${metro.cbsaCode}`, nowOf(deps).getTime()),
+        ]),
       },
       structured: {
         kind: "metric",

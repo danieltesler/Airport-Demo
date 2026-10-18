@@ -63,9 +63,7 @@
         "WA",
         "WI"
       ],
-      "scope_notes": [
-        "The scope was resolved from the user's words 'WA', not from the passed scope 'Washington state'. Describe the area as Washington; do not describe it as 'Washington state'."
-      ],
+      "scope_notes": [],
       "note": "score is a 0-100 composite; the other fields are the real underlying metrics.",
       "ranking": [
         {

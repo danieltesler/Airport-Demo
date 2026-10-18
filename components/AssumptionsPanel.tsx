@@ -1,5 +1,6 @@
 import type { ResponseMeta } from "@/lib/types";
 import { PANEL_LABELS } from "@/lib/i18n";
+import { hasPanelContent, vintageLine } from "./provenance";
 import styles from "./AssumptionsPanel.module.css";
 
 interface AssumptionsPanelProps {
@@ -22,7 +23,7 @@ export function AssumptionsPanel({
   const hasUncertainty = !!uncertainty && uncertainty.trim().length > 0;
   const usedTools = (meta?.tools_used?.length ?? 0) > 0;
 
-  if (!hasAssumptions && !hasUncertainty && !usedTools) return null;
+  if (!hasPanelContent(assumptions, uncertainty)) return null;
 
   const hasMeta = usedTools && !!meta?.data_vintage;
 
@@ -57,7 +58,7 @@ export function AssumptionsPanel({
         <div className={styles.metaRow}>
           {meta?.data_vintage && (
             <span className={styles.metaItem}>
-              {PANEL_LABELS.dataVintage}: {meta.data_vintage}
+              {vintageLine(meta.data_vintage, PANEL_LABELS.dataVintage)}
             </span>
           )}
           {meta?.tools_used && meta.tools_used.length > 0 && (

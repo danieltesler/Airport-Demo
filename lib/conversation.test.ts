@@ -16,6 +16,7 @@ function setup(options: { session?: SessionResult; ready?: boolean } = {}) {
     finishListening: vi.fn(log("finishListening")),
     send: vi.fn((text: string) => void calls.push(`send:${text}`)),
     cancelSpeech: vi.fn(log("cancelSpeech")),
+    cancelChat: vi.fn(),
     wakeLock: { acquire: vi.fn(async () => true), release: vi.fn(async () => undefined) },
   };
   const controller = new ConversationController(ports);
@@ -471,5 +472,94 @@ describe("snapshot", () => {
     c.controller.playbackChanged("idle"); // no effect while listening
     expect(c.controller.getSnapshot()).toBe(during);
     expect(before.phase).toBe("off");
+  });
+});
+
+describe("End also cancels the chat request that is still waiting", () => {
+  it("End stops the pending request; a pause does not, so the answer can still reach the screen", async () => {
+    const ended = setup();
+    await ended.controller.start();
+    ended.controller.outcome({ kind: "transcript", text: "q" });
+    ended.controller.chatRunning(true);
+    ended.controller.end();
+    expect(ended.ports.cancelChat).toHaveBeenCalledTimes(1);
+
+    const paused = setup();
+    await paused.controller.start();
+    paused.controller.outcome({ kind: "transcript", text: "q" });
+    paused.controller.chatRunning(true);
+    paused.controller.hidden();
+    expect(paused.ports.cancelChat).not.toHaveBeenCalled();
+  });
+});
+
+describe("cleanup can never throw (React's development remount)", () => {
+  it("mount, unmount, mount: the first End on a controller that never started touches nothing", async () => {
+    const c = setup();
+    c.controller.end(); // StrictMode's simulated unmount
+    expect(c.ports.cancelSpeech).not.toHaveBeenCalled();
+    expect(c.ports.cancelChat).not.toHaveBeenCalled();
+    expect(c.ports.closeSession).not.toHaveBeenCalled();
+    await c.controller.start(); // the second mount works as normal
+    expect(c.phase()).toBe("listening");
+  });
+
+  it("a cancelChat that throws does not break End, and is logged by error name only", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const c = setup();
+    c.ports.cancelChat.mockImplementation(() => {
+      throw Object.assign(new Error("This is the empty thread, a placeholder with secret details"), { name: "ThreadError" });
+    });
+    await c.controller.start();
+    expect(() => c.controller.end()).not.toThrow();
+    expect(c.phase()).toBe("off");
+    expect(c.ports.closeSession).toHaveBeenCalled(); // the rest of End still ran
+    expect(c.ports.wakeLock.release).toHaveBeenCalled();
+    const logged = JSON.stringify(warn.mock.calls);
+    expect(logged).toContain("ThreadError");
+    expect(logged).not.toContain("placeholder");
+    warn.mockRestore();
+  });
+
+  it("End is idempotent: a second End does nothing, and a throwing cancelChat is called once", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const c = setup();
+    c.ports.cancelChat.mockImplementation(() => {
+      throw new Error("boom");
+    });
+    await c.controller.start();
+    c.controller.end();
+    c.controller.end();
+    expect(c.ports.cancelChat).toHaveBeenCalledTimes(1);
+    expect(c.ports.closeSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("the whole StrictMode sequence with a throwing cancelChat: end, start, end, end", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const c = setup();
+    c.ports.cancelChat.mockImplementation(() => {
+      throw new Error("empty thread");
+    });
+    expect(() => {
+      c.controller.end(); // unmount
+    }).not.toThrow();
+    await c.controller.start(); // remount, user starts
+    expect(() => {
+      c.controller.end();
+      c.controller.end();
+    }).not.toThrow();
+    expect(c.phase()).toBe("off");
+  });
+});
+
+describe("the Conversation flag", () => {
+  it("is on by default everywhere and only an explicit 'off' hides it", async () => {
+    const { isConversationModeEnabled } = await import("./conversation");
+    expect(isConversationModeEnabled(undefined)).toBe(true);
+    expect(isConversationModeEnabled("")).toBe(true);
+    expect(isConversationModeEnabled("on")).toBe(true);
+    expect(isConversationModeEnabled("true")).toBe(true);
+    expect(isConversationModeEnabled("off")).toBe(false);
+    expect(isConversationModeEnabled(" OFF ")).toBe(false);
   });
 });

@@ -87,7 +87,7 @@
     { "names": ["LA", "Los Angeles", "Greater Los Angeles"], "label": "Los Angeles area", "center": { "lat": 34.05, "lon": -118.24 }, "radius_miles": 60 },
     { "names": ["SoCal", "Southern California"], "label": "Southern California", "center": { "lat": 33.9, "lon": -118.0 }, "radius_miles": 125 },
     { "names": ["Bay Area", "SF Bay", "San Francisco Bay"], "label": "San Francisco Bay Area", "center": { "lat": 37.6, "lon": -122.2 }, "radius_miles": 50 },
-    { "names": ["NYC", "New York City", "New York Metro"], "label": "New York City area", "center": { "lat": 40.71, "lon": -74.01 }, "radius_miles": 40 },
+    { "names": ["NYC", "New York City", "New York Metro"], "label": "New York City area", "ambiguous_names": ["New York"], "center": { "lat": 40.71, "lon": -74.01 }, "radius_miles": 40 },
     { "names": ["DC", "Washington DC", "DC Metro"], "label": "Washington, DC area", "center": { "lat": 38.9, "lon": -77.04 }, "radius_miles": 30 }
   ]
 }

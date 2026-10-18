@@ -165,3 +165,19 @@
 .wrap {
   max-width: 100%;
 }
+
+/* Right-edge shadow while a table has more columns off-screen (see ScrollRegion). */
+.scrollFrame {
+  position: relative;
+}
+
+.scrollFrame[data-more="true"]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 28px;
+  pointer-events: none;
+  background: linear-gradient(to left, rgba(15, 32, 51, 0.18), transparent);
+}
