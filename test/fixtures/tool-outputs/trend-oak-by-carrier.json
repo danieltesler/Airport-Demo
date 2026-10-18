@@ -14,6 +14,13 @@
         "current": 2025
       },
       "group_by": "carrier",
+      "filters_applied": [],
+      "carriers_included": "all airlines combined",
+      "all_airlines_note": "These figures cover ALL airlines combined. Never present them as one airline's; if the user asked about a single airline, say these are the airport totals or ask which airline.",
+      "totals_scope": "all airlines, all destinations from OAK",
+      "totals_note": "The totals cover all airlines combined at this airport.",
+      "headline_facts": "all airlines, all destinations from OAK: seats 7,034,708 in 2024 to 6,137,508 in 2025 (-12.8%); passengers 5,290,031 to 4,501,620 (-14.9%).",
+      "explanation_limit": "The data shows what changed, not why. Do not use causal wording (driven by, due to, because of, caused by, as a result of, reflects a decision) and do not state any figure that is not in this result.",
       "totals": {
         "seats_prior": 7034708,
         "seats_current": 6137508,
@@ -181,7 +188,7 @@
       "rows": [
         [
           "Total",
-          "all destinations from OAK",
+          "all airlines, all destinations from OAK",
           7034708,
           6137508,
           -897200,
@@ -301,7 +308,7 @@
           "-21.3%"
         ]
       ],
-      "caption": "Capacity trend, flights from OAK · 2024 to 2025 · biggest changes by carrier"
+      "caption": "Capacity trend, all airlines flights from OAK · 2024 to 2025 · biggest changes by carrier"
     },
     "assumptions": [
       "Route figures are BTS T-100 Segment records for scheduled passenger service (2024 and 2025): each row is one carrier's flights between two airports. Passengers are enplaned passengers per segment, so a connecting trip counts once on each segment and a route's figure is not the number of people travelling between two cities.",

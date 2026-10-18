@@ -142,11 +142,17 @@ function acsYear(): number {
  * "not available", with no number from memory.
  */
 const NO_POPULATION_FALLBACK =
-  "Say plainly that the metro population is not available right now. No population figure exists in the " +
+  "Say plainly that the Census population source is not set up in this demo, so you cannot give a population " +
+  "(do not say it is 'unavailable right now' or a live source is down). No population figure exists in the " +
   "bundled dataset, so do not give a number, an approximation or a figure from memory. Do not estimate.";
 
+const NOT_SET_UP_MESSAGE = "The Census population source is not set up in this demo (not configured): it needs a free API key, so I can't give population or income.";
+
 const populationUnavailable = (airport: { iata: string }, reason: string): LiveToolOutput =>
-  unavailable(SOURCE, airport, reason, { fallback: NO_POPULATION_FALLBACK });
+  unavailable(SOURCE, airport, reason, {
+    fallback: NO_POPULATION_FALLBACK,
+    ...(reason.startsWith("metro population is not configured") ? { message: NOT_SET_UP_MESSAGE } : {}),
+  });
 
 export async function metroPopulation(args: Record<string, unknown>, deps: LiveDeps): Promise<LiveToolOutput> {
   const found = lookupAirport(args, deps);

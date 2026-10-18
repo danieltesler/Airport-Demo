@@ -1,0 +1,643 @@
+/* Voice orb, voice overlay and the pastel waveform button. Retune the whole look from the tokens below. */
+
+.orb,
+.overlay,
+.waveButton {
+  /* ---- Orb colours: an iridescent glass bubble ---- */
+  --orb-blue: #4f86f7;
+  --orb-periwinkle: #9db4ff;
+  --orb-cyan: #5fe0f0;
+  --orb-teal: #3cc3c0;
+  --orb-violet: #a98aff;
+  --orb-pink: #ff8fc8;
+  --orb-peach: #ffcfae;
+  --orb-pearl: #ffffff;
+  --orb-rim: rgba(255, 255, 255, 0.9);
+  --orb-shade: rgba(110, 100, 210, 0.3);
+  --orb-glow: rgba(177, 150, 255, 0.3);
+  --orb-ring: rgba(123, 140, 255, 0.45);
+  /* ---- Orb size and timing ---- */
+  --orb-size: clamp(200px, 56vw, 240px);
+  --orb-breathe-s: 4.5s;
+  --orb-ring-s: 2.4s;
+  --orb-swirl-s: 14s;
+  --orb-speak-s: 1.5s;
+  /* ---- Overlay: a soft peach to lavender to mint wash ---- */
+  --overlay-wash-peach: #ffe9dc;
+  --overlay-wash-lavender: #e9e0ff;
+  --overlay-wash-mint: #e8f6f1;
+  --overlay-wash-base: #f8f5ff;
+  --overlay-text: #14161f;
+  --overlay-said: #767c93; /* 3.5:1 on the wash; the newest words stay near black */
+  --overlay-muted: #444a5f; /* 7:1 on the wash, so the italic status line passes AA */
+  --overlay-control-bg: rgba(255, 255, 255, 0.75);
+  --overlay-fade-s: 0.22s;
+  --transcript-size: clamp(24px, 7.5vw, 30px);
+  /* ---- Waveform button gradient ---- */
+  --wave-from: #9fd8ff;
+  --wave-via: #c9b6ff;
+  --wave-to: #ffc4de;
+  --wave-ink: #0c0a09;
+}
+
+@media (min-width: 900px) {
+  .orb,
+  .overlay {
+    --orb-size: 300px;
+  }
+}
+
+/* ---- Orb ---- */
+.orb {
+  position: relative;
+  width: var(--orb-size);
+  height: var(--orb-size);
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.orbSmall {
+  --orb-size: 164px;
+}
+
+.orbButton {
+  display: block;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.orbButton:focus-visible {
+  outline: 3px solid var(--orb-blue);
+  outline-offset: 6px;
+}
+
+/* The level scale lives on its own wrapper so it never fights the state animations. */
+.levelScale {
+  position: absolute;
+  inset: 0;
+  transform: scale(calc(1 + var(--orb-level, 0) * 0.08));
+  transition: transform 0.08s linear;
+}
+
+.glow {
+  position: absolute;
+  inset: -22%;
+  pointer-events: none; /* the halo spills past the orb and must never cover neighbouring controls */
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side, var(--orb-glow) 0, var(--orb-glow) 62%, transparent 100%);
+  opacity: 0.6;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 50%;
+  border: 2px solid var(--orb-ring);
+  opacity: 0;
+}
+
+/* The bubble: a pearl-white core, thin luminous ribbons (cyan, violet, pink, teal) orbiting it,
+   and a bright iridescent rim. All radial masks use `closest-side` so 100% is the orb's own edge. */
+.sphere {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side at 50% 54%, #f6f8ff 0%, #dde5ff 38%, #c6d2fc 66%, #cfc0f9 86%, #efcbf2 100%);
+  box-shadow:
+    0 30px 40px -14px var(--orb-shade),
+    inset 0 -14px 26px rgba(140, 120, 235, 0.14),
+    inset 0 0 22px 2px rgba(255, 255, 255, 0.5);
+}
+
+/* Everything inside the bubble is clipped to a true circle (overflow:hidden on a rounded box with moving children renders lumpy). */
+.swirl {
+  position: absolute;
+  inset: 0;
+  clip-path: circle(50%);
+}
+
+/* Soft colour body under the ribbons, shown in a ring around the pearl. */
+.conic {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 10deg,
+    transparent 0 4%,
+    var(--orb-cyan) 14%,
+    transparent 26% 32%,
+    var(--orb-violet) 42%,
+    transparent 54% 60%,
+    var(--orb-pink) 70%,
+    transparent 82% 88%,
+    var(--orb-blue) 96%,
+    transparent 100%
+  );
+  filter: blur(10px);
+  opacity: 0.42;
+  -webkit-mask-image: radial-gradient(circle closest-side, transparent 28%, #000 58%, #000 86%, transparent 100%);
+  mask-image: radial-gradient(circle closest-side, transparent 28%, #000 58%, #000 86%, transparent 100%);
+}
+
+/* A cool glow high on one side. */
+.blobB {
+  position: absolute;
+  width: 56%;
+  height: 56%;
+  right: -4%;
+  top: -2%;
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side, var(--orb-cyan), transparent);
+  filter: blur(10px);
+  opacity: 0.4;
+}
+
+/* One thin ribbon: a tilted ellipse outlined by a conic gradient that fades in and out along its length. */
+.ribbon {
+  position: absolute;
+  border-radius: 50%;
+  --ribbon-tilt: 0deg;
+  --ribbon-spin: 18s;
+  rotate: var(--ribbon-tilt);
+}
+.ribbon::before,
+.ribbon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--ribbon);
+}
+.ribbon::before {
+  -webkit-mask-image: radial-gradient(closest-side, transparent calc(100% - 3.6px), #000 calc(100% - 2.8px), #000 calc(100% - 0.8px), transparent 100%);
+  mask-image: radial-gradient(closest-side, transparent calc(100% - 3.6px), #000 calc(100% - 2.8px), #000 calc(100% - 0.8px), transparent 100%);
+}
+.ribbon::after {
+  opacity: 0.4;
+  -webkit-mask-image: radial-gradient(closest-side, transparent calc(100% - 18px), #000 calc(100% - 6px), transparent 100%);
+  mask-image: radial-gradient(closest-side, transparent calc(100% - 18px), #000 calc(100% - 6px), transparent 100%);
+}
+
+.ribbonCyan {
+  inset: 21% 2%;
+  --ribbon-tilt: 24deg;
+  --ribbon-spin: 16s;
+  --ribbon: conic-gradient(from 0deg, transparent 0 3%, #12cfee 14%, #8ff3ff 26%, transparent 40% 54%, #25e3c8 66%, transparent 80%);
+}
+.ribbonViolet {
+  inset: 3% 22%;
+  --ribbon-tilt: 32deg;
+  --ribbon-spin: 21s;
+  --ribbon: conic-gradient(from 90deg, transparent 0 6%, #8a5cff 18%, #c7a8ff 30%, transparent 44% 58%, #7a7dff 70%, transparent 84%);
+}
+.ribbonPink {
+  inset: 14% 0;
+  --ribbon-tilt: -38deg;
+  --ribbon-spin: 25s;
+  --ribbon: conic-gradient(from 200deg, transparent 0 4%, #ff5fb4 15%, #ffb3dc 27%, transparent 40% 60%, #ff8ad0 72%, transparent 86%);
+}
+.ribbonTeal {
+  inset: 7% 12%;
+  --ribbon-tilt: 68deg;
+  --ribbon-spin: 29s;
+  --ribbon: conic-gradient(from 300deg, transparent 0 8%, #17c9b0 20%, #7df0dc 32%, transparent 46% 62%, #3fb7ff 74%, transparent 88%);
+}
+
+.ribbonBlue {
+  inset: 10% 6%;
+  --ribbon-tilt: -12deg;
+  --ribbon-spin: 33s;
+  --ribbon: conic-gradient(from 150deg, transparent 0 10%, #3d7bff 22%, #9fc1ff 34%, transparent 48% 70%, #5fe0f0 82%, transparent 94%);
+}
+.ribbonRose {
+  inset: 2% 30%;
+  --ribbon-tilt: -58deg;
+  --ribbon-spin: 23s;
+  --ribbon: conic-gradient(from 40deg, transparent 0 8%, #ff7ac4 20%, #ffd0ea 32%, transparent 46% 64%, #b27cff 78%, transparent 92%);
+}
+
+/* The pearl: a bright white core the ribbons fade into. */
+.pearl {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle closest-side at 50% 47%,
+    #ffffff 0%,
+    rgba(255, 255, 255, 0.96) 12%,
+    rgba(250, 252, 255, 0.66) 24%,
+    rgba(240, 246, 255, 0.24) 36%,
+    transparent 48%
+  );
+}
+
+/* Glass edge: light gathering at the rim. */
+.rim {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side, transparent 66%, rgba(255, 255, 255, 0.4) 90%, rgba(210, 232, 255, 0.8) 100%);
+  box-shadow: inset 7px 9px 12px -8px rgba(255, 255, 255, 0.95), inset -6px -8px 12px -8px rgba(150, 225, 255, 0.8);
+}
+
+/* A thin, clearly visible iridescent edge, like the film on a soap bubble. */
+.rim::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 200deg, #55e4f7, #a98aff, #ff8fd0, #ffe3b8, #7be8d4, #55e4f7);
+  -webkit-mask-image: radial-gradient(circle closest-side, transparent 96.2%, #000 97.8%, #000 99%, rgba(0, 0, 0, 0.4) 100%);
+  mask-image: radial-gradient(circle closest-side, transparent 96.2%, #000 97.8%, #000 99%, rgba(0, 0, 0, 0.4) 100%);
+}
+
+/* A small cool reflection low on the opposite side from the main highlight. */
+.sphere::after {
+  content: "";
+  position: absolute;
+  right: 15%;
+  bottom: 8%;
+  width: 28%;
+  height: 10%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse closest-side, rgba(255, 255, 255, 0.8), transparent);
+  transform: rotate(-32deg);
+}
+
+.highlight {
+  position: absolute;
+  top: 7%;
+  left: 16%;
+  width: 40%;
+  height: 20%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse closest-side, #ffffff 0%, rgba(255, 255, 255, 0.55) 55%, transparent);
+  transform: rotate(-26deg);
+  opacity: 0.95;
+}
+
+/* Calm ambient drift in every live state: transform only. */
+.orb[data-visual="idle"] .swirl,
+.orb[data-visual="listening"] .swirl {
+  animation: orb-swirl calc(var(--orb-swirl-s) * 3) linear infinite;
+}
+
+/* The ribbons also turn on their own, at different speeds and directions, so the swirl never repeats. */
+.orb:not([data-visual="paused"]) .ribbon {
+  animation: orb-swirl calc(var(--ribbon-spin) * var(--orb-speed, 1)) linear infinite;
+}
+.orb:not([data-visual="paused"]) .ribbonViolet,
+.orb:not([data-visual="paused"]) .ribbonTeal,
+.orb:not([data-visual="paused"]) .ribbonRose {
+  animation-direction: reverse;
+}
+.orb[data-visual="idle"] {
+  --orb-speed: 1.3;
+}
+.orb[data-visual="listening"] {
+  --orb-speed: 0.9;
+}
+.orb[data-visual="thinking"] {
+  --orb-speed: 0.4;
+}
+.orb[data-visual="speaking"] {
+  --orb-speed: 0.6;
+}
+
+/* ---- State animations: transform and opacity only ---- */
+.orb[data-visual="idle"] .sphere {
+  animation: orb-breathe var(--orb-breathe-s) ease-in-out infinite;
+}
+.orb[data-visual="idle"] .glow {
+  animation: orb-glow-breathe var(--orb-breathe-s) ease-in-out infinite;
+}
+
+.orb[data-visual="listening"] .sphere {
+  animation: orb-breathe calc(var(--orb-breathe-s) * 0.6) ease-in-out infinite;
+}
+.orb[data-visual="listening"] .glow {
+  opacity: 0.95;
+}
+.orb[data-visual="listening"] .conic {
+  opacity: 0.75;
+}
+.orb[data-visual="listening"] .ring {
+  animation: orb-ring-out var(--orb-ring-s) ease-out infinite;
+}
+.orb[data-visual="listening"] .ringSecond {
+  animation-delay: calc(var(--orb-ring-s) / 2);
+}
+
+.orb[data-visual="thinking"] .sphere {
+  opacity: 0.88;
+}
+.orb[data-visual="thinking"] .glow {
+  opacity: 0.4;
+}
+.orb[data-visual="thinking"] .swirl {
+  animation: orb-swirl var(--orb-swirl-s) linear infinite;
+}
+
+.orb[data-visual="speaking"] .sphere {
+  animation: orb-speak var(--orb-speak-s) ease-in-out infinite;
+}
+.orb[data-visual="speaking"] .swirl {
+  animation: orb-swirl calc(var(--orb-swirl-s) * 1.5) linear infinite;
+}
+.orb[data-visual="speaking"] .glow {
+  animation: orb-glow-breathe calc(var(--orb-speak-s) / 2) ease-in-out infinite;
+}
+
+.orb[data-visual="paused"] .sphere {
+  opacity: 0.6;
+}
+.orb[data-visual="paused"] .glow {
+  opacity: 0.2;
+}
+
+@keyframes orb-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+@keyframes orb-glow-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.97);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.04);
+  }
+}
+@keyframes orb-ring-out {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+@keyframes orb-swirl {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes orb-speak {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  20% {
+    transform: scale(1.045, 0.975);
+  }
+  45% {
+    transform: scale(0.985, 1.05);
+  }
+  70% {
+    transform: scale(1.06, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb,
+  .orb * {
+    animation: none !important;
+    transition: none !important;
+  }
+  .levelScale {
+    transform: none;
+  }
+}
+
+/* ---- Pastel waveform button (composer and overlay) ---- */
+.waveButton {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  background: conic-gradient(from 210deg, #a8c8e8, #c8b8e0, #e8b8c4, #f4c5a8, #a7e5d3, #a8c8e8);
+  color: var(--wave-ink);
+  box-shadow: 0 6px 16px rgba(150, 130, 230, 0.35);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.waveButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(150, 130, 230, 0.45);
+}
+
+.waveButton:focus-visible {
+  outline: 3px solid var(--orb-blue);
+  outline-offset: 3px;
+}
+
+.waveButtonLarge {
+  width: 72px;
+  height: 72px;
+}
+
+.waveButtonStatic {
+  cursor: default;
+}
+
+/* ---- Overlay ---- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(1.25rem, env(safe-area-inset-top)) 1.5rem max(1.5rem, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(90% 55% at 0% 0%, var(--overlay-wash-peach), transparent 65%),
+    radial-gradient(100% 70% at 70% 45%, var(--overlay-wash-lavender), transparent 70%),
+    radial-gradient(90% 50% at 40% 100%, var(--overlay-wash-mint), transparent 70%),
+    var(--overlay-wash-base);
+  color: var(--overlay-text);
+  opacity: 0;
+  transform: scale(1.02);
+  transition: opacity var(--overlay-fade-s) ease, transform var(--overlay-fade-s) ease;
+}
+
+.overlayShown {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.wordmark {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--overlay-muted);
+}
+
+.stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 30rem;
+  min-height: 0;
+}
+
+.status {
+  margin: 0;
+  min-height: 1.5rem;
+  font-size: 1.05rem;
+  font-style: italic;
+  color: var(--overlay-muted);
+  text-align: center;
+  animation: overlay-fade-in 0.3s ease;
+}
+
+.hint {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--overlay-muted);
+}
+
+/* Room for four lines of transcript, reserved even when there is none. */
+.captionSlot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: calc(4 * 1.2 * var(--transcript-size));
+}
+
+/* The big live transcript: earlier words light, the newest words near black. */
+.transcript {
+  margin: 0;
+  width: 100%;
+  font-family: var(--font-heading);
+  font-size: var(--transcript-size);
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  text-align: center;
+  color: var(--overlay-text);
+  overflow-wrap: anywhere;
+}
+
+.said {
+  color: var(--overlay-said);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 22rem;
+}
+
+.controlButton {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  background: var(--overlay-control-bg);
+  color: var(--overlay-text);
+  box-shadow: 0 4px 14px rgba(120, 110, 190, 0.2);
+  cursor: pointer;
+}
+
+.controlButton:focus-visible {
+  outline: 3px solid var(--orb-blue);
+  outline-offset: 3px;
+}
+
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-height: 640px) {
+  .overlay {
+    --orb-size: 150px;
+  }
+  .stage {
+    gap: 0.75rem;
+  }
+  .overlay {
+    --transcript-size: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .status,
+  .waveButton {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ---- Preview harness (dev only) ---- */
+.preview {
+  min-height: 100dvh;
+  padding: 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  background: var(--canvas);
+}
+
+.previewSwitcher {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.previewButton {
+  min-height: 44px;
+  padding: 0 1rem;
+  border: 1px solid var(--slate-300);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--navy-800);
+  font-size: 0.95rem;
+}
+
+.previewButtonActive {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}

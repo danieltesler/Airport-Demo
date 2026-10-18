@@ -13,6 +13,7 @@
  */
 
 import { splitIntoSentences } from "./sentences";
+import { traceVoice } from "./voiceTrace";
 
 export type PlaybackStatus = "idle" | "loading" | "speaking" | "blocked" | "error";
 
@@ -22,6 +23,8 @@ export interface PlaybackSnapshot {
   text: string | null;
   /** Which TTS provider produced the audio (from the server's X-TTS-Provider header). */
   provider?: string | null;
+  /** Counts every clip that starts playing, so a listener can recalibrate against each clip's echo. */
+  clip?: number;
 }
 
 export interface AudioLike {
@@ -97,6 +100,16 @@ function silentWavDataUri(): string {
   return `data:audio/wav;base64,${btoa(String.fromCharCode(...bytes))}`;
 }
 
+export interface SpeakOptions {
+  /** "ack" is the short "one moment"; anything else is an answer. */
+  kind?: "ack" | "answer";
+  /**
+   * If an acknowledgement is already audible, let it finish and speak this after it, instead of
+   * cutting it off mid-word. The new clips are requested right away, so there is no gap after it.
+   */
+  afterAck?: boolean;
+}
+
 const isAutoplayBlock = (error: unknown): boolean =>
   error instanceof Error && error.name === "NotAllowedError";
 
@@ -110,6 +123,11 @@ export class SpeechPlayer {
   /** Ends the clip that is playing, so a cancel never leaves its promise (and object URL) hanging. */
   private settleCurrentClip: (() => void) | null = null;
   private consecutiveFailures = 0;
+  private clipSeq = 0;
+  private kind: "ack" | "answer" = "answer";
+  /** Settles when the clip now playing ends (or is stopped); what an answer queued behind an acknowledgement waits on. */
+  private clipEnded: Promise<void> = Promise.resolve();
+  private playingClip: { index: number; kind: string } | null = null;
 
   constructor(private readonly deps: PlayerDeps) {}
 
@@ -137,22 +155,36 @@ export class SpeechPlayer {
     });
   }
 
-  speak(text: string): void {
-    this.cancel();
+  speak(text: string, options: SpeakOptions = {}): void {
     const sentences = splitSentences(text);
+    const kind = options.kind ?? "answer";
+    // A phrase that has already started is finished, never truncated: the answer waits its turn.
+    const behindAck = options.afterAck === true && this.kind === "ack" && this.snapshot.status === "speaking" && sentences.length > 0;
+
+    if (behindAck) {
+      this.runId += 1; // the acknowledgement's run is over once its clip ends; its audio is left alone
+      this.controller?.abort();
+    } else {
+      this.cancel("replaced");
+    }
     if (sentences.length === 0) return;
 
     const runId = this.runId;
     const controller = new AbortController();
     this.controller = controller;
-    this.setSnapshot({ status: "loading", text });
+    this.kind = kind;
+    const waitFor = behindAck ? this.clipEnded : null;
+    traceVoice(`speak start`, `kind=${kind} clips=${sentences.length}${behindAck ? " queued behind the acknowledgement" : ""}`);
+    this.setSnapshot({ status: behindAck ? "speaking" : "loading", text });
 
     const clips = this.requestClips(sentences, controller.signal);
-    void this.playInOrder(runId, clips);
+    void this.playInOrder(runId, clips, waitFor);
   }
 
   /** Stop everything: abort requests, silence the element, drop the queue. */
-  cancel(): void {
+  cancel(reason = "cancel"): void {
+    if (this.playingClip) traceVoice(`clip ${this.playingClip.index} cancel`, `kind=${this.playingClip.kind} reason=${reason}`);
+    else if (this.snapshot.status !== "idle") traceVoice("speak cancel", `reason=${reason}`);
     this.runId += 1;
     this.controller?.abort();
     this.controller = null;
@@ -201,46 +233,63 @@ export class SpeechPlayer {
     return clips;
   }
 
-  private async playInOrder(runId: number, clips: Promise<Blob>[]): Promise<void> {
+  private async playInOrder(runId: number, clips: Promise<Blob>[], behind: Promise<void> | null = null): Promise<void> {
     try {
+      if (behind) {
+        await behind; // the acknowledgement finishes first; meanwhile the clips above are already being fetched
+        if (runId !== this.runId) return;
+      }
       for (let i = 0; i < clips.length; i++) {
         const blob = await clips[i];
         if (runId !== this.runId) return;
         this.consecutiveFailures = 0;
-        await this.playClip(runId, blob);
+        await this.playClip(runId, blob, i);
         if (runId !== this.runId) return;
       }
+      traceVoice("speak done", `kind=${this.kind}`);
       this.setSnapshot(IDLE);
     } catch {
       if (runId !== this.runId) return;
       this.consecutiveFailures += 1;
+      traceVoice("speak failed", `kind=${this.kind}`);
       this.audio?.pause();
       this.setSnapshot({ ...this.snapshot, status: "error" });
     }
   }
 
-  private async playClip(runId: number, blob: Blob): Promise<void> {
+  private async playClip(runId: number, blob: Blob, index: number): Promise<void> {
     const audio = this.ensureAudio();
     const url = this.deps.createObjectUrl(blob);
+    const clip = new Promise<void>((resolve, reject) => {
+      this.settleCurrentClip = () => resolve();
+      audio.onended = () => {
+        traceVoice(`clip ${index} end`, `kind=${this.kind}`);
+        resolve();
+      };
+      audio.onerror = () => reject(new Error("playback failed"));
+      audio.src = url;
+      this.startPlaying(runId, audio, index).catch(reject);
+    });
+    this.clipEnded = clip.then(() => undefined, () => undefined);
     try {
-      await new Promise<void>((resolve, reject) => {
-        this.settleCurrentClip = () => resolve();
-        audio.onended = () => resolve();
-        audio.onerror = () => reject(new Error("playback failed"));
-        audio.src = url;
-        this.startPlaying(runId, audio).catch(reject);
-      });
+      await clip;
     } finally {
       this.settleCurrentClip = null;
+      this.playingClip = null;
       this.deps.revokeObjectUrl(url);
     }
   }
 
-  private async startPlaying(runId: number, audio: AudioLike): Promise<void> {
+  private async startPlaying(runId: number, audio: AudioLike, index: number): Promise<void> {
     for (;;) {
       try {
         await audio.play();
-        if (runId === this.runId) this.setSnapshot({ ...this.snapshot, status: "speaking" });
+        if (runId === this.runId) {
+          this.playingClip = { index, kind: this.kind };
+          traceVoice(`clip ${index} start`, `kind=${this.kind}`);
+          this.clipSeq += 1;
+          this.setSnapshot({ ...this.snapshot, status: "speaking", clip: this.clipSeq });
+        }
         return;
       } catch (error) {
         if (!isAutoplayBlock(error)) throw error;
@@ -263,7 +312,8 @@ export class SpeechPlayer {
     if (
       next.status === this.snapshot.status &&
       next.text === this.snapshot.text &&
-      (next.provider ?? null) === (this.snapshot.provider ?? null)
+      (next.provider ?? null) === (this.snapshot.provider ?? null) &&
+      (next.clip ?? 0) === (this.snapshot.clip ?? 0)
     ) {
       return;
     }

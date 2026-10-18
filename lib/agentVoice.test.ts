@@ -37,6 +37,9 @@ const finalJson = (reply: string, spoken: string) => finalText(JSON.stringify({ 
 type Request = { messages: { role: string; content: string }[]; response_format?: { type: string } };
 const requestAt = (index: number): Request => createMock.mock.calls[index][0] as Request;
 
+/** Calls that verify a spoken line (they carry knownNames); the reply-level figure check calls the same guard without it. */
+const spokenGuardCalls = () => guardMock.mock.calls.map((call) => call[0] as Record<string, unknown>).filter((input) => "knownNames" in input);
+
 const savedMode = process.env.SPOKEN_MODE;
 beforeEach(() => {
   scripted.length = 0;
@@ -104,13 +107,13 @@ describe("{reply, spoken} output", () => {
 
     expect(requestAt(0).response_format?.type).toBe("json_schema");
     expect(res.reply).toBe("**Santa Ana** runs more congested than LAX.");
-    expect(res.spoken).toBe("Santa Ana's a bit more congested than LAX.");
+    expect(res.spoken).toBe("Santa Ana's a bit more congested than Los Angeles."); // the code became a city name
     expect(res.meta?.spoken_source).toBe("model");
     expect(res.meta?.spoken_guard_rejections).toBeUndefined();
 
     // The guard sees this turn's real tool output, the user's words and the prior context.
-    const input = guardMock.mock.calls[0][0] as unknown as { toolOutputs: { result: unknown }[]; userWords: string };
-    expect(input.toolOutputs).toHaveLength(1);
+    const input = spokenGuardCalls()[0] as unknown as { toolOutputs: { result: unknown }[]; userWords: string };
+    expect(input.toolOutputs.length).toBeGreaterThanOrEqual(1); // the tool result, plus the names of the airports in it
     expect(JSON.stringify(input.toolOutputs[0].result)).toContain("SNA");
     expect(input.userWords).toBe("Compare LAX and SNA congestion");
   });
@@ -146,7 +149,7 @@ describe("{reply, spoken} output", () => {
     const res = await runAgent("hello");
     expect(res.reply).toBe(UNREADABLE_REPLY); // never raw JSON, never a crash
     expect(res.spoken).toBeUndefined();
-    expect(guardMock).not.toHaveBeenCalled();
+    expect(spokenGuardCalls()).toHaveLength(0);
   });
 
   it("uses plain-text content as the reply when the model ignored the JSON format", async () => {
@@ -191,7 +194,7 @@ describe("SPOKEN_MODE flag", () => {
     expect(requestAt(0).messages[0].content).not.toMatch(/"spoken"/);
     expect(res.reply).toBe("Boston is steady.");
     expect(res.spoken).toBeUndefined();
-    expect(guardMock).not.toHaveBeenCalled();
+    expect(spokenGuardCalls()).toHaveLength(0);
     expect(res.meta?.spoken_source).toBe("none");
   });
 });
@@ -250,7 +253,7 @@ describe("history: 'Shown on screen last turn'", () => {
     const assistant = requestAt(0).messages.find((m) => m.role === "assistant")!;
     expect(assistant.content).toBe("Boston stands out.\n[Shown on screen last turn: Table (ranking): rows 1 BOS — Boston; 2 EWR — Newark.]");
     // The prior context handed to the guard includes it, so a follow-up may name Newark.
-    const input = guardMock.mock.calls[0][0] as unknown as { priorContext: string };
+    const input = spokenGuardCalls()[0] as unknown as { priorContext: string };
     expect(input.priorContext).toContain("EWR — Newark");
   });
 
@@ -324,7 +327,7 @@ describe("step cap and configuration", () => {
   it("passes known airport names and static facts to the guard", async () => {
     scripted.push(finalJson("Hi.", "Hi."));
     await runAgent("hello");
-    const input = guardMock.mock.calls[0][0] as unknown as { knownNames: string[]; staticFacts: number[] };
+    const input = spokenGuardCalls()[0] as unknown as { knownNames: string[]; staticFacts: number[] };
     expect(input.knownNames).toEqual(expect.arrayContaining(["Boston", "Santa Ana", "Los Angeles"]));
     expect(input.staticFacts).toEqual(expect.arrayContaining([102, 2025, 2024]));
   });

@@ -54,7 +54,7 @@ export interface MetroAlias {
   ambiguous_names?: string[];
 }
 
-export type ResolvedAs = "all" | "airport" | "metro" | "state" | "census_division" | "census_region" | "radius";
+export type ResolvedAs = "all" | "airport" | "metro" | "state" | "census_division" | "census_region" | "informal_region" | "radius";
 
 export interface ScopeOption {
   label: string;
@@ -69,6 +69,8 @@ export interface ScopeResolution<T extends GeoAirport = GeoAirport> {
   input: string;
   /** How the scope was understood; null when it was not (ambiguous / unknown). */
   resolvedAs: ResolvedAs | null;
+  /** For an informal region: its member states, e.g. "CA, OR, WA", shown in the caption. */
+  detail?: string;
   label: string;
   airports: T[];
   notes: string[];
@@ -106,18 +108,24 @@ const KM_PER_MILE = 1.609344;
 
 interface Region { id: string; name: string; aliases: string[] }
 interface Division { id: string; name: string; region: string; aliases: string[] }
+/** An informal region (West Coast, Gulf Coast, ...) defined as an explicit list of states, with its definition stated. */
+interface StateSetAlias { names: string[]; label: string; states: string[]; note: string; contested: boolean }
 interface StateRow { code: string; name: string; division: string | null }
 
 const REGIONS = geography.regions as Region[];
 const DIVISIONS = geography.divisions as Division[];
 const STATES = geography.states as StateRow[];
 const BUNDLED_ALIASES = geography.metro_aliases as MetroAlias[];
+const STATE_SETS = geography.state_set_aliases as StateSetAlias[];
 
 const STATE_BY_CODE = new Map(STATES.map((s) => [s.code, s]));
 const DIVISION_BY_ID = new Map(DIVISIONS.map((d) => [d.id, d]));
 
 /** Source line for docs and UI footnotes. */
 export const GEOGRAPHY_SOURCES: string[] = geography.meta.sources;
+
+/** Words too common to count as a match when suggesting areas. */
+const STOP_WORDS = new Set(["the", "area", "region", "states", "state", "airport", "airports", "near", "and", "of"]);
 
 const ALL_SCOPE_WORDS = new Set([
   "all", "all airports", "everywhere", "nationwide", "national", "us", "usa", "united states",
@@ -131,6 +139,7 @@ export const SUPPORTED_SCOPE_KINDS: string[] = [
   "a U.S. state or territory (name or postal code)",
   "a U.S. Census division (e.g. New England, Pacific, Mountain)",
   "a U.S. Census region (Northeast, Midwest, South, West)",
+  "an informal region with a stated definition (West Coast, East Coast, Gulf Coast, Pacific Northwest, Southwest, Sun Belt, ...)",
   "'near <city or airport code>' (default 50 miles)",
   "'within N miles of <city or airport code>'",
 ];
@@ -510,6 +519,13 @@ class ScopeResolver<T extends GeoAirport> {
         resolve: () => this.resolveMetroAlias(input, aliasText)!,
       });
     }
+    const stateSet = STATE_SETS.find((set) => set.names.some((n) => normalizeScope(n) === text));
+    if (stateSet) {
+      interpretations.push({
+        option: { label: `${stateSet.label} (informal region)`, scope: stateSet.names[0] },
+        resolve: () => this.stateSetResult(input, stateSet),
+      });
+    }
     const division = DIVISIONS.find((d) => [d.name, ...d.aliases].some((n) => normalizeScope(n) === text));
     if (division) {
       interpretations.push({
@@ -563,6 +579,21 @@ class ScopeResolver<T extends GeoAirport> {
   private stateResult(input: string, state: StateRow): ScopeResolution<T> {
     const notes = state.division ? [] : [`${state.name} is a U.S. territory; the Census Bureau assigns it no region or division.`];
     return matchedResult(input, "state", state.name, this.airports.filter((a) => a.state === state.code), notes);
+  }
+
+  /**
+   * An informal region: the airports in an explicit list of states. The definition is part of the
+   * result (notes and caption detail) so nothing is silently picked; a contested name says so.
+   */
+  private stateSetResult(input: string, set: StateSetAlias): ScopeResolution<T> {
+    const wanted = new Set(set.states);
+    const airports = this.airports.filter((a) => wanted.has(a.state));
+    const notes = [set.note];
+    if (set.contested) notes.push(`'${set.label}' has no official boundary and definitions vary; the states listed above were used.`);
+    const present = new Set(airports.map((a) => a.state));
+    const missing = set.states.filter((code) => !present.has(code));
+    if (missing.length > 0) notes.push(`No airports in the dataset for: ${missing.join(", ")}.`);
+    return { ...matchedResult(input, "informal_region", set.label, airports, notes), detail: set.states.join(", ") };
   }
 
   private divisionResult(input: string, division: Division): ScopeResolution<T> {
@@ -674,6 +705,7 @@ class ScopeResolver<T extends GeoAirport> {
     for (const state of STATES) vocabulary.push({ key: normalizeScope(state.name), display: state.name });
     for (const d of DIVISIONS) vocabulary.push({ key: normalizeScope(d.name), display: d.name });
     for (const r of REGIONS) vocabulary.push({ key: normalizeScope(r.name), display: r.name });
+    for (const set of STATE_SETS) vocabulary.push({ key: normalizeScope(set.names[0]), display: set.label });
     for (const alias of this.aliases) {
       for (const name of alias.names) vocabulary.push({ key: normalizeScope(name), display: alias.names[0] });
     }
@@ -681,6 +713,20 @@ class ScopeResolver<T extends GeoAirport> {
       for (const place of places) vocabulary.push({ key, display: `near ${placeLabel(place)}` });
     }
     for (const airport of this.airports) vocabulary.push({ key: airport.iata.toLowerCase(), display: airport.iata });
+
+    // Words in common ("pacific shore" -> Pacific, Pacific Northwest), checked before spelling distance.
+    const stem = (word: string): string => word.replace(/(?:al|s)$/, "");
+    const words = text.split(" ").filter((w) => w.length >= 4 && !STOP_WORDS.has(w)).map(stem);
+    const byWords = vocabulary
+      .filter((entry) => !entry.display.startsWith("near ") && !/^[A-Z]{3}$/.test(entry.display))
+      .map((entry) => {
+        const entryWords = entry.key.split(" ").map(stem);
+        const shared = words.filter((w) => entryWords.includes(w)).length;
+        return { display: entry.display, shared, ratio: shared / entryWords.length };
+      })
+      .filter((entry) => entry.shared > 0 && entry.display.length > 3)
+      .sort((a, b) => b.shared - a.shared || b.ratio - a.ratio || a.display.localeCompare(b.display))
+      .map((entry) => entry.display);
 
     const threshold = Math.max(2, Math.floor(text.length * 0.4));
     const scored = vocabulary
@@ -690,7 +736,7 @@ class ScopeResolver<T extends GeoAirport> {
       })
       .filter((entry) => entry.distance <= threshold)
       .sort((a, b) => a.distance - b.distance || a.display.localeCompare(b.display));
-    return [...new Set(scored.map((entry) => entry.display))].slice(0, 4);
+    return [...new Set([...byWords, ...scored.map((entry) => entry.display)])].slice(0, 4);
   }
 }
 
@@ -730,6 +776,8 @@ export interface Coverage {
   states: string[];
   census_divisions: string[];
   metro_aliases: string[];
+  /** Informal regions (West Coast, ...), each with a stated state list. */
+  informal_regions: string[];
   supported_scopes: string[];
 }
 
@@ -742,6 +790,7 @@ export function describeCoverage(airports: GeoAirport[], options: GeographyOptio
     states,
     census_divisions: DIVISIONS.filter((d) => divisionIds.has(d.id)).map((d) => d.name),
     metro_aliases: [...(options.metroAliases ?? []), ...BUNDLED_ALIASES].map((alias) => alias.names[0]),
+    informal_regions: STATE_SETS.map((set) => set.label),
     supported_scopes: SUPPORTED_SCOPE_KINDS,
   };
 }

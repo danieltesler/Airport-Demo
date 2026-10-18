@@ -5,6 +5,7 @@
       "U.S. Census Bureau, Census Regions and Divisions of the United States (4 regions, 9 divisions)",
       "USPS state and territory abbreviations",
       "metro_aliases: project-defined named areas (center + radius), editable data rows",
+      "state_set_aliases: project-defined informal regions (West Coast, Gulf Coast, ...) as explicit state lists with a stated definition; informal names have no official boundary",
       "place names and coordinates are not kept here: they come from the U.S. Census Bureau Gazetteer (data/places.json) and the airports' own reference cities"
     ]
   },
@@ -16,7 +17,7 @@
   ],
   "divisions": [
     { "id": "new_england", "name": "New England", "region": "northeast", "aliases": ["newengland"] },
-    { "id": "middle_atlantic", "name": "Middle Atlantic", "region": "northeast", "aliases": ["mid atlantic"] },
+    { "id": "middle_atlantic", "name": "Middle Atlantic", "region": "northeast", "aliases": [] },
     { "id": "east_north_central", "name": "East North Central", "region": "midwest", "aliases": [] },
     { "id": "west_north_central", "name": "West North Central", "region": "midwest", "aliases": [] },
     { "id": "south_atlantic", "name": "South Atlantic", "region": "south", "aliases": [] },
@@ -83,11 +84,24 @@
     { "code": "AS", "name": "American Samoa", "division": null },
     { "code": "MP", "name": "Northern Mariana Islands", "division": null }
   ],
+  "state_set_aliases": [
+    {"names":["West Coast","Pacific Coast","West Coast states"],"label":"West Coast","states":["CA","OR","WA"],"note":"West Coast = California, Oregon and Washington, the contiguous states on the Pacific coastline (Alaska and Hawaii also touch the Pacific but are not usually meant).","contested":false},
+    {"names":["East Coast","Atlantic Coast","Eastern Seaboard","East Coast states"],"label":"East Coast","states":["ME","NH","MA","RI","CT","NY","NJ","DE","MD","VA","NC","SC","GA","FL","DC"],"note":"East Coast = the 14 states on the Atlantic coastline (ME, NH, MA, RI, CT, NY, NJ, DE, MD, VA, NC, SC, GA, FL) plus the District of Columbia; Pennsylvania has no Atlantic coast and is not included.","contested":false},
+    {"names":["Gulf Coast","Gulf States","Gulf of Mexico states"],"label":"Gulf Coast","states":["TX","LA","MS","AL","FL"],"note":"Gulf Coast = Texas, Louisiana, Mississippi, Alabama and Florida, the five states on the Gulf of Mexico (the whole state is used, not only its coastal part).","contested":false},
+    {"names":["Pacific Northwest","PNW","Northwest"],"label":"Pacific Northwest","states":["WA","OR"],"note":"Pacific Northwest = Washington and Oregon. Idaho is sometimes included and is not here.","contested":false},
+    {"names":["Southwest","Southwest US","Southwestern US"],"label":"Southwest","states":["AZ","NM"],"note":"Southwest = Arizona and New Mexico, the core of every definition. Nevada, Texas, Oklahoma, Utah, Colorado and California are sometimes added and are not here.","contested":true},
+    {"names":["Southeast","Southeastern US","Southeast US"],"label":"Southeast","states":["AL","FL","GA","KY","MS","NC","SC","TN","VA"],"note":"Southeast = Alabama, Florida, Georgia, Kentucky, Mississippi, North Carolina, South Carolina, Tennessee and Virginia. Arkansas, Louisiana and West Virginia are sometimes added and are not here.","contested":true},
+    {"names":["Mid-Atlantic","Mid Atlantic States","Mid-Atlantic states"],"label":"Mid-Atlantic","states":["NY","NJ","PA","DE","MD","DC"],"note":"Mid-Atlantic = New York, New Jersey, Pennsylvania, Delaware, Maryland and the District of Columbia. The Census Bureau's 'Middle Atlantic' division is only NY, NJ and PA, and Virginia and West Virginia are sometimes added.","contested":true},
+    {"names":["Great Lakes","Great Lakes states"],"label":"Great Lakes states","states":["MN","WI","IL","IN","MI","OH","PA","NY"],"note":"Great Lakes states = the eight states that border a Great Lake: Minnesota, Wisconsin, Illinois, Indiana, Michigan, Ohio, Pennsylvania and New York (whole states).","contested":false},
+    {"names":["Rocky Mountain states","Rocky Mountains","Rockies"],"label":"Rocky Mountain states","states":["CO","ID","MT","UT","WY"],"note":"Rocky Mountain states = Colorado, Idaho, Montana, Utah and Wyoming. New Mexico and Nevada are sometimes added and are not here.","contested":true},
+    {"names":["Sun Belt","Sunbelt"],"label":"Sun Belt","states":["AL","AZ","CA","FL","GA","LA","MS","NV","NM","NC","OK","SC","TX"],"note":"Sun Belt = a broad southern band: AL, AZ, CA, FL, GA, LA, MS, NV, NM, NC, OK, SC, TX. The term has no official boundary and definitions vary widely.","contested":true},
+    {"names":["Deep South"],"label":"Deep South","states":["AL","GA","LA","MS","SC"],"note":"Deep South = Alabama, Georgia, Louisiana, Mississippi and South Carolina, the five core states. Texas, Florida and Arkansas are sometimes added and are not here.","contested":true}
+  ],
   "metro_aliases": [
     { "names": ["LA", "Los Angeles", "Greater Los Angeles"], "label": "Los Angeles area", "center": { "lat": 34.05, "lon": -118.24 }, "radius_miles": 60 },
     { "names": ["SoCal", "Southern California"], "label": "Southern California", "center": { "lat": 33.9, "lon": -118.0 }, "radius_miles": 125 },
     { "names": ["Bay Area", "SF Bay", "San Francisco Bay"], "label": "San Francisco Bay Area", "center": { "lat": 37.6, "lon": -122.2 }, "radius_miles": 50 },
-    { "names": ["NYC", "New York City", "New York Metro"], "label": "New York City area", "ambiguous_names": ["New York"], "center": { "lat": 40.71, "lon": -74.01 }, "radius_miles": 40 },
+    { "names": ["NYC", "New York City", "New York Metro", "Tri-State", "Tri-State Area"], "label": "New York City area", "ambiguous_names": ["New York"], "center": { "lat": 40.71, "lon": -74.01 }, "radius_miles": 40 },
     { "names": ["DC", "Washington DC", "DC Metro"], "label": "Washington, DC area", "center": { "lat": 38.9, "lon": -77.04 }, "radius_miles": 30 }
   ]
 }

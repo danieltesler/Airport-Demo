@@ -1,3 +1,5 @@
+import { traceBargeIn } from "./voiceTrace";
+
 /**
  * Hands-free Conversation mode: a small state machine that turns the tap-to-talk pieces into a
  * loop (listen, send, think, speak, listen again) and stops itself before it can run away.
@@ -42,7 +44,37 @@ export interface ConversationSnapshot {
   pauseReason: PauseReason | null;
   /** Why starting failed, when it did ("denied": microphone blocked). Cleared on the next start. */
   startFailure: Exclude<SessionResult, "ok" | "suspended"> | null;
+  /** Voice barge-in is currently listening for the user over the assistant. False after it switched itself off. */
+  bargeInActive: boolean;
+  /** A single gentle line, set once, the first time barge-in switches itself off. */
+  tip: string | null;
 }
+
+/** Shown once, when barge-in turns itself off because it kept hearing the assistant instead of the user. */
+export const BARGE_IN_TIP = "Tip: use headphones so I can hear you over my voice";
+
+/** What the voice UI says for each phase, in plain words. */
+export const STATUS_TEXT: Record<ConversationPhase, string> = {
+  off: "",
+  starting: "Listening",
+  listening: "Listening",
+  thinking: "Thinking",
+  speaking: "Speaking",
+  paused: "Paused",
+};
+
+/** Why a conversation paused, as a short sentence a person would say (no mention of buttons). */
+export const PAUSE_REASON_TEXT: Record<PauseReason, string> = {
+  silence: "I didn't hear anything.",
+  "empty-turns": "I'm having trouble catching that.",
+  "turn-limit": "Still there?",
+  hidden: "Paused while the app was in the background.",
+  "audio-suspended": "The browser paused the audio.",
+  "mic-lost": "The microphone stopped.",
+  "stt-failed": "I couldn't transcribe that.",
+  "no-answer": "The answer is on screen.",
+  "voice-failed": "Voice is off for now. The answer is on screen.",
+};
 
 export interface ConversationPorts {
   /**
@@ -53,8 +85,11 @@ export interface ConversationPorts {
   closeSession(): void;
   /** Between turns, with no tap available: is the audio context running and the microphone live? */
   audioReady(): Promise<boolean>;
-  /** Record one turn; the result arrives through `outcome()`. */
-  listen(): void;
+  /**
+   * Record one turn; the result arrives through `outcome()`. After a voice barge-in the recording
+   * already holds the user's first words (the pre-roll), and the microphone is already open.
+   */
+  listen(options?: { bargedIn?: boolean }): void;
   /** Stop recording and throw the clip away. */
   stopListening(): void;
   /** The user tapped while listening: stop now and transcribe what was said. */
@@ -62,6 +97,8 @@ export interface ConversationPorts {
   /** Send the transcript as a spoken question. */
   send(text: string): void;
   cancelSpeech(): void;
+  /** The user interrupted (by voice or by a tap): any answer still on its way is stale. */
+  interrupted?(): void;
   /** End only: stop the chat request that is still waiting for an answer. */
   cancelChat?(): void;
   wakeLock: { acquire(): Promise<boolean> | boolean; release(): Promise<void> | void };
@@ -74,11 +111,24 @@ export interface ConversationOptions {
   maxTurnsWithoutTap?: number;
   /** If a sent question is never answered (nothing to say, nothing running), pause after this long. */
   answerTimeoutMs?: number;
+  /** Voice barge-in. On by default; only a debugging override (?bargein=off) turns it off from the start. */
+  bargeIn?: boolean;
+  /** False triggers in a row, and in a session, after which barge-in switches itself off. */
+  maxConsecutiveFalseBargeIns?: number;
+  maxFalseBargeIns?: number;
   setTimer?: (callback: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
 }
 
-const DEFAULTS = { gapMs: 400, maxEmptyTurns: 3, maxTurnsWithoutTap: 10, answerTimeoutMs: 45_000 };
+const DEFAULTS = {
+  gapMs: 400,
+  maxEmptyTurns: 3,
+  maxTurnsWithoutTap: 10,
+  answerTimeoutMs: 45_000,
+  bargeIn: true,
+  maxConsecutiveFalseBargeIns: 2,
+  maxFalseBargeIns: 3,
+};
 
 /** What the chip says while paused (and while a start failed). */
 export const PAUSE_MESSAGE: Record<PauseReason, string> = {
@@ -96,10 +146,15 @@ export const PAUSE_MESSAGE: Record<PauseReason, string> = {
 /** Conversation mode is on unless the build sets NEXT_PUBLIC_CONVERSATION_MODE=off. */
 export const isConversationModeEnabled = (flag: string | undefined): boolean => flag?.trim().toLowerCase() !== "off";
 
-const OFF: ConversationSnapshot = { phase: "off", pauseReason: null, startFailure: null };
-
 export class ConversationController {
-  private snapshot: ConversationSnapshot = OFF;
+  private snapshot: ConversationSnapshot;
+  /** Barge-in has switched itself off for the rest of the session (it kept hearing the assistant). */
+  private bargeInAutoOff = false;
+  private consecutiveFalseBargeIns = 0;
+  private falseBargeIns = 0;
+  private tip: string | null = null;
+  /** The turn now being recorded began with a voice interrupt, so an empty result counts against barge-in. */
+  private lastTurnBargedIn = false;
   private listeners = new Set<() => void>();
   private emptyTurns = 0;
   private turnsSinceTap = 0;
@@ -118,6 +173,7 @@ export class ConversationController {
     options: ConversationOptions = {},
   ) {
     this.options = { ...DEFAULTS, ...options };
+    this.snapshot = { phase: "off", pauseReason: null, startFailure: null, bargeInActive: this.options.bargeIn, tip: null };
     this.setTimer = options.setTimer ?? ((callback, ms) => setTimeout(callback, ms));
     this.clearTimer = options.clearTimer ?? ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>));
   }
@@ -133,6 +189,11 @@ export class ConversationController {
 
   get active(): boolean {
     return this.snapshot.phase !== "off";
+  }
+
+  /** The assistant can be interrupted right now (by voice, or by the UI calling interrupt()). */
+  get canInterrupt(): boolean {
+    return this.snapshot.phase === "speaking" || this.snapshot.phase === "thinking";
   }
 
   /** Turn Conversation on. Call inside the user's tap. */
@@ -151,13 +212,8 @@ export class ConversationController {
         this.turnsSinceTap = 0;
         this.ports.finishListening();
         return Promise.resolve();
-      case "speaking": {
-        // Tap to interrupt: stop the voice at once and listen again.
-        this.ports.cancelSpeech();
-        this.turnsSinceTap = 0;
-        this.emptyTurns = 0;
-        return this.openAndListen(false);
-      }
+      case "speaking":
+        return this.interrupt();
       case "paused":
         this.turnsSinceTap = 0;
         this.emptyTurns = 0;
@@ -165,6 +221,37 @@ export class ConversationController {
       default:
         return Promise.resolve(); // starting, thinking: nothing to interrupt yet
     }
+  }
+
+  /**
+   * Interrupt by hand (a tap on the orb or the speaking indicator): stop the voice at once, drop any
+   * answer still on its way, and listen. Works while it speaks and while it is still thinking.
+   */
+  interrupt(): Promise<void> {
+    if (!this.canInterrupt) return Promise.resolve();
+    if (this.snapshot.phase === "thinking") this.cancelChatSafely();
+    this.ports.interrupted?.();
+    this.ports.cancelSpeech();
+    this.turnsSinceTap = 0;
+    this.emptyTurns = 0;
+    this.lastTurnBargedIn = false;
+    return this.openAndListen(false);
+  }
+
+  /**
+   * The user started talking over the assistant (detected by lib/bargeIn.ts). Same as interrupt() but
+   * with no tap: the microphone is already open, and the recording that began before they spoke is
+   * adopted so their first words are kept. Ignored once barge-in has switched itself off.
+   */
+  bargeIn(trigger?: { level: number; threshold: number; ratio: number }): void {
+    if (!this.canInterrupt || !this.snapshot.bargeInActive) return;
+    if (trigger) traceBargeIn("trigger", trigger);
+    if (this.snapshot.phase === "thinking") this.cancelChatSafely();
+    this.ports.interrupted?.();
+    this.ports.cancelSpeech();
+    this.turnsSinceTap = 0;
+    this.emptyTurns = 0;
+    this.startTurn({ bargedIn: true });
   }
 
   /** End: the user pressed End, or left the mode. Always works, from any phase. */
@@ -182,7 +269,9 @@ export class ConversationController {
     this.emptyTurns = 0;
     this.turnsSinceTap = 0;
     this.chatSeenRunning = false;
-    this.setSnapshot(OFF);
+    this.lastTurnBargedIn = false;
+    this.tip = null; // shown once, in the conversation where it happened
+    this.setSnapshot({ phase: "off", pauseReason: null, startFailure: null });
   }
 
   /** The page was hidden (tab switched, screen locked): pause cleanly and let go of the microphone. */
@@ -216,8 +305,14 @@ export class ConversationController {
   /** The result of the turn that `listen()` started. */
   outcome(result: ListenOutcome): void {
     if (this.snapshot.phase !== "listening") return;
+    const barged = this.lastTurnBargedIn;
+    this.lastTurnBargedIn = false;
     switch (result.kind) {
       case "transcript":
+        if (barged) {
+          this.consecutiveFalseBargeIns = 0;
+          traceBargeIn("accepted");
+        }
         this.emptyTurns = 0;
         this.turnsSinceTap += 1;
         this.chatSeenRunning = false;
@@ -226,11 +321,13 @@ export class ConversationController {
         this.ports.send(result.text);
         return;
       case "empty":
+        if (barged) this.falseBargeIn("no usable speech");
         this.emptyTurns += 1;
         if (this.emptyTurns >= this.options.maxEmptyTurns) this.pause("empty-turns");
         else this.scheduleNextTurn();
         return;
       case "no-speech":
+        if (barged) this.falseBargeIn("nothing said");
         this.pause("silence");
         return;
       case "failed":
@@ -285,10 +382,25 @@ export class ConversationController {
     this.startTurn();
   }
 
-  private startTurn(): void {
+  private startTurn(options: { bargedIn?: boolean } = {}): void {
     this.clearTimers();
+    this.lastTurnBargedIn = options.bargedIn === true;
     this.setSnapshot({ phase: "listening", pauseReason: null, startFailure: null });
-    this.ports.listen();
+    this.ports.listen({ bargedIn: options.bargedIn === true });
+  }
+
+  /** A voice interrupt that turned out to be nothing: count it, and after too many switch barge-in off. */
+  private falseBargeIn(reason: string): void {
+    this.consecutiveFalseBargeIns += 1;
+    this.falseBargeIns += 1;
+    traceBargeIn("rejected as false", { reason, consecutive: this.consecutiveFalseBargeIns, total: this.falseBargeIns });
+    const tooMany =
+      this.consecutiveFalseBargeIns >= this.options.maxConsecutiveFalseBargeIns || this.falseBargeIns >= this.options.maxFalseBargeIns;
+    if (!tooMany || this.bargeInAutoOff) return;
+    this.bargeInAutoOff = true;
+    this.tip = BARGE_IN_TIP;
+    traceBargeIn("auto-off", { consecutive: this.consecutiveFalseBargeIns, total: this.falseBargeIns });
+    this.setSnapshot(this.snapshot); // refresh bargeInActive and tip
   }
 
   private afterAnswer(): void {
@@ -345,9 +457,24 @@ export class ConversationController {
     this.clearAnswerTimer();
   }
 
-  private setSnapshot(next: ConversationSnapshot): void {
+  private setSnapshot(core: Pick<ConversationSnapshot, "phase" | "pauseReason" | "startFailure">): void {
     const current = this.snapshot;
-    if (next.phase === current.phase && next.pauseReason === current.pauseReason && next.startFailure === current.startFailure) return;
+    const next: ConversationSnapshot = {
+      phase: core.phase,
+      pauseReason: core.pauseReason,
+      startFailure: core.startFailure,
+      bargeInActive: this.options.bargeIn && !this.bargeInAutoOff,
+      tip: this.tip,
+    };
+    if (
+      next.phase === current.phase &&
+      next.pauseReason === current.pauseReason &&
+      next.startFailure === current.startFailure &&
+      next.bargeInActive === current.bargeInActive &&
+      next.tip === current.tip
+    ) {
+      return;
+    }
     this.snapshot = next;
     this.listeners.forEach((listener) => listener());
   }

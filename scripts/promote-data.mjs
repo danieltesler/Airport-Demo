@@ -25,7 +25,7 @@ async function writeAll(files) {
 }
 const readJson = async (path) => JSON.parse(await readFile(path, "utf-8"));
 
-const NUMBER_FIELDS = ["lat", "lon", "runways", "annual_passengers", "annual_departures"];
+const NUMBER_FIELDS = ["lat", "lon", "runways", "annual_passengers", "annual_departures", "international_passengers"];
 const NULLABLE_NUMBER_FIELDS = ["pax_growth_yoy", "load_factor", "avg_dep_delay_min", "delayed_share", "cancel_rate", "international_passenger_share"];
 const STRING_FIELDS = ["iata", "icao", "name", "city", "state"];
 

@@ -76,6 +76,7 @@ export function finalizeAirport(totals) {
     bts_city_name: totals.cityName || null,
     passengers: totals.passengers,
     domestic_passengers: totals.domesticPassengers,
+    international_passengers: totals.passengers - totals.domesticPassengers,
     international_share: totals.passengers > 0 ? round(1 - totals.domesticPassengers / totals.passengers, 4) : null,
     seats: totals.seats,
     departures: totals.departures,

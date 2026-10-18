@@ -1,31 +1,52 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import dynamic from "next/dynamic";
 import { useAui, useAuiState } from "@assistant-ui/react";
 import { CONVERSATION_MODE_ENABLED, useConversation } from "@/hooks/useConversation";
 import { useDictation } from "@/hooks/useDictation";
 import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
 import { warmAcknowledgements } from "@/lib/acknowledgement";
 import type { ConversationController } from "@/lib/conversation";
-import { deriveVoiceState, voiceChipText } from "@/lib/voiceStatus";
+import { deriveVoiceState } from "@/lib/voiceStatus";
 import { bumpVoiceEpoch } from "@/lib/voiceSession";
+import { voiceTrace } from "@/lib/voiceTrace";
 import { markVoiceTurn } from "@/lib/voiceTurn";
-import { MicIcon, StopIcon } from "./icons";
+import { MicIcon, PlayIcon, RetryIcon, StopIcon } from "./icons";
+import { useVoiceNotice } from "./VoiceNoticeContext";
+import { VoiceOverlay } from "./VoiceOverlay";
+import { WaveformButton } from "./WaveformButton";
+import { voiceNotice } from "./voiceNotice";
 import styles from "./chat.module.css";
 
+// Loaded only when the URL asks for it (?debug=voice), so it ships to nobody else.
+const VoiceDebugPanel = dynamic(() => import("./VoiceDebugPanel"), { ssr: false });
+
+/** The user's latest question, shown in the voice view while the answer is on its way. */
+function useLastUserText(): string {
+  return useAuiState((state) => {
+    const last = [...state.thread.messages].reverse().find((message) => message.role === "user");
+    if (!last) return "";
+    return last.content
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .join(" ")
+      .trim();
+  });
+}
+
 /**
- * Voice input for the composer.
- *
- * Tap-to-talk (the mic): records one question, stops when you pause, sends the transcript, and
- * reads the answer aloud. Conversation (hands-free, behind a flag): the same loop repeats on its
- * own while you talk and it answers, with an End button always showing and automatic pauses.
- * A status chip shows the one current stage; every failure ends in text on screen, with a retry
- * or a "tap the mic" where one helps. Hidden where audio recording isn't available.
+ * Voice controls for the composer: a mic (dictate one question), a waveform button that starts a
+ * hands-free conversation, and contextual icon buttons (play, retry, stop) only when they apply.
+ * While a conversation is active the full-screen voice view takes over; messages and problems
+ * go to the calm line above the composer. Hidden where audio recording isn't available.
  */
-export function VoiceInput() {
+export function VoiceInput({ hideConversationStart = false }: { hideConversationStart?: boolean }) {
   const aui = useAui();
   const isThinking = useAuiState((state) => state.thread.isRunning);
+  const lastUserText = useLastUserText();
   const { playback, player } = useSpeechPlayback();
+  const { setNotice } = useVoiceNotice();
 
   const sendSpoken = (transcript: string) => {
     markVoiceTurn(transcript);
@@ -39,7 +60,7 @@ export function VoiceInput() {
     onFinal: sendSpoken,
     onOutcome: (outcome) => controllerRef.current?.outcome(outcome),
   });
-  const { controller, snapshot } = useConversation({
+  const { controller, snapshot, ui } = useConversation({
     dictation,
     send: sendSpoken,
     // The thread is only a placeholder until it is ready (and during a development remount); cancelling it then throws.
@@ -49,15 +70,17 @@ export function VoiceInput() {
     },
     isThinking,
     playback: playback.status,
+    clip: playback.clip,
   });
   controllerRef.current = controller;
 
-  if (dictation.insecureContext) {
-    return <span className={styles.voiceError}>Voice needs a secure (https) connection. You can still type.</span>;
-  }
-  if (!dictation.supported) return null;
+  const [debug, setDebug] = useState(false);
+  const [clientReady, setClientReady] = useState(false);
+  useEffect(() => {
+    setDebug(voiceTrace().enabled);
+    setClientReady(true);
+  }, []);
 
-  const conversationActive = snapshot.phase !== "off";
   const state = deriveVoiceState({
     isRecording: dictation.isRecording,
     isTranscribing: dictation.isTranscribing,
@@ -67,6 +90,23 @@ export function VoiceInput() {
     conversation: CONVERSATION_MODE_ENABLED ? snapshot : null,
   });
 
+  const notice = voiceNotice({
+    insecureContext: dictation.insecureContext,
+    startFailure: ui.startFailure,
+    micError: state === "error" ? dictation.error : null,
+    playbackBlocked: state === "blocked",
+    tip: ui.tip,
+  });
+  const noticeMessage = notice?.message ?? null;
+  const noticeTone = notice?.tone ?? "info";
+  useEffect(() => {
+    setNotice(noticeMessage ? { message: noticeMessage, tone: noticeTone } : null);
+    return () => setNotice(null);
+  }, [noticeMessage, noticeTone, setNotice]);
+
+  const debugPanel = debug ? <VoiceDebugPanel /> : null;
+  if (dictation.insecureContext || !dictation.supported) return debugPanel;
+
   /** Everything a tap needs, done synchronously inside it: unlock audio, warm the "one moment" clips. */
   const prepareInsideTap = () => {
     bumpVoiceEpoch(); // the user is talking again: an answer still on its way is stale
@@ -75,27 +115,24 @@ export function VoiceInput() {
   };
 
   const handleMicClick = () => {
-    prepareInsideTap();
-    if (conversationActive) {
-      void controller.tap(); // finish talking, interrupt, or continue, depending on the phase
+    if (ui.active) {
+      void ui.actions.tap(); // finish talking, interrupt, or continue, depending on the phase
       return;
     }
+    prepareInsideTap();
     if (dictation.isRecording) return dictation.stop();
     player.cancel(); // cut off any reply still playing
     dictation.start();
   };
 
-  const handleStartConversation = () => {
-    prepareInsideTap();
-    player.cancel();
-    void controller.start();
-  };
-
-  const listening = dictation.isRecording || (conversationActive && snapshot.phase === "listening");
-  const chipText = voiceChipText(state, snapshot);
+  const listening = dictation.isRecording || (ui.active && ui.phase === "listening");
+  const showStop = !ui.active && (state === "speaking" || state === "preparing");
+  const showPlay = state === "blocked";
+  const showRetry = state === "error" && dictation.canRetry;
+  const caption = ui.phase === "thinking" || ui.phase === "speaking" ? lastUserText : "";
 
   return (
-    <div className={styles.voiceInput}>
+    <>
       <button
         type="button"
         className={listening ? styles.micActive : styles.iconButton}
@@ -107,57 +144,44 @@ export function VoiceInput() {
         <MicIcon />
       </button>
 
-      {CONVERSATION_MODE_ENABLED && !conversationActive && (
-        <button type="button" className={styles.chipButton} onClick={handleStartConversation} aria-label="Start a hands-free conversation">
-          Conversation
+      {showPlay && (
+        <button type="button" className={styles.iconButton} aria-label="Play the answer" onClick={() => player.resume()}>
+          <PlayIcon />
         </button>
       )}
-      {conversationActive && (
-        <button type="button" className={styles.endButton} onClick={() => controller.end()} aria-label="End conversation">
+      {showRetry && (
+        <button type="button" className={styles.iconButton} aria-label="Send the recording again" onClick={dictation.retry}>
+          <RetryIcon />
+        </button>
+      )}
+      {showStop && (
+        <button type="button" className={styles.iconButton} aria-label="Stop speaking" onClick={() => player.cancel()}>
           <StopIcon />
-          <span>End</span>
         </button>
       )}
 
-      <span
-        className={styles.voiceChip}
-        role="status"
-        aria-live="polite"
-        title={playback.provider ? `Voice provider: ${playback.provider}` : undefined}
-      >
-        {state === "listening" && <span className={styles.listeningDot} aria-hidden="true" />}
-        {state === "error" && dictation.error ? (
-          <span role="alert" className={styles.voiceError}>
-            {dictation.error}
-          </span>
-        ) : (
-          chipText
+      {CONVERSATION_MODE_ENABLED && !ui.active && !hideConversationStart && (
+        <WaveformButton label="Start conversation" onClick={() => void ui.actions.start()} />
+      )}
+
+      {clientReady &&
+        createPortal(
+          <VoiceOverlay
+            open={ui.active}
+            phase={ui.phase}
+            statusText={ui.statusText}
+            transcript={caption || undefined}
+            transcriptIsLive={false}
+            pauseReason={ui.pauseMessage ?? undefined}
+            canInterrupt={ui.canInterrupt}
+            needsContinue={ui.needsContinue}
+            onInterrupt={() => void ui.actions.interrupt()}
+            onContinue={() => void ui.actions.continue()}
+            onEnd={ui.actions.end}
+          />,
+          document.body,
         )}
-        {state === "blocked" && (
-          <button type="button" className={styles.chipButton} onClick={() => player.resume()}>
-            Play
-          </button>
-        )}
-        {(state === "speaking" || state === "preparing") && (
-          <button
-            type="button"
-            className={styles.chipButton}
-            onClick={() => (conversationActive ? void controller.tap() : player.cancel())}
-          >
-            {conversationActive ? "Interrupt" : "Stop"}
-          </button>
-        )}
-        {state === "paused" && (
-          <button type="button" className={styles.chipButton} onClick={handleMicClick}>
-            Continue
-          </button>
-        )}
-        {state === "error" && dictation.canRetry && (
-          <button type="button" className={styles.chipButton} onClick={dictation.retry}>
-            Retry
-          </button>
-        )}
-      </span>
-    </div>
+      {debugPanel}
+    </>
   );
 }

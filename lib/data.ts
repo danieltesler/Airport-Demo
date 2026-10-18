@@ -46,6 +46,10 @@ export interface Airport {
   annual_passengers: number;
   /** Passenger departures performed in the data year (BTS T-100). */
   annual_departures: number;
+  /** Exact enplaned passengers on segments to a foreign destination (BTS T-100); the share below is this over annual_passengers, rounded. */
+  international_passengers?: number;
+  /** Exact passengers in the year before the data year (BTS T-100); the basis of pax_growth_yoy. Null if there was no base. */
+  previous_year_passengers?: number | null;
   /** Share of annual_passengers on segments to a foreign destination. */
   international_passenger_share: number | null;
   /** Passengers vs the previous calendar year, fractional (-0.05 = 5% fewer). */
@@ -85,6 +89,43 @@ const AIRPORTS: Airport[] = (dataset.airports as unknown as AirportRecord[]).map
 const PLACES = gazetteer.places as Place[];
 const BY_IATA = new Map(AIRPORTS.map((a) => [a.iata, a]));
 const resolveScope = createScopeResolver(AIRPORTS, { places: PLACES });
+
+/** A departure counts as delayed at 15 minutes or more late (the BTS DepDel15 definition behind every delayed-share figure). */
+export const DELAY_THRESHOLD_MINUTES = 15;
+
+/**
+ * Numbers the product documents about itself (the delay threshold, how many airports, the coverage share, the data-quality
+ * minimums, the haul distances, twelve months). They may be stated without a tool result, and are read from the data's
+ * own metadata rather than typed in.
+ */
+export function documentedConstants(): number[] {
+  const coverage = META.coverage as { airports: number; top_n: number; guaranteed_subset: number; national_enplanements_covered_share: number };
+  const share = coverage.national_enplanements_covered_share * 100;
+  const thresholds = Object.values(META.thresholds as Record<string, number>);
+  return [
+    DELAY_THRESHOLD_MINUTES,
+    12,
+    AIRPORTS.length,
+    META.year,
+    META.year - 1,
+    coverage.top_n,
+    coverage.guaranteed_subset,
+    Math.round(share * 10) / 10,
+    Math.round(share * 100) / 100,
+    ...thresholds,
+  ];
+}
+
+/** Facts about the dataset itself, generated from its meta block so a coverage answer is never from memory. */
+export function datasetFacts(): string {
+  const coverage = META.coverage as { airports: number; national_enplanements_covered_share: number };
+  const share = Math.round(coverage.national_enplanements_covered_share * 1000) / 10;
+  return (
+    `The dataset covers ${AIRPORTS.length} U.S. airports (the ${coverage.airports - 2} busiest by ${META.year} passengers plus Burlington and Manchester), ` +
+    `which is ${share}% of all U.S. scheduled passenger enplanements. Figures are calendar year ${META.year}, with ${META.year - 1} for comparison. ` +
+    `Sources and vintage: ${META.vintage} It is a bundled snapshot rebuilt by the data pipeline when BTS publishes new data, not a live feed; live questions use separate live tools.`
+  );
+}
 
 export function dataVintage(): string {
   return META.vintage;

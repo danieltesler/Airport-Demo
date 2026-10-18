@@ -89,6 +89,7 @@ export const SCOPE_KIND_TEXT: Record<ResolvedAs, string | null> = {
   state: "state",
   census_division: "Census division",
   census_region: "Census region",
+  informal_region: "informal region",
   radius: "by distance",
 };
 
@@ -102,20 +103,24 @@ export function rankingCaption(p: {
   resolvedAs: ResolvedAs;
   /** Set when the user's wording was simplified; shown so the caption is not read as an exact match. */
   readFrom?: string;
+  /** For an informal region, its member states ("CA, OR, WA"), shown after the kind. */
+  detail?: string;
   matched: number;
   /** Matched airports left out because a required input is suppressed. */
   unscored?: number;
   shown: number;
   scoreLabel: string;
+  /** `asc` ranks the lowest score first; the caption says so. */
+  order?: "asc" | "desc";
 }): string {
   const kind = SCOPE_KIND_TEXT[p.resolvedAs];
   const parts = [
     `Scope: ${p.label}`,
-    ...(kind ? [kind] : []),
+    ...(kind ? [p.detail ? `${kind} (${p.detail})` : kind] : []),
     ...(p.readFrom ? [`read from "${p.readFrom}"`] : []),
     `${airportCount(p.matched)} matched`,
     ...(p.unscored ? [`${p.unscored} not scored (insufficient data)`] : []),
-    `top ${p.shown} by ${p.scoreLabel.toLowerCase()}`,
+    `top ${p.shown} by ${p.scoreLabel.toLowerCase()}${p.order === "asc" ? ", lowest first" : ""}`,
   ];
   return parts.join(" · ");
 }
@@ -224,9 +229,11 @@ export function routeSearchCaption(p: {
   shown: number;
   total: number;
   sortLabel: string;
+  carrier?: string | null;
 }): string {
   const to = p.destination ? ` to ${p.destination}` : "";
-  return `Routes from ${p.origin}${to} · ${p.year} · top ${p.shown} of ${p.total} by ${p.sortLabel}`;
+  const only = p.carrier ? ` · only ${p.carrier}` : "";
+  return `Routes from ${p.origin}${to}${only} · ${p.year} · top ${p.shown} of ${p.total} by ${p.sortLabel}`;
 }
 
 export function carrierShareCaption(p: {
@@ -247,9 +254,10 @@ export function capacityTrendCaption(p: {
   priorYear: number;
   year: number;
   groupBy: string;
+  carrier?: string | null;
 }): string {
   const to = p.destination ? ` to ${p.destination}` : "";
-  return `Capacity trend, flights from ${p.origin}${to} · ${p.priorYear} to ${p.year} · biggest changes by ${p.groupBy}`;
+  return `Capacity trend, ${p.carrier ?? "all airlines"} flights from ${p.origin}${to} · ${p.priorYear} to ${p.year} · biggest changes by ${p.groupBy}`;
 }
 
 // --------------------------------------------------------------------------- //

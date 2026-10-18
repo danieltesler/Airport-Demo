@@ -243,7 +243,7 @@ export function unavailable(
   source: string,
   airport: Pick<AirportRef, "iata">,
   reason: string,
-  options: { fallback?: string } = {},
+  options: { fallback?: string; message?: string } = {},
 ): LiveToolOutput {
   return {
     result: {
@@ -251,7 +251,7 @@ export function unavailable(
       available: false,
       do_not_estimate: true,
       source,
-      message: `Could not retrieve live data from ${source}: ${reason}. No figures are available for this question right now.`,
+      message: options.message ?? `Could not retrieve live data from ${source}: ${reason}. No figures are available for this question right now.`,
       fallback:
         options.fallback ??
         "Tell the user this live source is unavailable right now. If the bundled dataset has a relevant figure, " +

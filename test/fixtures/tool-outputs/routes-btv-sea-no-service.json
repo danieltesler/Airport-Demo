@@ -14,7 +14,13 @@
         "kind": "airport",
         "airports_in_filter": 1,
         "notes": []
-      }
+      },
+      "filters_applied": [
+        "destination: SEA — Seattle"
+      ],
+      "carriers_included": "all airlines combined",
+      "all_airlines_note": "These figures cover ALL airlines combined. Never present them as one airline's; if the user asked about a single airline, say these are the airport totals or ask which airline.",
+      "describe_exactly": "These filters shaped every figure. Describe the numbers as covering exactly that scope (for example, one carrier's flying, not the airport's total), and never add a filter the user did not ask for."
     },
     "uncertainty": "'No nonstop service in this data' is a fact about T-100 segments from the 102 covered airports; it does not show a market is 'underserved', which is an inference this data cannot support on its own (it ignores connecting itineraries, fares, nearby airports and seasonal or charter service)."
   }

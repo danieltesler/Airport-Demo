@@ -164,6 +164,7 @@ export async function faaAirportStatus(args: Record<string, unknown>, deps: Live
       status,
       events,
       airports_with_active_programs_nationwide: feed.activeAirportCount,
+      active_program_count_scope: "count of airports with an active FAA program anywhere in the FAA feed right now, not only the airports in the dataset",
       source: SOURCE,
       feed_updated: feed.updateTime,
       retrieved_at: retrievedAtIso(deps, [feedCache.storedAt(FEED_URL, nowOf(deps).getTime())]),

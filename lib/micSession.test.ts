@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { MicSession, type MicDeps } from "./micSession";
+import { MIC_CONSTRAINTS, MicSession, type MicDeps } from "./micSession";
 
 class FakeTrack {
   readyState: "live" | "ended" = "live";
@@ -142,6 +142,15 @@ describe("MicSession.open", () => {
     streams[0].track.readyState = "ended";
     await session.open();
     expect(streams).toHaveLength(2);
+  });
+});
+
+describe("microphone constraints", () => {
+  it("asks for echo cancellation, noise suppression and auto gain, explicitly", async () => {
+    expect(MIC_CONSTRAINTS).toEqual({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    const { session, deps } = setup();
+    await session.open();
+    expect(deps.getUserMedia).toHaveBeenCalledWith(MIC_CONSTRAINTS);
   });
 });
 

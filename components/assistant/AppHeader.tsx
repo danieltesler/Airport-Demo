@@ -1,19 +1,16 @@
 import styles from "./chat.module.css";
 
-/** App title bar: product name plus a one-line description of what it does. */
+/** App header: a light wordmark with a small iridescent dot, and a quiet pill saying what the data is. */
 export function AppHeader() {
   return (
     <header className={styles.header}>
-      <span className={styles.mark} aria-hidden="true">
-        ✈
-      </span>
-      <div>
-        <h1 className={styles.title}>Airport Investment Intelligence</h1>
-        <p className={styles.subtitle}>
-          Analyze U.S. airport capacity, congestion, and demand to find
-          strong terminal-expansion candidates.
-        </p>
-      </div>
+      <h1 className={styles.wordmark}>
+        <span className={styles.wordmarkDot} aria-hidden="true" />
+        <span>
+          <span className={styles.wordmarkStrong}>Airport</span> Investment Intelligence
+        </span>
+      </h1>
+      <span className={styles.headerPill}>Public aviation data</span>
     </header>
   );
 }

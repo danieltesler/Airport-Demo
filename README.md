@@ -24,7 +24,7 @@ It was built around four questions to start with:
 - What share of flights out of Anchorage are long-haul?
 - What's the unmet demand at SFO, and why?
 
-It isn't limited to those, though. You can rank any region or state, compare any
+It isn't limited to those, though. You can rank any region or state (including everyday names like the West Coast, the Gulf Coast or the Pacific Northwest, each with its stated list of states), compare any
 airports side by side, pull up a single airport's full profile, check how many flights
 are in the air near an airport right now, check current FAA delays and weather, look up
 recent BTS traffic, runway facts or metro population, or just follow up on a previous answer.
@@ -69,6 +69,12 @@ How the assistant behaves:
   built from the coverage the tools returned. It never calls a market underserved, never says
   why an airline changed capacity (the data shows what changed, not why), and never gives a
   metro population when that source is not configured.
+- **Checked, not just instructed.** The code reads "top 3" and "least congested" from the user's own
+  message, reads "Portland Oregon and Seattle" or a spelled-out "L A X" itself, and asks when a
+  city has several airports. A written answer whose figures match nothing in the tool results, or
+  that says an airline's decline was "driven by" a cause, gets one corrective retry and is never
+  shown with the unsupported figure. Airline questions use a carrier filter that is stated in the
+  result, so one airline's numbers are not reported as the airport's; an airline named in the question is applied even if the model forgot it. Calendar-year questions ("in 2025", "last year") are answered from calendar-year figures, never the live trailing 12 months. A follow-up like "DFW please" after "which Dallas airport?" is understood in context.
 - **Follow-ups work.** The app remembers what was on screen last turn (the row labels in
   order), so "what about the second one?" resolves, and any figures come from a fresh tool call.
 - **A voice that is checked.** The model also writes the line a voice reads aloud, and the
@@ -171,14 +177,19 @@ server's guard has checked every number and place name against this turn's tool 
 otherwise a plain sentence or two that code builds from the table you see on screen. A short
 "one moment" covers a slow answer. Typed questions stay silent; each answer has a "Read aloud"
 button. If audio is blocked or a step fails, the text answer is always on screen, with a "Play"
-or "Retry" button where it helps. Recording needs a browser with microphone support and a
+or "Retry" button where it helps. Add `?debug=voice` to the page address to see a small panel of the last 30 voice events and timings (names only, never speech content). Recording needs a browser with microphone support and a
 secure (https or localhost) page; on a phone, open the https address.
 
 **Conversation (hands-free).** Behind `NEXT_PUBLIC_CONVERSATION_MODE` (on unless set to `off`
 at build time, which hides the button): press "Conversation" and just talk. It
-listens, answers aloud, and listens again, with an End button always showing. It never listens
-while it speaks (so it cannot hear itself); to interrupt, tap the mic. It pauses itself, with a
-message, after 8 seconds of silence, 3 empty turns, 10 turns without a tap, or when the page
+listens, answers aloud, and listens again, with an End button always showing. You can talk over
+it: while it speaks, starting to talk stops it and it listens to your new question, with your
+first words kept. This relies on the browser's echo cancellation (so it does not mistake its own
+voice, coming out of the phone speaker, for you) and on a detector that ignores leftover echo,
+coughs and clicks; it works on many phones but not all. If it keeps interrupting itself it
+switches itself off for the session and says once that headphones help; a tap on the speaking
+indicator still interrupts, and headphones are the reliable answer in a loud room. It pauses
+itself, with a message, after 8 seconds of silence, 3 empty turns, 10 turns without a tap, or when the page
 is hidden or the screen locks; tap the mic to carry on. It keeps the screen awake while active
 where the browser allows it.
 

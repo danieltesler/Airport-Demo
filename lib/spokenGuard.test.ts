@@ -228,10 +228,11 @@ describe("hedges when a result is unavailable, thin or capped", () => {
     expect(verdict("Dothan doesn't have enough flights to score fairly.", [thin]).ok).toBe(true);
   });
 
-  it("requires a hedge for a capped result and for no nonstop service", () => {
+  it("a capped result needs no hedge, but may not be described as the whole picture; no nonstop service still needs its hedge", () => {
     const capped = { result: { truncated: true, routes: [{ destination_name: "Las Vegas" }] } };
     expect(verdict("Las Vegas is the biggest route.", [capped]).ok).toBe(true);
-    expect(verdict("Las Vegas sells.", [capped]).ok).toBe(false);
+    expect(verdict("Las Vegas sells.", [capped]).ok).toBe(true);
+    expect(verdict("Las Vegas is the only route.", [capped]).ok).toBe(false);
     const none = { result: { no_service: true, message: "No nonstop service in this data" } };
     expect(verdict("There's no nonstop service in my data.", [none]).ok).toBe(true);
     expect(verdict("They link up easily.", [none]).ok).toBe(false);
@@ -337,7 +338,8 @@ describe("property: mutating a spoken number makes the line fail", () => {
     const spokenMillions = Number((mutated / 1e6).toFixed(1));
     // "19 million" is precise to a million, "19.5 million" to a tenth: judge the mutation at the precision it is spoken with.
     const mutatedPlace = million ? (Number.isInteger(spokenMillions) ? 1e6 : 1e5) : rendered.place;
-    if (nearAnyFact(mutated, facts, mutatedPlace / 2 + 1e-6)) return;
+    // "about" allows three quarters of the last digit (a truncated 68.6 -> "about 68"): a mutation closer than that to a fact is a fair rounding, not a wrong number.
+    if (nearAnyFact(mutated, facts, (million ? mutatedPlace * 0.75 : mutatedPlace / 2) + 1e-6)) return;
     const digits = million ? `about ${spokenMillions} million passengers` : `${mutated} ${rendered.text.includes("percent") ? "percent" : "minutes"}`;
     const out = verdict(`${airport.city} has ${digits}.`, [{ result }]);
     expect(out.ok, digits).toBe(false);

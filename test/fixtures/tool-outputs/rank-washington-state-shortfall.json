@@ -9,6 +9,8 @@
   "output": {
     "result": {
       "metric": "expansion",
+      "order": "desc",
+      "ranked_first_means": "Rank 1 has the STRONGEST demand-side case for expansion.",
       "scope": "Washington state",
       "scope_resolved_as": "state",
       "scope_label": "Washington",

@@ -459,3 +459,70 @@ describe("patience for the first clip", () => {
     expect(player.getSnapshot().status).toBe("loading"); // shown as "Preparing voice…", not "Speaking"
   });
 });
+
+describe("speaking after an acknowledgement", () => {
+  const ACK = "Sure, one moment.";
+
+  it("a phrase that is audible is finished, and the answer plays after it", async () => {
+    const { player, audio, finish, endCurrentClip } = setup();
+    player.speak(ACK, { kind: "ack" });
+    finish(ACK);
+    await vi.waitFor(() => expect(player.getSnapshot().status).toBe("speaking"));
+
+    player.speak(A, { afterAck: true });
+    expect(audio.pause).not.toHaveBeenCalled(); // not cut off
+    expect(audio.playCalls).toBe(1);
+    expect(player.getSnapshot()).toMatchObject({ status: "speaking", text: A }); // never an idle blip in between
+
+    finish(A); // fetched while the phrase was still playing
+    await endCurrentClip(); // the phrase ends...
+    await vi.waitFor(() => expect(audio.playCalls).toBe(2)); // ...and the answer starts at once
+    audio.onended?.(new Event("ended"));
+    await vi.waitFor(() => expect(player.getSnapshot().status).toBe("idle"));
+    expect(audio.pause).not.toHaveBeenCalled();
+  });
+
+  it("a phrase that has not started yet is simply replaced", async () => {
+    const { player, aborted } = setup();
+    player.speak(ACK, { kind: "ack" }); // still loading: nothing audible
+    player.speak(A, { afterAck: true });
+    expect(aborted).toEqual([ACK]);
+  });
+
+  it("without afterAck, or when the current speech is not an acknowledgement, it still replaces", async () => {
+    const { player, audio, finish } = setup();
+    player.speak(A);
+    finish(A);
+    await vi.waitFor(() => expect(player.getSnapshot().status).toBe("speaking"));
+    player.speak(B, { afterAck: true }); // an answer is not an acknowledgement: replace it
+    expect(audio.pause).toHaveBeenCalled();
+  });
+
+  it("cancelling while the answer waits behind the phrase means the answer never plays", async () => {
+    const { player, audio, finish, endCurrentClip } = setup();
+    player.speak(ACK, { kind: "ack" });
+    finish(ACK);
+    await vi.waitFor(() => expect(player.getSnapshot().status).toBe("speaking"));
+    player.speak(A, { afterAck: true });
+    finish(A);
+    player.cancel("user");
+    audio.onended?.(new Event("ended"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(audio.playCalls).toBe(1); // only the phrase was ever played
+    expect(player.getSnapshot().status).toBe("idle");
+    void endCurrentClip;
+  });
+});
+
+describe("clip counter", () => {
+  it("increments for every clip that starts, so a listener can recalibrate per clip", async () => {
+    const { player, audio, finish } = setup();
+    player.speak(`${A} ${B}`);
+    finish(A);
+    finish(B);
+    await vi.waitFor(() => expect(player.getSnapshot().clip).toBe(1));
+    audio.onended?.(new Event("ended"));
+    await vi.waitFor(() => expect(player.getSnapshot().clip).toBe(2));
+    expect(player.getSnapshot().status).toBe("speaking");
+  });
+});

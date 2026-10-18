@@ -33,7 +33,8 @@ describe("agent with the real guard", () => {
       finalJson("**Santa Ana** is more congested than LAX.", "Santa Ana is more congested than LAX."),
     );
     const res = await runAgent("Compare LAX and SNA congestion");
-    expect(res.spoken).toBe("Santa Ana is more congested than LAX.");
+    // Codes are replaced by city names so a voice does not spell them out.
+    expect(res.spoken).toBe("Santa Ana is more congested than Los Angeles.");
     expect(res.meta?.spoken_source).toBe("model");
   });
 

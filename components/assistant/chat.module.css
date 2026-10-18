@@ -2,51 +2,32 @@
    Uses the shared design tokens defined in app/globals.css. */
 
 .root {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   height: 100dvh;
+  background: var(--canvas);
+}
+
+/* The wash spans the window; the content stays in a readable column. */
+.header,
+.viewportInner,
+.composerBar {
+  width: 100%;
   max-width: var(--content-max);
-  margin: 0 auto;
-  background: var(--surface);
-  border-left: 1px solid var(--slate-200);
-  border-right: 1px solid var(--slate-200);
+  margin-inline: auto;
 }
 
 /* ---- Header ---- */
 .header {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--slate-200);
-  background: var(--navy-900);
-  color: #fff;
-}
-
-.mark {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  border-radius: var(--radius-md);
-  background: var(--accent);
-  color: #fff;
-  font-size: 1.15rem;
-}
-
-.title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-}
-
-.subtitle {
-  margin: 0.15rem 0 0;
-  font-size: 0.82rem;
-  line-height: 1.4;
-  color: var(--slate-300);
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem 0.5rem;
+  background: transparent;
+  color: var(--ink);
 }
 
 /* ---- Viewport ---- */
@@ -57,13 +38,16 @@
   /* Chrome on Android reloads the page when you pull down at the top of it. Without this, a swipe
      down past the top of the answer chains out of this list and reloads the app, losing the conversation. */
   overscroll-behavior-y: contain;
+  /* A soft fade at both edges instead of text being cut off against the header and the composer. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14px, #000 calc(100% - 18px), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 14px, #000 calc(100% - 18px), transparent);
 }
 
 .viewportInner {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  padding: 1.5rem 1.25rem;
+  gap: 1.75rem;
+  padding: 1.25rem 1.25rem 2rem;
 }
 
 /* ---- Empty state ---- */
@@ -73,42 +57,47 @@
 }
 
 .emptyLede {
-  margin: 0 0 1.25rem;
+  margin: 0 auto 2rem;
+  max-width: 30rem;
   font-size: 1rem;
-  line-height: 1.6;
-  color: var(--slate-600);
+  line-height: 1.55;
+  color: var(--ink-muted);
+  text-align: center;
 }
 
 .tryLabel {
   display: block;
-  margin-bottom: 0.6rem;
-  font-size: 0.72rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--slate-500);
+  color: var(--ink-muted);
 }
 
 .chips {
   display: grid;
-  gap: 0.6rem;
+  gap: 0.625rem;
 }
 
 .chip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
   text-align: left;
-  padding: 0.7rem 0.9rem;
-  border: 1px solid var(--slate-200);
-  border-radius: var(--radius-md);
-  background: var(--slate-50);
-  color: var(--navy-800);
-  font-size: 0.9rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
   line-height: 1.4;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .chip:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  border-color: var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
 }
 
 .chip:disabled {
@@ -123,14 +112,19 @@
 
 .userBubble {
   max-width: 85%;
-  padding: 0.65rem 0.95rem;
-  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
-  background: var(--navy-800);
-  color: #fff;
-  font-size: 0.95rem;
+  padding: 0.7rem 1.1rem;
+  border-radius: 20px 20px 6px 20px;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 1rem;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* The runtime wraps the text in a <p>; its default margins made the bubble 34px too tall. */
+.userBubble p {
+  margin: 0;
 }
 
 /* ---- Assistant message ---- */
@@ -141,16 +135,15 @@
 }
 
 .assistantMark {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
+  display: block;
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
-  margin-top: 0.1rem;
+  margin-top: 0.15rem;
   border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-size: 0.9rem;
+  background: conic-gradient(from 210deg, #a8c8e8, #c8b8e0, #e8b8c4, #f4c5a8, #a7e5d3, #a8c8e8);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.8);
+  font-size: 0; /* the sparkle glyph is replaced by a tiny static orb */
 }
 
 .assistantBody {
@@ -159,12 +152,12 @@
 }
 
 .assistantBubble {
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--slate-200);
-  border-radius: var(--radius-sm) var(--radius-lg) var(--radius-lg) var(--radius-lg);
-  background: var(--slate-50);
-  color: var(--navy-900);
-  font-size: 0.95rem;
+  padding: 0.1rem 0;
+  background: transparent;
+  color: var(--ink-body);
+  font-size: 1rem;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
 }
 
 /* ---- Message actions (read aloud) ---- */
@@ -178,19 +171,20 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.3rem 0.6rem;
-  border: 1px solid var(--slate-200);
+  padding: 0.3rem 0.9rem;
+  border: 1px solid var(--line-strong);
   border-radius: 999px;
   background: var(--surface);
-  color: var(--slate-600);
-  font-size: 0.78rem;
-  font-weight: 550;
-  transition: border-color 0.15s ease, color 0.15s ease;
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .actionButton:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent-strong);
+  background: var(--surface-sunken);
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 .actionButton:disabled {
@@ -209,7 +203,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--slate-400);
+  background: var(--ink-muted);
   animation: typing-bounce 1.2s infinite ease-in-out;
 }
 
@@ -236,9 +230,8 @@
 
 /* ---- Composer ---- */
 .composerBar {
-  padding: 0.85rem 1.25rem 1.1rem;
-  border-top: 1px solid var(--slate-200);
-  background: var(--surface);
+  padding: 0.5rem 1.25rem 1rem;
+  background: transparent;
 }
 
 .composer {
@@ -246,17 +239,17 @@
   flex-wrap: wrap; /* a long voice status wraps the actions below the input instead of squeezing it to zero width */
   align-items: flex-end;
   gap: 0.5rem;
-  padding: 0.5rem 0.5rem 0.5rem 0.9rem;
-  border: 1px solid var(--slate-300);
-  border-radius: var(--radius-lg);
+  padding: 0.4rem 0.45rem 0.4rem 1.2rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 28px;
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: var(--shadow-float);
+  transition: border-color 0.15s ease;
 }
 
 .composer:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--ink);
+  box-shadow: var(--shadow-float), 0 0 0 1px var(--ink); /* a 2px ink edge while typing */
 }
 
 .composerInput {
@@ -266,16 +259,16 @@
   outline: none;
   resize: none;
   max-height: 160px;
-  padding: 0.35rem 0;
+  padding: 0.65rem 0; /* one line is 44px tall, level with the round buttons */
   font-family: inherit;
-  font-size: 0.95rem;
+  font-size: 1rem;
   line-height: 1.5;
-  color: var(--navy-900);
+  color: var(--ink);
   background: transparent;
 }
 
 .composerInput::placeholder {
-  color: var(--slate-400);
+  color: var(--ink-muted);
 }
 
 .composerActions {
@@ -288,18 +281,20 @@
 .iconButton {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--slate-200);
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line);
   border-radius: 50%;
   background: var(--surface);
-  color: var(--slate-500);
-  transition: border-color 0.15s ease, color 0.15s ease;
+  color: var(--ink);
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .iconButton:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent-strong);
+  background: var(--surface-sunken);
+  border-color: var(--line-strong);
+  color: var(--ink);
 }
 
 .iconButton:disabled {
@@ -349,8 +344,9 @@
 .micActive {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 50%;
   background: var(--accent);
@@ -389,12 +385,14 @@
 .sendButton {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--ink);
   color: #fff;
+  animation: send-in 0.15s ease;
   transition: background 0.15s ease;
 }
 
@@ -403,7 +401,8 @@
 }
 
 .sendButton:disabled {
-  background: var(--slate-300);
+  background: var(--line-strong);
+  color: var(--ink-muted);
 }
 
 @media (max-width: 640px) {
@@ -414,10 +413,14 @@
 
 /* ---- Empty-state heading, loading label, error state ---- */
 .emptyTitle {
-  margin: 0 0 0.5rem;
-  font-size: 1.25rem;
-  font-weight: 650;
-  color: var(--navy-900);
+  margin: 0.25rem 0 1rem;
+  font-family: var(--font-heading);
+  font-size: var(--text-display);
+  font-weight: 300;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  text-align: center;
 }
 
 .typingLabel {
@@ -427,7 +430,9 @@
 }
 
 .errorBubble {
-  border-color: var(--danger);
+  padding: 0.9rem 1.1rem;
+  border: 1px solid #f3c7c7;
+  border-radius: var(--radius-lg);
   background: #fef3f2;
 }
 
@@ -473,13 +478,6 @@
     padding: 0.75rem 0.9rem;
     gap: 0.65rem;
   }
-  .mark {
-    width: 34px;
-    height: 34px;
-  }
-  .subtitle {
-    font-size: 0.78rem;
-  }
   .viewportInner {
     padding: 1rem 0.85rem;
   }
@@ -492,82 +490,18 @@
   .assistantMark {
     width: 24px;
     height: 24px;
-    font-size: 0.75rem;
   }
 }
 
-/* ---- Voice status chip and AI-voice label ---- */
-.voiceChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.74rem;
-  font-weight: 550;
-  color: var(--accent-strong);
-}
-
+/* ---- AI-voice label ---- */
 .voiceError {
   color: var(--danger);
-}
-
-.chipButton {
-  padding: 0.15rem 0.5rem;
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--accent-strong);
-  font-size: 0.72rem;
-  font-weight: 600;
 }
 
 .aiVoiceLabel {
   align-self: center;
   font-size: 0.7rem;
   color: var(--slate-500);
-}
-
-/* Touch targets: mic and send reach 44px on touch devices and narrow screens. The composer
-   already wraps its actions under the input when space runs out, so the larger buttons
-   cannot squeeze the text field below its min-width. */
-@media (max-width: 600px), (pointer: coarse) {
-  .iconButton,
-  .micActive,
-  .sendButton {
-    width: 44px;
-    height: 44px;
-    flex-shrink: 0; /* a wrapped voice chip (Preparing voice… + Stop) squeezed Send to 39px wide at 360px */
-  }
-}
-
-/* ---- Conversation mode: End button ---- */
-.endButton {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.25rem 0.65rem;
-  border: 1px solid var(--danger);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--danger);
-  font-size: 0.78rem;
-  font-weight: 650;
-}
-
-.endButton:hover {
-  background: var(--danger);
-  color: #fff;
-}
-
-/* Touch targets: the Conversation toggle, End, Interrupt, Continue, Play, Retry and Stop buttons
-   were 22 to 28px tall; 44px is the minimum a finger can hit reliably on a phone. */
-@media (max-width: 600px), (pointer: coarse) {
-  .chipButton,
-  .endButton {
-    min-height: 44px;
-    padding-inline: 0.9rem;
-    flex-shrink: 0; /* never squeeze the label out of its pill */
-    justify-content: center;
-  }
 }
 
 /* Large OS text size or a very narrow screen: let the voice controls wrap inside their own box so the
@@ -579,19 +513,27 @@
 
 /* Privacy line under the composer; slate-600 on white is well above AA contrast. */
 .disclosure {
-  margin: 0.45rem 0 0;
-  font-size: 0.72rem;
+  margin: 0.4rem 0.5rem 0;
+  font-size: 0.75rem;
   line-height: 1.4;
-  color: var(--slate-600);
+  text-align: center;
+  color: var(--ink-muted);
   overflow-wrap: anywhere;
 }
 
-/* Phones: the question field gets its own full-width row and the mic, Conversation and send controls sit
-   below it. Beside the controls it was only about 145px wide: the placeholder was cut off and a typed
-   question wrapped to six short lines. */
+/* Phones: an empty composer is one pill (field, mic, waveform, send). Once there is text, the field takes
+   its own full-width row and the buttons sit below it, so a long question has room to wrap. */
 @media (max-width: 600px) {
   .composerInput {
+    min-width: 0;
+  }
+  .composer:has(.composerInput:not(:placeholder-shown)) .composerInput {
     flex-basis: 100%;
+  }
+  /* While an answer is being written the Stop button takes the send slot; the waveform button steps aside so the
+     field keeps room for its placeholder instead of clipping it. */
+  .composer:has(button[aria-label="Stop generating"]) button[aria-label="Start conversation"] {
+    display: none;
   }
 }
 
@@ -602,19 +544,169 @@
     padding: 0.5rem 0.9rem;
     gap: 0.6rem;
   }
-  .mark {
-    width: 30px;
-    height: 30px;
-    font-size: 0.95rem;
-  }
-  .title {
-    font-size: 0.95rem;
-  }
-  .subtitle {
-    display: none;
-  }
   .composerBar {
     padding-top: 0.5rem;
     padding-bottom: 0.6rem;
+  }
+}
+
+/* Hero orb in the empty state. */
+.emptyHero {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 0 0.25rem;
+}
+
+.tryLabel {
+  text-align: center;
+}
+
+/* Slim line above the composer, rendered only when there is something to say. */
+.notice {
+  margin: 0 0.5rem 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--ink-muted);
+}
+
+.noticeError {
+  color: var(--danger);
+}
+
+/* ---- Pastel retarget: greeting, example cards ---- */
+.greeting {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: #57534e; /* sits on the pastel wash: 7:1 */
+}
+
+.chipIcon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 1.05rem;
+}
+
+.chipText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.chipTitle {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.chipDescription {
+  font-size: 0.875rem;
+  color: var(--ink-muted);
+}
+
+/* ---- AI-era look: wash, grain, wordmark ---- */
+
+/* A pastel wash behind the top of the chat, fading to the flat canvas so text and the composer stay on plain white. */
+.root::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 38% at 14% 6%, rgba(168, 200, 232, 0.55), transparent 70%),
+    radial-gradient(55% 36% at 88% 12%, rgba(200, 184, 224, 0.5), transparent 70%),
+    radial-gradient(50% 32% at 70% 40%, rgba(244, 197, 168, 0.35), transparent 70%),
+    radial-gradient(45% 30% at 16% 46%, rgba(167, 229, 211, 0.35), transparent 70%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 35%, transparent 80%);
+  mask-image: linear-gradient(to bottom, #000 35%, transparent 80%);
+}
+
+/* Film grain over the wash only; static, so it costs nothing per frame. */
+.root::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--grain);
+  opacity: 0.05;
+  -webkit-mask-image: linear-gradient(to bottom, #000 30%, transparent 75%);
+  mask-image: linear-gradient(to bottom, #000 30%, transparent 75%);
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.wordmarkDot {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 210deg, #6fe6f5, #b49bff, #ff9fd6, #ffe0b8, #6fe6f5);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85), 0 0 0 1px var(--line-strong);
+}
+
+.wordmarkStrong {
+  font-weight: 400;
+}
+
+.headerPill {
+  display: none;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+@media (min-width: 640px) {
+  .headerPill {
+    display: inline-block;
+  }
+  .header {
+    padding: 1.25rem 1.5rem 0.75rem;
+  }
+}
+
+@keyframes send-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .chips > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 }

@@ -98,3 +98,44 @@ describe("createEndpointer", () => {
     expect(reason).toBe("silence");
   });
 });
+
+describe("a seeded endpointer (voice barge-in)", () => {
+  /** Run frames against an endpointer seeded as a barge-in would be: speech already confirmed. */
+  function runSeeded(script: Array<[number, number]>) {
+    const endpointer = createEndpointer(0, { ...ENDPOINT_DEFAULTS, noSpeechMs: 8000 }, { threshold: 0.04, speechMs: 400 });
+    let now = 0;
+    for (const [rms, duration] of script) {
+      for (let elapsed = 0; elapsed < duration; elapsed += STEP) {
+        now += STEP;
+        const reason = endpointer.update(rms, now);
+        if (reason) return { stoppedAt: now, reason, endpointer };
+      }
+    }
+    return { stoppedAt: null, reason: null, endpointer };
+  }
+
+  it("has its threshold and its speech from the start, with no calibration", () => {
+    const { endpointer } = runSeeded([[0.003, 100]]);
+    expect(endpointer.threshold).toBe(0.04);
+    expect(endpointer.hadSpeech).toBe(true);
+  });
+
+  it("stops about 850 ms after the user stops, and not before they have finished their sentence", () => {
+    const { stoppedAt, reason } = runSeeded([[0.1, 1500], [0.003, 3000]]);
+    expect(reason).toBe("silence");
+    expect(stoppedAt).toBeGreaterThanOrEqual(1500 + ENDPOINT_DEFAULTS.silenceMs);
+    expect(stoppedAt).toBeLessThanOrEqual(1500 + ENDPOINT_DEFAULTS.silenceMs + 2 * STEP);
+  });
+
+  it("does not wait for a calibration that would have swallowed the speech (a quiet voice still counts)", () => {
+    // 0.06 is below what an unseeded endpointer would settle on after calibrating on the speech itself.
+    const { reason, endpointer } = runSeeded([[0.06, 1000], [0.003, 3000]]);
+    expect(reason).toBe("silence");
+    expect(endpointer.hadSpeech).toBe(true);
+  });
+
+  it("an unseeded endpointer is unchanged", () => {
+    expect(createEndpointer(0).hadSpeech).toBe(false);
+    expect(createEndpointer(0).threshold).toBeNull();
+  });
+});

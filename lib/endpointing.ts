@@ -37,12 +37,22 @@ export function noiseFloor(samples: number[]): number {
   return sorted[Math.floor((sorted.length - 1) * 0.25)];
 }
 
-export function createEndpointer(startedAt: number, config: EndpointConfig = ENDPOINT_DEFAULTS): Endpointer {
+/**
+ * What a barge-in already knows: the user was heard speaking, and how loud. The endpointer then skips
+ * its calibration (which would be done in the middle of their sentence) and starts counting silence
+ * from now.
+ */
+export interface EndpointSeed {
+  threshold: number;
+  speechMs: number;
+}
+
+export function createEndpointer(startedAt: number, config: EndpointConfig = ENDPOINT_DEFAULTS, seed?: EndpointSeed): Endpointer {
   const calibration: { rms: number; at: number }[] = [];
-  let threshold: number | null = null;
+  let threshold: number | null = seed?.threshold ?? null;
   let lastSampleAt = startedAt;
   let lastLoudAt = startedAt;
-  let speechMs = 0;
+  let speechMs = seed?.speechMs ?? 0;
 
   return {
     get threshold() {

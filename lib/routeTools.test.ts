@@ -321,7 +321,7 @@ describe("airport_search", () => {
     expect(ambiguous.result).toMatchObject({ status: "ambiguous", error: expect.stringContaining("ambiguous") });
     expect(ambiguous.result.coverage).toBeTruthy();
     const unknown = await airportSearch({ user_words: "Atlantis" });
-    expect(unknown.result).toMatchObject({ status: "unknown", error: expect.stringContaining("not recognized") });
+    expect(unknown.result).toMatchObject({ status: "unknown", error: expect.stringContaining("ready-made area") });
     const empty = await airportSearch({ user_words: "Kansas" });
     expect(empty.result).toMatchObject({ status: "empty" });
   });

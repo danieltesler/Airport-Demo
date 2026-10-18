@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { uploadFilename } from "@/lib/audioMime";
+import { BARGE_IN, BargeInWatch, type BargeInTrigger, type Frame, type MeterLike } from "@/lib/bargeIn";
 import type { ListenOutcome, SessionResult } from "@/lib/conversation";
 import { ENDPOINT_DEFAULTS, createEndpointer, type Endpointer } from "@/lib/endpointing";
 import { micBlockedMessage } from "@/lib/micBlockedMessage";
 import { MicSession } from "@/lib/micSession";
+import type { RecorderLike } from "@/lib/preRoll";
+import { traceBargeIn, traceVoice } from "@/lib/voiceTrace";
 import { isGhostTranscript } from "@/lib/transcript";
 
 interface UseDictationOptions {
@@ -18,6 +21,8 @@ interface UseDictationOptions {
 export interface ListenOptions {
   /** Hands-free: report through `onOutcome`, give up after this long without speech, and ignore one-word clips. */
   handsFree?: { noSpeechMs: number };
+  /** This turn began with a voice barge-in: adopt the pre-roll recording so the first words are kept. */
+  bargedIn?: boolean;
 }
 
 export interface Dictation {
@@ -47,6 +52,14 @@ export interface Dictation {
   listen: (options?: ListenOptions) => void;
   /** Stop recording and throw the clip away. */
   discard: () => void;
+  /**
+   * Voice barge-in: while the assistant is audible, read the microphone level and keep a rolling
+   * pre-roll recording; call `onTrigger` when the user speaks over it. Hands-free mode only.
+   */
+  startBargeInWatch: (onTrigger: (trigger: BargeInTrigger) => void) => void;
+  stopBargeInWatch: () => void;
+  /** The assistant began a new clip: recalibrate the barge-in detector against its echo. */
+  noteClipStart: () => void;
 }
 
 const POLL_MS = 100;
@@ -57,6 +70,21 @@ const micBlockedText = (): string => micBlockedMessage(typeof navigator === "und
 const NOT_CAUGHT = "I didn't catch that. Tap the mic and try again, or type your question.";
 const NOT_HEARD = "I didn't hear anything. Tap the mic and try again, or type your question.";
 const TRANSCRIBE_FAILED = "Couldn't transcribe that. Retry, or type your question.";
+
+/** Level and zero-crossing rate of the latest audio block, for the barge-in detector. */
+function readFrame(analyser: AnalyserNode, buffer: Uint8Array<ArrayBuffer>): Frame {
+  analyser.getByteTimeDomainData(buffer);
+  let sumSquares = 0;
+  let crossings = 0;
+  let previous = buffer[0] - 128;
+  for (let i = 0; i < buffer.length; i++) {
+    const centred = buffer[i] - 128;
+    sumSquares += (centred / 128) ** 2;
+    if (i > 0 && (centred >= 0) !== (previous >= 0)) crossings += 1;
+    previous = centred;
+  }
+  return { rms: Math.sqrt(sumSquares / buffer.length), zcr: crossings / buffer.length };
+}
 
 interface Turn {
   recorder: MediaRecorder;
@@ -101,6 +129,8 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
   const [canRetry, setCanRetry] = useState(false);
 
   const turnRef = useRef<Turn | null>(null);
+  const watchRef = useRef<BargeInWatch | null>(null);
+  const lastTriggerRef = useRef<BargeInTrigger | null>(null);
   const vadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const failedBlobRef = useRef<Blob | null>(null);
   /** Set by `start` for the duration of its single turn, so the turn closes the microphone it opened. */
@@ -135,7 +165,7 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
     () =>
       new MicSession(
         {
-          getUserMedia: () => navigator.mediaDevices.getUserMedia({ audio: true }),
+          getUserMedia: (constraints) => navigator.mediaDevices.getUserMedia(constraints),
           createAudioContext: audioContextFactory(),
           wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
         },
@@ -145,8 +175,18 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
   const handleMicEndedRef = useRef(handleMicEnded);
   handleMicEndedRef.current = handleMicEnded;
 
+  const stopBargeInWatch = useCallback(() => {
+    watchRef.current?.stop();
+    watchRef.current = null;
+    // Half-duplex again: the microphone is silent unless a turn is being recorded.
+    if (!turnRef.current) mic.setEnabled(false);
+  }, [mic]);
+
   const closeSession = useCallback(() => {
+    watchRef.current?.stop();
+    watchRef.current = null;
     clearMeter();
+    if (mic.stream) traceVoice("mic close");
     mic.close();
   }, [clearMeter, mic]);
 
@@ -193,6 +233,7 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
   /** A turn ended (silence, tap, cap, no-speech, or discarded): decide what to do with the clip. */
   const finishTurn = useCallback(
     (turn: Turn) => {
+      traceVoice("listening end", turn.discard ? "discarded" : (turn.stopReason ?? "stopped"));
       clearMeter();
       // Over a long hands-free session these would pile up if only the silence detector disconnected them.
       turn.meter?.source.disconnect();
@@ -239,7 +280,9 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
   const openSession = useCallback(async (): Promise<SessionResult> => {
     if (!browserSupported()) return "unsupported";
     // The first lines of MicSession.open run synchronously: this must be called inside the user's tap.
+    traceVoice("mic open requested");
     const result = await mic.open();
+    traceVoice("mic open result", result);
     if (result === "denied") setError(micBlockedText());
     return result;
   }, [mic]);
@@ -256,11 +299,15 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
       failedBlobRef.current = null;
 
       mic.setEnabled(true);
-      const recorder = new MediaRecorder(stream);
+      // After a voice barge-in the recording that began before the user spoke is adopted (it already
+      // holds their first words); otherwise (or if there is none) a fresh recorder starts now.
+      const adopted = options.bargedIn ? (watchRef.current?.takePreRoll() ?? null) : null;
+      if (options.bargedIn) traceVoice("pre-roll", adopted ? `adopted, ${Date.now() - adopted.startedAt} ms before now` : "none available");
+      const recorder = adopted ? (adopted.recorder as unknown as MediaRecorder) : new MediaRecorder(stream);
       const handsFree = Boolean(options.handsFree);
       const turn: Turn = {
         recorder,
-        chunks: [],
+        chunks: adopted ? adopted.chunks : [],
         discard: false,
         handsFree,
         ownsSession: !handsFree && ownedByTapToTalk.current,
@@ -269,13 +316,21 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
         meterReliable: audioCtx?.state === "running",
         stopReason: null,
       };
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) turn.chunks.push(e.data);
-      };
+      if (!adopted) {
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) turn.chunks.push(e.data);
+        };
+      }
       recorder.onstop = () => finishTurn(turn);
       turnRef.current = turn;
-      recorder.start();
+      if (!adopted) recorder.start();
+      traceVoice("listening start", options.bargedIn ? (adopted ? "after barge-in, pre-roll kept" : "after barge-in, no pre-roll") : handsFree ? "hands-free" : "tap");
       setIsRecording(true);
+      // The pre-roll has been taken (or is not needed): let go of the rest of the watch, keep the microphone on.
+      if (options.bargedIn) {
+        watchRef.current?.stop();
+        watchRef.current = null;
+      }
 
       // Auto-stop on silence. Without Web Audio, recording still works via the button.
       if (!audioCtx) return;
@@ -285,7 +340,11 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
       source.connect(analyser);
       turn.meter = { source, analyser };
       const buffer = new Uint8Array(analyser.fftSize);
-      const endpointer = createEndpointer(Date.now(), { ...ENDPOINT_DEFAULTS, noSpeechMs: options.handsFree?.noSpeechMs ?? 0 });
+      // Speech was already confirmed by the barge-in detector: skip calibrating in the middle of the sentence.
+      const trigger = lastTriggerRef.current;
+      const seed = adopted && trigger ? { threshold: Math.max(0.03, trigger.threshold * 0.5), speechMs: BARGE_IN.sustainMs } : undefined;
+      lastTriggerRef.current = null;
+      const endpointer = createEndpointer(Date.now(), { ...ENDPOINT_DEFAULTS, noSpeechMs: options.handsFree?.noSpeechMs ?? 0 }, seed);
       turn.endpointer = endpointer;
 
       vadTimerRef.current = setInterval(() => {
@@ -303,6 +362,51 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
     },
     [finishTurn, mic, stop],
   );
+
+  const startBargeInWatch = useCallback(
+    (onTrigger: (trigger: BargeInTrigger) => void) => {
+      const stream = mic.stream;
+      const audioCtx = mic.audioCtx;
+      if (!stream || !audioCtx || watchRef.current?.running || turnRef.current) return;
+      mic.setEnabled(true); // full duplex while the assistant talks: the browser's echo cancellation keeps its voice out
+      const watch = new BargeInWatch(
+        {
+          createMeter: (): MeterLike => {
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 1024;
+            const source = audioCtx.createMediaStreamSource(stream);
+            source.connect(analyser);
+            const buffer = new Uint8Array(analyser.fftSize);
+            return {
+              read: () => readFrame(analyser, buffer),
+              dispose: () => {
+                source.disconnect();
+                analyser.disconnect();
+              },
+            };
+          },
+          createRecorder: () => new MediaRecorder(stream) as unknown as RecorderLike,
+          now: () => Date.now(),
+          setTimer: (callback, ms) => setTimeout(callback, ms),
+          clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+          setPoll: (callback, ms) => setInterval(callback, ms),
+          clearPoll: (handle) => clearInterval(handle as ReturnType<typeof setInterval>),
+        },
+        {
+          onTrigger: (trigger) => {
+            lastTriggerRef.current = trigger;
+            onTrigger(trigger);
+          },
+          onArmed: (threshold) => traceBargeIn("armed", { threshold }),
+        },
+      );
+      watchRef.current = watch;
+      watch.start();
+    },
+    [mic],
+  );
+
+  const noteClipStart = useCallback(() => watchRef.current?.clipStarted(), []);
 
   const startTurnOnce = useCallback(async () => {
     setError(null);
@@ -340,5 +444,23 @@ export function useDictation({ onFinal, onOutcome }: UseDictationOptions): Dicta
     [closeSession],
   );
 
-  return { supported, insecureContext, isRecording, isTranscribing, error, canRetry, start, stop, retry, openSession, closeSession, audioReady, listen, discard };
+  return {
+    supported,
+    insecureContext,
+    isRecording,
+    isTranscribing,
+    error,
+    canRetry,
+    start,
+    stop,
+    retry,
+    openSession,
+    closeSession,
+    audioReady,
+    listen,
+    discard,
+    startBargeInWatch,
+    stopBargeInWatch,
+    noteClipStart,
+  };
 }

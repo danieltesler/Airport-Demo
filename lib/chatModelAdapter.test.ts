@@ -75,7 +75,7 @@ describe("which line is read aloud", () => {
     mockChat({ reply: "Hello! I can rank and compare airports. Ask away." });
     markVoiceTurn("hi");
     await run("hi");
-    expect(player.speak).toHaveBeenCalledWith("Hello! I can rank and compare airports. Ask away.");
+    expect(player.speak).toHaveBeenCalledWith("Hello! I can rank and compare airports. Ask away.", { afterAck: true });
   });
 
   it("does not speak an error reply", async () => {
@@ -93,7 +93,7 @@ describe("when it speaks on its own", () => {
     markVoiceTurn("top airports in LA");
     await run("top airports in LA");
     expect(player.speak).toHaveBeenCalledTimes(1);
-    expect(player.speak).toHaveBeenCalledWith("Sure, Los Angeles stands out.");
+    expect(player.speak).toHaveBeenCalledWith("Sure, Los Angeles stands out.", { afterAck: true });
   });
 
   it("stays silent for typed questions, cancelled turns, and after repeated voice failures", async () => {
@@ -138,7 +138,7 @@ describe("the 'one moment' acknowledgement", () => {
     await vi.advanceTimersByTimeAsync(3000);
     await pending;
     expect(player.speak).toHaveBeenCalledTimes(2);
-    expect(player.speak).toHaveBeenLastCalledWith("Sure, Los Angeles stands out.");
+    expect(player.speak).toHaveBeenLastCalledWith("Sure, Los Angeles stands out.", { afterAck: true });
     expect(player.cancel).not.toHaveBeenCalled();
   });
 
@@ -151,7 +151,7 @@ describe("the 'one moment' acknowledgement", () => {
     await pending;
     await vi.advanceTimersByTimeAsync(5000);
     expect(player.speak).toHaveBeenCalledTimes(1);
-    expect(player.speak).toHaveBeenCalledWith("Sure, Los Angeles stands out.");
+    expect(player.speak).toHaveBeenCalledWith("Sure, Los Angeles stands out.", { afterAck: true });
   });
 
   it("is cut off, not left hanging, when no answer follows it", async () => {
@@ -264,7 +264,7 @@ describe("a spoken answer goes stale when the user moves on", () => {
     mockChat(SPOKEN);
     markVoiceTurn("q");
     await run("q");
-    expect(player.speak).toHaveBeenCalledWith("Sure, Los Angeles stands out.");
+    expect(player.speak).toHaveBeenCalledWith("Sure, Los Angeles stands out.", { afterAck: true });
   });
 
   it("passes the abort signal to the chat request, which cancels it", async () => {

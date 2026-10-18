@@ -40,6 +40,8 @@ export interface GuardVerdict {
 const MAX_CHARS = 300;
 const MAX_SENTENCES = 3;
 const MAX_CONTEXT_CHARS = 20_000;
+// A hedged figure ("about", "around", "nearly") may be off by this much of its last spoken digit, so a truncated 68.6 → "about 68" is accepted but a one-digit slip ("about 4.4" for 4.5) is not.
+const HEDGED_TOLERANCE = 0.75;
 const FRACTION_TOLERANCE = 0.1; // "one in five" matches 18 to 22 percent, "half" 45 to 55
 
 // --------------------------------------------------------------------------- //
@@ -68,7 +70,16 @@ export interface SpokenNumber {
   rankContext?: boolean;
   /** A figure that cannot be checked at all ("a few thousand"): always rejected. */
   unverifiable?: boolean;
+  /**
+   * A hedge word in front of the figure. "about" and "around" allow a coarse figure to be a step off,
+   * "nearly" and "almost" mean just under, "over" and "under" are bounds. Without one, matching is exact.
+   */
+  hedge?: SpokenHedge;
+  /** One significant digit followed by zeros ("700 thousand", "20"): written coarser than the figure is known. */
+  coarse?: boolean;
 }
+
+export type SpokenHedge = "approx" | "nearly" | "over" | "under";
 
 const UNITS: Record<string, number> = {
   zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -89,6 +100,16 @@ const ORDINAL_SUFFIXES = new Set(["st", "nd", "rd", "th"]);
 const ONE_UNITS = new Set(["percent", "in", "hundred", "thousand", "million", "billion", "half"]);
 // "a few thousand", "several million": a quantifier in front of a magnitude is a specific-sounding figure with no value.
 const VAGUE_QUANTIFIERS = new Set(["few", "several", "couple", "dozens", "handful", "hundreds", "thousands", "millions"]);
+
+// "about 700 thousand", "almost 5 million", "over 90 percent": how a figure was hedged.
+const HEDGE_WORDS: Record<string, SpokenHedge> = {
+  about: "approx", around: "approx", roughly: "approx", approximately: "approx", circa: "approx",
+  nearly: "nearly", almost: "nearly",
+  over: "over", above: "over",
+  under: "under", below: "under",
+};
+// "more than fifteen minutes", "fourteen minutes less than the cutoff": a comparison with another figure, not a change.
+const COMPARATORS = new Set(["more", "less", "fewer", "higher", "lower", "bigger", "larger", "smaller", "faster", "slower"]);
 
 const DIRECTION_UP = new Set(["up", "grew", "grow", "growing", "rose", "rise", "rising", "increased", "increase", "increasing", "gained", "gain", "higher", "more", "faster", "bigger", "larger", "jumped", "climbed", "added"]);
 const DIRECTION_DOWN = new Set(["down", "fell", "fall", "falling", "dropped", "drop", "declined", "decline", "declining", "cut", "decreased", "decrease", "decreasing", "lost", "lose", "lower", "less", "fewer", "slower", "smaller", "shrank", "shrinking", "slipped", "slid"]);
@@ -213,36 +234,61 @@ function parseSpokenYear(tokens: Token[], start: number): { value: number; end: 
 /** True when punctuation (a comma, full stop...) sits between two tokens: a clause boundary. */
 const breaksBetween = (tokens: Tokens, left: Token, right: Token): boolean => /[,.;:!?]/.test(tokens.source.slice(left.end, right.start));
 
-/** The unit, direction and counting context around the tokens [start, end) of one figure. */
-function annotate(tokens: Tokens, start: number, end: number): Pick<SpokenNumber, "percent" | "direction" | "countNoun" | "rankContext" | "measureAfter"> {
+/** The unit, direction, hedge and counting context around the tokens [start, end) of one figure. */
+function annotate(tokens: Tokens, start: number, end: number): Pick<SpokenNumber, "percent" | "direction" | "countNoun" | "rankContext" | "measureAfter" | "hedge"> {
   const list = tokens.list;
   const wordAt = (i: number): string => (list[i] && !list[i].digits ? list[i].text : "");
-  const percent = wordAt(end) === "percent";
-  const afterStart = percent ? end + 1 : end;
+  // "5.5 and 4 percent": a figure followed by "and"/"or" and a figure with the unit shares that unit.
+  const sharesUnit = ["and", "or"].includes(wordAt(end)) && Boolean(list[end + 1]?.digits) && wordAt(end + 2) === "percent";
+  const percent = wordAt(end) === "percent" || sharesUnit;
+  const afterStart = wordAt(end) === "percent" ? end + 1 : end;
 
-  // Words after the figure, inside the same clause.
-  const after: string[] = [];
+  // Token indexes after the figure, inside the same clause.
+  const afterIndexes: number[] = [];
   for (let i = afterStart; i < Math.min(list.length, afterStart + 2); i++) {
     const previous = i === afterStart ? list[end - 1] : list[i - 1];
     if (breaksBetween(tokens, previous, list[i])) break;
-    after.push(wordAt(i));
+    afterIndexes.push(i);
   }
-  // Words before the figure, inside the same clause, nearest first.
-  const before: string[] = [];
+  // Token indexes before the figure, inside the same clause, nearest first.
+  const beforeIndexes: number[] = [];
   for (let i = start - 1; i >= Math.max(0, start - 3); i--) {
     if (breaksBetween(tokens, list[i], list[i + 1])) break;
-    before.push(wordAt(i));
+    beforeIndexes.push(i);
   }
+  const after = afterIndexes.map(wordAt);
+  const before = beforeIndexes.map(wordAt);
 
-  const nearest = [...before, ...after];
-  const direction = nearest.map((w) => (DIRECTION_UP.has(w) ? "up" : DIRECTION_DOWN.has(w) ? "down" : null)).find((d) => d !== null) ?? undefined;
+  // A change word counts as a direction. A comparison with another figure does not: "more than fifteen
+  // minutes" and "up to fifteen" bound a figure, and "fourteen minutes less than the cutoff" compares two.
+  // After a percentage ("5 percent more than last year") it is a relative change, so it still counts.
+  const directionOf = (index: number, isBefore: boolean): SpokenDirection | null => {
+    const w = wordAt(index);
+    const next = wordAt(index + 1);
+    if (COMPARATORS.has(w) && next === "than" && (isBefore || !percent)) return null;
+    // "much lower at around 13": in front of a plain figure a comparative compares levels, it is not a change.
+    if (COMPARATORS.has(w) && isBefore && !percent) return null;
+    if (w === "up" && next === "to") return null;
+    return DIRECTION_UP.has(w) ? "up" : DIRECTION_DOWN.has(w) ? "down" : null;
+  };
+  const direction =
+    [...beforeIndexes.map((i) => directionOf(i, true)), ...afterIndexes.map((i) => directionOf(i, false))].find((d) => d !== null) ?? undefined;
+  const hedge = before.map((w) => HEDGE_WORDS[w]).find((h) => h !== undefined);
+
   return {
     percent: percent || undefined,
-    direction: direction as SpokenDirection | undefined,
+    direction,
+    hedge,
     countNoun: after.find((w) => COUNT_NOUNS.has(w)),
     rankContext: RANK_BEFORE.has(before[0] ?? "") || undefined,
     measureAfter: after.some((w) => MEASURE_NOUNS.has(w)) || undefined,
   };
+}
+
+/** True for one significant digit followed by zeros: 20, 700, 5,000,000. Single digits ("five") are exact, not coarse. */
+function isCoarse(value: number): boolean {
+  const abs = Math.abs(value);
+  return abs >= 10 && String(Math.round(abs)).replace(/0+$/, "").length === 1;
 }
 
 /** Every number a listener would hear, with the precision it was spoken at. Exempt words are skipped. */
@@ -252,7 +298,7 @@ export function extractNumbers(text: string, ordinalLimit = 3): SpokenNumber[] {
   const found: SpokenNumber[] = [];
   const word = (i: number): string => (list[i] && !list[i].digits ? list[i].text : "");
   const emit = (number: SpokenNumber, from: number, to: number): void => {
-    found.push({ ...annotate(tokens, from, to), ...number });
+    found.push({ ...annotate(tokens, from, to), ...number, ...(Number.isFinite(number.value) && isCoarse(number.value) ? { coarse: true } : {}) });
   };
 
   for (let i = 0; i < list.length; ) {
@@ -326,6 +372,14 @@ export function extractNumbers(text: string, ordinalLimit = 3): SpokenNumber[] {
       if (suffix === "in" && list[i + 2]?.digits) {
         emit({ text: `${token.text} in ${list[i + 2].text}`, value: (100 * base) / Number(list[i + 2].text), place: 1, fraction: true }, i, i + 3);
         i += 3;
+        continue;
+      }
+      // "26 and a half million"
+      if (suffix === "and" && word(i + 2) === "a" && word(i + 3) === "half") {
+        const half = MAGNITUDES[word(i + 4)];
+        const unit = half ?? 1;
+        emit({ text: `${token.text} and a half${half ? ` ${word(i + 4)}` : ""}`, value: (base + 0.5) * unit, place: 0.5 * unit }, i, half ? i + 5 : i + 4);
+        i += half ? 5 : 4;
         continue;
       }
       if (suffix === "dozen") {
@@ -411,7 +465,11 @@ export function extractNumbers(text: string, ordinalLimit = 3): SpokenNumber[] {
 /** "4.5 million" is precise to 0.1 million; "21 million" to 1 million. */
 function digitPlaceForMagnitude(raw: string, base: number): number {
   const decimals = raw.includes(".") ? raw.split(".")[1].length : 0;
-  return decimals > 0 ? 10 ** -decimals : base >= 1000 ? digitPlace(raw, base) : 1;
+  if (decimals > 0) return 10 ** -decimals;
+  // "710 thousand" and "700 thousand" are two significant figures with a zero as padding, so the last
+  // digit that counts is the tens: 710 thousand is 708,570 rounded properly, 720 thousand is not.
+  if (base >= 100 && base < 1000 && base % 10 === 0) return 10;
+  return base >= 1000 ? digitPlace(raw, base) : 1;
 }
 
 // --------------------------------------------------------------------------- //
@@ -615,11 +673,43 @@ export function collectGrounding(outputs: readonly unknown[]): Grounding {
 
 const isYearValue = (n: SpokenNumber): boolean => Number.isInteger(n.value) && n.value >= 1900 && n.value <= 2100;
 
+/**
+ * Does the figure as spoken match a candidate value of a fact? Exactly (to the precision it was
+ * spoken at) unless it was hedged. A hedged figure may be a little coarser:
+ *  - "about/around/roughly 700 thousand" may be one step of the second digit off (708,570 is 710 thousand
+ *    at two significant figures, and "700 thousand" is the adjacent step), but only for a figure written
+ *    with one significant digit, never for "about 4.4 million" (an explicit digit is a claim);
+ *  - "almost/nearly X" means just under X, "over X" and "under X" are bounds that must be true.
+ * A rounded figure never changes sign or direction (checked separately), and a coarse one can only be
+ * a single step of its second digit off, so it cannot drift past a neighbouring figure by more than
+ * that step. Without a hedge nothing here applies.
+ */
+function matchesCandidate(spoken: SpokenNumber, candidate: number): boolean {
+  const slack = 1e-9 * Math.max(1, spoken.place);
+  const delta = candidate - spoken.value;
+  if (Math.abs(delta) <= spoken.place / 2 + slack) return true;
+  if (!spoken.hedge || !(spoken.value > 0)) return false;
+
+  const step = 10 ** Math.floor(Math.log10(spoken.value));
+  if (spoken.hedge === "over") return delta >= 0 && delta <= step;
+  if (spoken.hedge === "under") return delta <= 0 && -delta <= step;
+  // "about 68" for 68.6 is a truncation, not a different number; a whole step ("about 4.4" for 4.5) is.
+  // A figure written with one significant digit ("700 thousand") may be a full step of its second digit off.
+  // The allowance is measured on the second significant digit, never wider than plain rounding of what was said:
+  // "about four million" for 4.5 million is a different figure, "about 4.4 million" is a one-digit slip.
+  const secondDigit = step / 10;
+  const tolerance = spoken.coarse
+    ? Math.max(spoken.place / 2, secondDigit)
+    : Math.max(spoken.place / 2, HEDGED_TOLERANCE * Math.min(spoken.place, secondDigit));
+  if (Math.abs(delta) > tolerance) return false;
+  return !(spoken.hedge === "nearly" && delta > 0);
+}
+
 /** Does this fact say what the speech says, in the way the speech says it? */
 function factSupports(spoken: SpokenNumber, fact: Fact): boolean {
   const magnitude = Math.abs(fact.value);
   const slack = 1e-9 * Math.max(1, spoken.place);
-  const within = (candidate: number): boolean => Math.abs(candidate - spoken.value) <= spoken.place / 2 + slack;
+  const within = (candidate: number): boolean => matchesCandidate(spoken, candidate);
   const near = (candidate: number): boolean => candidate > 0 && Math.abs(candidate - spoken.value) <= FRACTION_TOLERANCE * spoken.value;
 
   if (fact.kind === "any") return spoken.fraction ? near(magnitude) : within(magnitude) || within(magnitude * 100);
@@ -775,10 +865,25 @@ function knownNameReasons(spoken: string, knownNames: readonly string[], vocabul
   return reasons;
 }
 
+/**
+ * A capped result (top 10 of 65 routes) is a fact about the biggest few, and saying so is not required
+ * every time. What is wrong is describing it as the whole picture: "all the routes", "the only carrier",
+ * "no other destinations", "the complete list". Those are what this rejects.
+ */
+const COMPLETENESS_CLAIM = new RegExp(
+  [
+    "\\b(?:all|every|each)\\s+(?:of\\s+)?(?:the\\s+|its\\s+|their\\s+|these\\s+|those\\s+)?(?:\\w+\\s+){0,2}?(?:routes?|destinations?|carriers?|airlines?|cuts?|increases?|changes?)\\b",
+    "\\ball of them\\b",
+    "\\b(?:the\\s+)?(?:only|sole)\\s+(?:route|destination|carrier|airline|one)\\b",
+    "\\b(?:full|complete|entire|whole)\\s+(?:list|picture|set|ranking|breakdown)\\b",
+    "\\bno other (?:routes?|destinations?|carriers?|airlines?)\\b",
+  ].join("|"),
+  "i",
+);
+
 const HEDGES = {
   unavailable: ["can't", "cannot", "can not", "isn't", "is not", "aren't", "not responding", "not answering", "unavailable", "not available", "couldn't", "could not", "didn't", "don't have", "do not have", "not configured", "no live", "unable", "won't", "not working", "no data", "didn't answer"],
   insufficient: ["not enough", "too few", "can't score", "cannot score", "insufficient", "rather not guess", "isn't enough", "no reliable", "not reliable", "don't have enough", "doesn't have enough", "have enough", "too thin", "can't rate"],
-  truncated: ["top", "biggest", "largest", "leading", "main", "most", "highest", "first", "busiest", "lowest", "some", "several", "few", "handful", "strongest", "leads", "among", "biggest cuts", "cut"],
   noService: ["no nonstop", "no scheduled", "no direct", "no service", "doesn't have", "does not have", "isn't served", "not served", "no flights", "no flight"],
   refusal: ["can't", "cannot", "couldn't", "could not", "don't have", "do not have", "only cover", "only have", "outside", "isn't in", "is not in", "not in", "didn't", "don't cover", "unable", "?", "no airports", "not recognized", "didn't recognise", "didn't recognize"],
 } as const;
@@ -792,7 +897,7 @@ function hedgeReasons(spoken: string, flags: Flags): string[] {
   const reasons: string[] = [];
   if (flags.unavailable && !hasHedge(lower, HEDGES.unavailable)) reasons.push("hedge missing: a source was unavailable");
   if (flags.insufficient && !hasHedge(lower, HEDGES.insufficient)) reasons.push("hedge missing: data was insufficient");
-  if (flags.truncated && !hasHedge(lower, HEDGES.truncated)) reasons.push("hedge missing: the result was capped");
+  if (flags.truncated && COMPLETENESS_CLAIM.test(lower)) reasons.push("a capped result is described as complete");
   if (flags.noService && !hasHedge(lower, HEDGES.noService)) reasons.push("hedge missing: no nonstop service");
   if (flags.ambiguous && !lower.includes("?")) reasons.push("hedge missing: an ambiguous place needs a question");
   if (flags.refusal && !hasHedge(lower, HEDGES.refusal)) reasons.push("hedge missing: the request could not be answered");

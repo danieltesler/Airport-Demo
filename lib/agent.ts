@@ -16,7 +16,12 @@
  */
 
 import OpenAI from "openai";
-import { allAirports, dataVintage, dataYear } from "./data";
+import * as data from "./data";
+import { allAirports, dataVintage, documentedConstants, datasetFacts } from "./data";
+import { effectiveMessage } from "./followUp";
+import { offTopicReply } from "./offTopic";
+import { speakableAirportNames } from "./speakable";
+import { SAFE_REPLY, correctionFor, factualReply, findReplyIssues, withoutCausalSentences } from "./replyCheck";
 import { TOOL_SCHEMAS, isLiveSourceTool, runTool } from "./tools";
 import { vintageFooter } from "./i18n";
 import { isLiveTool } from "./live";
@@ -41,6 +46,8 @@ const positiveIntFromEnv = (value: string | undefined, fallback: number): number
 
 // Four model calls cover a tool call, one follow-up tool call and the answer; more only adds cost.
 const MAX_AGENT_STEPS = positiveIntFromEnv(process.env.MAX_AGENT_STEPS, 4);
+/** Model/tool steps allowed for the one corrective retry of a reply that failed its checks. */
+const RETRY_STEPS = 3;
 
 const SYSTEM_PROMPT = `You are an Airport Investment Intelligence analyst assistant for a \
 firm that invests in U.S. airport modernization. Your job is to help analysts find \
@@ -72,7 +79,10 @@ airport code, 'near <place>', 'within N miles of <place>', or 'all') and decides
 they cover, so never convert a place into airport codes yourself. Do NOT rank all airports when \
 the user asked about a specific place. Describe the area using the tool's scope_label, not your \
 own paraphrase. If the tool says the scope is ambiguous, ask the user which option they mean; if \
-it is unknown or empty, relay the suggestions and the coverage it returns. If the tool says fewer \
+it is empty, relay the suggestions and the coverage it returns; if it is unknown, say plainly "I don't \
+have X as a ready-made area; did you mean A, B or C?" using the tool's suggested_reply (never the words \
+"scope" or "recognized"). For an informal region such as the West Coast, name the states the tool used \
+and, if it says the definition varies, say so. If the tool says fewer \
 airports matched than were asked for, say exactly how many matched and never say 'top N'. When \
 the user asks to compare the airports in an area, call compare_airports with the area as scope \
 (no iatas) instead of asking for airport codes. Use \
@@ -115,9 +125,28 @@ re-list them in your reply.
 carriers fly nonstop, seats, frequencies, change from last year) and say plainly that this data \
 cannot show demand or fares. For "why did X change", say what changed and which carriers or \
 destinations drove it, and say the data does not show why.
-- If metro_population says it is not configured or unavailable, say so in plain words and give NO \
-population number, estimate or approximation from memory: no population figure exists in the \
-dataset. Do not offer one.
+- If metro_population says it is not configured or unavailable, say plainly that the Census \
+population source isn't set up in this demo (not that a live source is down), and give NO population \
+number, estimate or approximation from memory: no population figure exists in the dataset.
+- For ANY specific figure about one airport (passengers, international passengers or share, departures, \
+delays, cancellations, load factor, growth, runways, "is X growing", "is X bigger than Y") call \
+airport_profile and quote its facts_summary or metrics exactly; never answer such a figure from memory. \
+For airports, "growing" means passenger growth and "bigger" means passenger volume, never population. \
+faa_airport_status is ONLY for "right now". For "in 2025", "2025 vs 2024" or "last year" use \
+airport_profile (calendar year), never bts_airport_traffic: its figures are a trailing 12 months and \
+are never labelled as a year.
+- For "least", "lowest" or "fewest" rankings pass order='asc' and read ranked_first_means before describing \
+the order. Pass the number the user asked for ("top 3") as top_n.
+- When the user names an airline, pass it as carrier to capacity_trend or route_search and describe the \
+numbers as covering exactly the filters_applied. Never add a carrier or destination filter the user did \
+not name.
+- Whenever the user names specific airports or cities to compare, pass their words in user_words: the code \
+decides which airports and asks when a city has several (Dallas, New York). Never choose between them \
+yourself.
+- For questions about the dataset's coverage, sources, freshness or method, use only the Dataset facts \
+given below; never state other figures.
+- You only discuss U.S. airport analysis. For anything else (poems, recipes, jokes) say one friendly line \
+and what you can do; do not do the task.
 - When the user names specific airports to compare ("LAX and SNA", "JFK vs EWR"), pass their \
 codes in iatas and their words in user_words.
 - A previous assistant turn may be followed by a bracketed "Shown on screen last turn" note listing \
@@ -181,8 +210,11 @@ only (bold for the one answer, nothing else).
 - "spoken": what a voice will say, written to be heard: one to three short sentences, about \
 45 words at most, no Markdown, no lists, no symbols. Contractions. Start with a light \
 acknowledgement only when natural ("Sure,", "Yes,"); do not start every answer the same way. \
-Round numbers the way people say them ("about four and a half million", "around twelve \
-percent") but only from figures in the tool result. At most one number. Use city names, not \
+Round numbers to at most two significant figures, as digits with a scale word ("about 4.5 million", \
+"around 12 percent", "about 700 thousand"), always rounding to the nearest, and only from figures in the \
+tool result. At most one number, and never a figure for a different \
+airport or airline than the one you just named. When the result says truncated (a top list), say "the \
+biggest" or "the top" so the listener knows it is not everything. Use city names, not \
 airport codes, unless two airports share a city. Never say "score out of 100". It must not \
 contradict "reply". If you cannot say something safely, give the shortest true sentence.`;
 
@@ -205,7 +237,10 @@ export type SpokenMode = "model" | "template";
 export const spokenMode = (): SpokenMode => (process.env.SPOKEN_MODE?.trim().toLowerCase() === "template" ? "template" : "model");
 
 export const systemPrompt = (mode: SpokenMode = spokenMode()): string =>
-  SYSTEM_PROMPT + (mode === "model" ? OUTPUT_FORMAT_MODEL : OUTPUT_FORMAT_TEXT);
+  `${SYSTEM_PROMPT}
+
+Dataset facts (use these for any question about coverage, sources, freshness or method): ${datasetFacts()}` +
+  (mode === "model" ? OUTPUT_FORMAT_MODEL : OUTPUT_FORMAT_TEXT);
 
 /** Strict JSON for the final message; tool-call turns are unaffected by it. */
 const REPLY_FORMAT = {
@@ -244,7 +279,18 @@ function toMessages(history: ChatTurn[], message: string, prompt: string): ChatM
 const KNOWN_NAMES: string[] = [...new Set(allAirports().flatMap((a) => [a.city, a.name]))];
 
 /** Numbers that are true of the whole app and may be spoken without a tool result. */
-const STATIC_FACTS: number[] = [allAirports().length, dataYear(), dataYear() - 1];
+const STATIC_FACTS: number[] = documentedConstants();
+
+/**
+ * The airports a turn's tool results are about, as an extra result for the spoken-line guard: a voice says "Chicago O'Hare"
+ * or "Denver International Airport" for a row that the table labels "ORD — Chicago", and those names belong to the answer.
+ */
+function namesOfAirportsInAnswer(outputs: ToolOutput[]): ToolOutput {
+  const text = JSON.stringify(outputs.map((o) => [o.result, o.structured]));
+  const codes = [...new Set(text.match(/\b[A-Z]{3}\b/g) ?? [])];
+  const airports = codes.map((code) => data.getAirport(code)).filter((a): a is NonNullable<typeof a> => Boolean(a));
+  return { result: { airports_in_answer: airports.map((a) => `${a.name} ${a.city}`) } };
+}
 
 /** What earlier turns showed or said, for the guard to accept a follow-up that refers back. */
 const priorContextOf = (history: ChatTurn[]): string =>
@@ -267,8 +313,8 @@ function verifiedSpoken(
   if (!spoken) return {};
   try {
     const verdict = guardSpoken({
-      spoken,
-      toolOutputs: outputs,
+      spoken: speakableAirportNames(spoken),
+      toolOutputs: [...outputs, namesOfAirportsInAnswer(outputs)],
       priorContext: priorContextOf(history),
       userWords: message,
       staticFacts: STATIC_FACTS,
@@ -284,6 +330,24 @@ function verifiedSpoken(
 export async function runAgent(message: string, rawHistory: unknown = []): Promise<ChatResponse> {
   const history = sanitizeHistory(rawHistory); // client-supplied: shape, size and role checked here too
   const startedAt = Date.now();
+  // What the tools read as the user's request: an answer to a clarifying question ("DFW please") is joined to the question it answers.
+  const request = effectiveMessage(message, history);
+  const declined = offTopicReply(message);
+  if (declined) {
+    // A plainly off-topic request is answered by code: no model call, no cost, nothing to drift.
+    return {
+      reply: declined,
+      structured: null,
+      assumptions: null,
+      uncertainty: null,
+      meta: {
+        tools_used: [],
+        data_vintage: dataVintage(),
+        timings: { total_ms: Date.now() - startedAt, model_calls: 0, model_ms: 0, tools_ms: 0, hops: [] },
+        spoken_source: "none",
+      },
+    };
+  }
   const mode = spokenMode();
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const messages = toMessages(history, message, systemPrompt(mode));
@@ -321,16 +385,15 @@ export async function runAgent(message: string, rawHistory: unknown = []): Promi
   };
 
   let finalText = "";
-  let answered = false;
-  for (let step = 0; step < MAX_AGENT_STEPS; step++) {
+
+  /** Up to `limit` model/tool steps; true when the model answered in text. */
+  const runSteps = async (limit: number): Promise<boolean> => {
+  for (let step = 0; step < limit; step++) {
     const { message: choice, hop } = await callModel("auto");
     if (choice.content) finalText = choice.content.trim();
 
     const toolCalls = choice.tool_calls ?? [];
-    if (toolCalls.length === 0) {
-      answered = true;
-      break;
-    }
+    if (toolCalls.length === 0) return true;
 
     // Record the assistant's tool-call turn, then answer each call.
     messages.push(choice);
@@ -345,8 +408,12 @@ export async function runAgent(message: string, rawHistory: unknown = []): Promi
         args = {};
       }
       const toolStartedAt = Date.now();
+      // The user's own message rides along so the code can read "top 3", "least" and named airports itself.
+      args.user_message = request.slice(0, 1000);
       const output = await runTool(call.function.name, args);
       hop.tools.push({ name: call.function.name, ms: Date.now() - toolStartedAt });
+      // A calendar-year question answered from the dataset in place of the live summary counts as a dataset tool.
+      if (output.result.substituted_for) toolsUsed[toolsUsed.length - 1] = "airport_profile";
       outputs.push(output);
 
       // A live tool's small metric table must not replace an analysis table (ranking/comparison)
@@ -368,18 +435,56 @@ export async function runAgent(message: string, rawHistory: unknown = []): Promi
       });
     }
   }
+  return false;
+  };
 
   // The step cap ended the loop with tool results the model has not answered yet: one last call
   // with tools switched off makes it write the answer from what it has, instead of a blank reply
   // sitting next to a table.
-  if (!answered) {
-    const { message: closing } = await callModel("none");
-    if (closing.content) finalText = closing.content.trim();
-  }
+  const answerWithin = async (limit: number): Promise<void> => {
+    if (!(await runSteps(limit))) {
+      const { message: closing } = await callModel("none");
+      if (closing.content) finalText = closing.content.trim();
+    }
+  };
+  await answerWithin(MAX_AGENT_STEPS);
 
   // In model mode the final message is {reply, spoken} JSON; any other shape is just the reply.
-  const parsed = finalText ? parseModelReply(finalText) : null;
-  const reply = parsed?.reply || "I wasn't able to produce an answer for that. Could you rephrase?";
+  let parsed = finalText ? parseModelReply(finalText) : null;
+  let reply = parsed?.reply || "I wasn't able to produce an answer for that. Could you rephrase?";
+
+  // The written answer is checked against this turn's tool results: figures that match nothing, causal
+  // wording after a "why", or a refusal of a question the dataset answers. One corrective retry, no more.
+  const checkContext = () => ({
+    message: request,
+    outputs,
+    priorContext: priorContextOf(history),
+    staticFacts: STATIC_FACTS,
+    toolsUsed: [...new Set(toolsUsed)],
+  });
+  let issues = parsed ? findReplyIssues(reply, checkContext()) : [];
+  if (issues.length > 0) {
+    messages.push({ role: "assistant", content: finalText });
+    messages.push({ role: "user", content: correctionFor(issues) });
+    await answerWithin(RETRY_STEPS);
+    parsed = finalText ? parseModelReply(finalText) : parsed;
+    reply = parsed?.reply || reply;
+    issues = findReplyIssues(reply, checkContext());
+    // Still failing after the one retry: a reply built by code from the tool results replaces it. Patching
+    // sentences out leaves fragments ("This represents a significant portion...") that point at nothing.
+    const stillFigures = issues.some((issue) => issue.kind === "figures");
+    const stillCausal = issues.find((issue) => issue.kind === "causal");
+    const stillPeriod = issues.some((issue) => issue.kind === "period");
+    if (stillFigures || stillCausal || stillPeriod) {
+      const facts = factualReply(outputs, structured !== null);
+      if (stillFigures || stillPeriod) {
+        reply = facts ?? SAFE_REPLY;
+      } else if (stillCausal && stillCausal.kind === "causal") {
+        reply = facts ? `${facts} The data shows what changed, not why.` : withoutCausalSentences(reply, stillCausal.phrases) || SAFE_REPLY;
+      }
+      if (parsed) parsed = { ...parsed, spoken: null };
+    }
+  }
   const voice = mode === "model" ? verifiedSpoken(parsed?.spoken ?? null, outputs, history, message) : {};
   const spokenSource = voice.spoken ? "model" : structured ? "template" : "none";
   const modelMs = hops.reduce((sum, h) => sum + h.model_ms, 0);

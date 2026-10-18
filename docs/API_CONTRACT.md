@@ -56,6 +56,22 @@ Because every turn costs money, the route bounds its input:
 - A failed turn returns the fixed code `agent_error`; only the error's name is logged, never its text.
 - The route stops after 30 seconds (`maxDuration`).
 
+### Checks the code runs on the model's behalf
+
+A model can ignore or bypass a prompt rule, so these are enforced in code:
+
+- **The user's message reaches the tools.** The server adds the user's own message to each tool call (`user_message`). Tools read "top 3", "5 best" and "least / lowest / fewest" from it, and those win over the model's `top_n` and `order`; a caption states the count and "lowest first".
+- **Named airports win.** For `compare_airports`, when the user's words name specific airports ("LAX and Santa Ana", "Portland Oregon and Seattle", "Portland, OR and Seattle"; full state names, postal codes and spelled-out codes such as "L A X" are read) exactly those are compared, even if the model passed other codes or an improvised scope; the notes say the user's words were used. A city with several airports (Dallas: DAL and DFW; New York) returns `ambiguous` even if the model already picked one.
+- **Airlines the user names are never dropped.** The code reads airline names (not two-letter codes) from the user's message: one airline filters `capacity_trend` and `route_search` to that airline even if the model forgot the argument, several named together ("Southwest, Spirit, Delta") give ONE combined table by airline, and the airline named in the message beats a different one the model passed. A result with no airline filter says `carriers_included: "all airlines combined"`, and its caption and totals label say so; with a filter, `totals_note` says the totals cover only those airlines, not the airport.
+- **Calendar-year questions use calendar-year figures.** "In 2025", "2025 vs 2024" and "last year" are answered from the dataset's calendar-year profile; if the model asks the live BTS summary (a trailing 12 months) for such a question, the server answers with `airport_profile` and marks the result `substituted_for`. A reply that labels live trailing figures as a year is retried once.
+- **Clarifying questions are answered in context.** After an `ambiguous` result that offered airports (Dallas: DAL or DFW), a reply such as "DFW please", "use DFW" or "Love Field" is joined to the question it answers (using the `shown` note of the previous turn), so the tools read the rebuilt request. A bare "Dallas and Austin" asks even if the model had already picked an airport.
+- **Filters are stated.** `capacity_trend` and `route_search` take an optional `carrier` (name or BTS code). Every result lists `filters_applied` and the totals are labelled with their scope ("Southwest Airlines (WN), all destinations from OAK"), so a carrier's own figures are never presented as the airport's.
+- **The written reply is checked against the tool results.** Figures (with digits) that match nothing in this turn's results, causal wording ("driven by", "due to") after a "why" or a capacity answer, and a refusal ("not currently reported") of a question about a named airport's figures that used no dataset tool each trigger ONE corrective model retry that lists the problem. If a figure or a causal phrase survives the retry, the reply is replaced by one written by code from the tool results (the airport facts sentence or the capacity headline, plus "The data shows what changed, not why" when it was causal), or by a short safe line when the results hold nothing to quote; sentences are never patched out, so no dangling fragment ships. The documented constants (the 15-minute delay threshold, the 100 busiest airports, the 93.9% coverage, the data-quality minimums, the haul distances) and sensible roundings of grounded values ("5.3 million" for 5,290,031) are accepted. The check reuses the spoken-line guard's number grounding.
+- **Exact counts.** The dataset stores each airport's exact international passengers and prior-year passengers (`international_passengers`, `previous_year_passengers`), and `airport_profile` quotes them with `passengers_prior_year`; nothing is derived from a rounded share or growth.
+- **Spoken lines say names, not codes.** In the voice line the server replaces airport codes by the airport's city ("Los Angeles's", not "LAX's") unless two airports in the line share a city, and the guard also accepts the airports' full names for the airports in the answer.
+- **Off-topic requests** (a poem, a joke, a recipe, with nothing about airports) are answered by a fixed friendly line without calling the model.
+- **Dataset facts** (airport count, share of national traffic, period, sources, refresh) are generated from the data's own metadata into the system prompt, so a coverage answer is not from memory.
+
 ### How a turn is processed
 
 The agent calls OpenAI (`gpt-4o-mini` by default) with tool calling enabled and loops:
@@ -69,14 +85,14 @@ Tools available to the model:
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `rank_airports` | `metric` (`expansion` \| `congestion` \| `unmet_demand`), `scope` (optional), `top_n` (default 5, at most 25; a non-number falls back to 5) | `ranking` table |
+| `rank_airports` | `metric` (`expansion` \| `congestion` \| `unmet_demand`), `scope` (optional), `order` (`desc` default | `asc` for least / lowest), `top_n` (default 5, at most 25; a non-number falls back to 5) | `ranking` table; the result carries `order` and `ranked_first_means`, and an `asc` caption ends `lowest first` |
 | `compare_airports` | `iatas` (array), or `scope` / `user_words`: when the words name specific airports ("LAX and SNA", "JFK vs EWR", "Los Angeles and Santa Ana") exactly those are compared; when they name an area the busiest 8 airports in it are compared. `metric` (default `congestion`) | `comparison` table, highest score first (insufficient data last); the caption says how the airports were read, e.g. `Comparing 2 airports: LAX, SNA` or `Comparing 3 airports in San Francisco Bay Area (metro area)`. A city name is matched against the airport's city (and its components, so `Dallas` is found in `Dallas-Fort Worth`); one that matches several airports (`New York`, `Dallas`) returns `ambiguous` with the airport options instead of choosing, `Portland, OR` reads `OR` as Oregon, and when a city name picked the airports the note lists airports of the same metro area that were not compared (`Washington` is DCA; IAD is not included). |
 | `long_haul_breakdown` | `iata` | `breakdown` table |
 | `unmet_demand` | `iata` | `metric` table of score drivers |
 | `airport_profile` | `iata` | Full metrics and all three scores (no table) |
-| `route_search` | `origin`, `year` (2024 \| 2025), `sort_by` (`passengers` \| `seats` \| `departures`), `top_n` (default 10, max 25), optional `destination` / `destination_words` | `metric` table: top routes with carriers, passengers, seats, departures, distance and change from 2024 |
+| `route_search` | `origin`, `year` (2024 \| 2025), `sort_by` (`passengers` \| `seats` \| `departures`), `top_n` (default 10, max 25), optional `destination` / `destination_words`, optional `carrier` | `metric` table: top routes with carriers, passengers, seats, departures, distance and change from 2024 |
 | `carrier_share` | `origin`, `year`, `top_n` (default 8, max 15), optional `destination` / `destination_words` | `metric` table: seat and departure share by carrier, with an `Other` row |
-| `capacity_trend` | `origin`, optional `destination` / `destination_words`, `group_by` (`destination` \| `carrier`), `top_n` (default 5, max 10) | `metric` table: 2024 vs 2025 seats and passengers, with the biggest increases and cuts |
+| `capacity_trend` | `origin`, optional `destination` / `destination_words`, optional `carrier`, `group_by` (`destination` \| `carrier`), `top_n` (default 5, max 10) | `metric` table: 2024 vs 2025 seats and passengers, with the biggest increases and cuts |
 | `airport_search` | `scope` + `user_words`, `top_n` (default 10, max 25) | `metric` table: dataset airports for a place, with state, metro area and 2025 passengers |
 | `live_flights` | `iata` | `metric` table of live aircraft counts (adsb.lol, ~30 nm radius) |
 | `faa_airport_status` | `iata` | `metric` table: active FAA ground stop, ground delay program, delay or closure (FAA NAS Status feed) |
@@ -156,6 +172,7 @@ Resolution order is deterministic:
 | a U.S. state or territory (name, postal code, or `<name> state`) | `state` | airport's state code |
 | a Census division (New England, Pacific, Mountain, ...) | `census_division` | U.S. Census Bureau definition, by state code |
 | a Census region (Northeast, Midwest, South, West) | `census_region` | U.S. Census Bureau definition, by state code |
+| an informal region (`West Coast`, `East Coast`, `Gulf Coast`, `Pacific Northwest`, `Southwest`, `Southeast`, `Mid-Atlantic`, `Great Lakes`, `Rocky Mountain states`, `Sun Belt`, `Deep South`; also `Pacific Coast`, `Atlantic Coast`) | `informal_region` | an explicit state list kept in `data/geography.json` (`state_set_aliases`), with a one-line definition that is returned in `scope_notes` and shown in the caption, e.g. `Scope: West Coast · informal region (CA, OR, WA) · 15 airports matched · ...` |
 | a bare city name | `radius` | same as `near <city>` |
 
 Natural filler is tolerated ("Northeast US", "Texas area", "Northeast including New York"): the leading phrase is used, the resolution is marked `reinterpreted`, the notes say what was ignored, and the caption shows `read from "..."`.
@@ -181,11 +198,13 @@ tool result:
   shared by several places resolves to the largest when it has at least ten times the
   population of the next (`Dallas` is Texas), and a city shares a state's name only from
   100,000 people up (`Wyoming` is the state, not Wyoming, Michigan).
-- `unknown`: not recognized. `suggestions[]` lists the closest supported spellings.
+- `unknown`: the words match nothing. `suggestions[]` lists the closest supported names (by shared words and spelling), and the result carries `suggested_reply`, a plain sentence for the user ("I don't have 'Gulf' as a ready-made area. Did you mean Gulf Coast?"), so the reply never says the words were not recognized.
+
+Informal regions have no official boundary, so each is a stated list of states. Names whose definition is contested (`Southwest`, `Southeast`, `Mid-Atlantic`, `Rocky Mountain states`, `Sun Belt`, `Deep South`) still resolve, and their notes say which states were used and that definitions vary; for example `Mid-Atlantic` includes NY, NJ, PA, DE, MD and DC, while the Census `Middle Atlantic` division is only NY, NJ and PA. A name that means different places (`Portland`, `New York`) is `ambiguous` and asks.
 
 For every non-`matched` status the tool returns an error, no table, and a `coverage`
 object (`airport_count`, `states`, `census_divisions`, `metro_aliases`,
-`supported_scopes`) so the reply can state what the dataset covers.
+`informal_regions`, `supported_scopes`) so the reply can state what the dataset covers.
 
 The ranking caption is code-owned and shows how the scope was resolved, for example
 `Scope: New England · Census division · 6 airports matched · top 3 by expansion score`.
@@ -435,7 +454,7 @@ The live-flights, FAA status, weather, BTS traffic and FAA infrastructure tools 
 - Voice history: each assistant answer's `shown` note is sent back as `history[].shown`, so
   "what about the second one?" still has a referent now that replies do not restate the rows.
 - "One moment": for a spoken question whose answer takes more than 1.5 seconds, the app says one
-  of four fixed phrases ("Sure, one moment.", and so on). They are fetched once per page from
+  of four fixed phrases ("Sure, one moment.", and so on). Once a phrase has started it is always finished, never cut off: the answer's clips are requested straight away and play right after it. They are fetched once per page from
   `/api/tts` on the first mic tap and cached in memory (about 100 characters, so roughly 20
   ElevenLabs Flash credits per page load), so playing one is instant and costs nothing per turn.
 - Silent clips are not sent to `/api/stt`: a recording with no detected speech is dropped
@@ -444,8 +463,23 @@ The live-flights, FAA status, weather, BTS traffic and FAA infrastructure tools 
 - Conversation mode (hands-free, client only, no API change): behind
   `NEXT_PUBLIC_CONVERSATION_MODE` (on everywhere unless set to `off` at build time, which hides
   the button). It repeats listen, send, answer, listen on its own. It is half-duplex (the
-  microphone is off while the assistant speaks; listening resumes after a 400 ms gap), interrupted
-  by a tap only, and has an End button whenever it is on. It pauses itself, with a chip message
+  microphone is not recorded while the assistant speaks, apart from the barge-in watch below; listening resumes after a 400 ms gap), and has an
+  End button whenever it is on. **Voice barge-in** is on by default while a conversation runs: the
+  microphone (opened with echo cancellation, noise suppression and auto gain requested) is also
+  watched while the assistant is audible, including the "one moment" phrase. If the user speaks
+  over it, playback stops, any answer still on its way is dropped, and the new question is
+  recorded from its first word (two short rolling recordings run during playback, and the older
+  one is adopted, so nothing is lost). To avoid mistaking the assistant's own voice for the user,
+  the detector measures the echo that is left at the start of each clip, ignores the first 600 ms,
+  and needs speech at least 2.5 times that echo (and at least 0.05 RMS, and voice-like), kept up for
+  400 ms: a cough, a click or a burst of echo cannot trigger it. This depends on the browser's echo
+  cancellation, which is good on many Chrome Android devices but not guaranteed on all; it can
+  fail on a loud speaker. If two barge-ins in a row, or three in a session, turn out to be
+  nothing (an empty or filler transcript), it switches itself off for the session and shows one
+  short tip about headphones; a tap on the speaking indicator still interrupts, and headphones are
+  recommended in noisy or loud setups. There is no on/off control; `?bargein=off` in the address
+  (or `localStorage.bargein = "off"`) disables it for debugging. When it is off the behaviour is
+  half-duplex as before (the microphone is silent while the assistant speaks). It pauses itself, with a chip message
   and the answer still on screen, after 8 s of silence, 3 empty turns in a row, 10 turns without
   a tap, the page being hidden or the screen locking, audio that cannot resume without a tap
   (iOS), a stopped microphone, or any failed step. It asks for a screen wake lock while active

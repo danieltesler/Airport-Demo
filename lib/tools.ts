@@ -41,6 +41,9 @@ import {
   LIVE_SOURCE_NAMES,
   liveCaption,
 } from "./i18n";
+import { asksForCalendarYear } from "./calendarYear";
+import { collapseSpelledLetters } from "./spelledCodes";
+import { requestedCount, requestedOrder } from "./requestedCount";
 import { clean as cleanComparisonWords, namedAirports } from "./namedAirports";
 import { roundTo } from "./rounding";
 import { percentText, percentValue } from "./percent";
@@ -101,6 +104,36 @@ function scoreAirports(airports: Airport[], metric: MetricKey): { scored: Scored
 // Tool implementations
 // --------------------------------------------------------------------------- //
 
+/** Enplaned international passengers: the exact stored count, else passengers times the (rounded) share. */
+function internationalPassengers(a: Airport): number | null {
+  if (typeof a.international_passengers === "number") return a.international_passengers; // exact count from the data
+  return a.international_passenger_share === null ? null : Math.round(a.annual_passengers * a.international_passenger_share);
+}
+
+const growthDirection = (growth: number | null): string | null =>
+  growth === null ? null : growth > 0 ? "up" : growth < 0 ? "down" : "flat";
+
+const fmtInt = (n: number): string => n.toLocaleString("en-US");
+
+/** One plain sentence with the headline figures and their period, to be quoted exactly. */
+function profileSummary(a: Airport): string {
+  const year = data.dataYear();
+  const parts = [`${fmtInt(a.annual_passengers)} enplaned passengers`];
+  const international = internationalPassengers(a);
+  if (international !== null) parts.push(`${fmtInt(international)} of them international (${percentValue(a.international_passenger_share)}%)`);
+  const growth = percentValue(a.pax_growth_yoy);
+  if (growth !== null) {
+    const prior = typeof a.previous_year_passengers === "number" ? ` (${fmtInt(a.previous_year_passengers)} in ${year - 1})` : "";
+    parts.push(`passengers ${growthDirection(a.pax_growth_yoy)} ${Math.abs(growth)}% from ${year - 1}${prior}`);
+  }
+  if (a.avg_dep_delay_min !== null) parts.push(`average departure delay ${a.avg_dep_delay_min} minutes`);
+  const late = percentValue(a.delayed_share);
+  if (late !== null) parts.push(`${late}% of departures 15 minutes or more late`);
+  const cancelled = percentValue(a.cancel_rate);
+  if (cancelled !== null) parts.push(`cancellation rate ${cancelled}%`);
+  return `${a.iata}, calendar year ${year}: ${parts.join("; ")}.`;
+}
+
 export function airportProfile(iata: string): ToolOutput {
   const a = data.getAirport(iata);
   if (!a) return unknownAirport(iata);
@@ -112,16 +145,25 @@ export function airportProfile(iata: string): ToolOutput {
       state: a.state,
       metro_area: a.metro ?? null,
       data_year: data.dataYear(),
-      note: "A null metric was suppressed in the source data (too few flights); say so, never guess it.",
+      period: `calendar year ${data.dataYear()} (BTS T-100 and On-Time data); growth compares ${data.dataYear()} with ${data.dataYear() - 1}. Not a live or trailing-12-month figure.`,
+      note: "A null metric was suppressed in the source data (too few flights); say so, never guess it. Quote these figures exactly; never answer an airport figure from memory.",
+      facts_summary: profileSummary(a),
       metrics: {
         annual_passengers: a.annual_passengers,
+        passengers_prior_year: a.previous_year_passengers ?? null,
+        international_passengers: internationalPassengers(a),
         international_passenger_share: a.international_passenger_share,
+        international_passenger_share_pct: percentValue(a.international_passenger_share),
         pax_growth_yoy: a.pax_growth_yoy,
+        pax_growth_pct: percentValue(a.pax_growth_yoy),
+        pax_growth_direction: growthDirection(a.pax_growth_yoy),
         load_factor: a.load_factor,
         load_factor_pct: percentValue(a.load_factor),
         avg_dep_delay_min: a.avg_dep_delay_min,
         delayed_share: a.delayed_share,
+        delayed_share_pct: percentValue(a.delayed_share),
         cancel_rate: a.cancel_rate,
+        cancel_rate_pct: percentValue(a.cancel_rate),
         annual_departures: a.annual_departures,
         runways: a.runways,
       },
@@ -148,6 +190,22 @@ function countFacts(requested: number, returned: number, matched: number): Recor
   return facts;
 }
 
+/** What rank 1 means for each metric and direction, so a ranking cannot be described backwards. */
+const RANK_FIRST_MEANS: Record<MetricKey, Record<"asc" | "desc", string>> = {
+  congestion: {
+    desc: "Rank 1 is the MOST congested airport (highest congestion score).",
+    asc: "Rank 1 is the LEAST congested airport (lowest congestion score); the list runs from least to more congested.",
+  },
+  unmet_demand: {
+    desc: "Rank 1 has the HIGHEST estimated unmet demand.",
+    asc: "Rank 1 has the LOWEST estimated unmet demand; the list runs from lowest upward.",
+  },
+  expansion: {
+    desc: "Rank 1 has the STRONGEST demand-side case for expansion.",
+    asc: "Rank 1 has the WEAKEST demand-side case for expansion; the list runs from weakest upward.",
+  },
+};
+
 /** Most airports one ranking returns. */
 const MAX_RANKED = 25;
 
@@ -162,11 +220,15 @@ export function rankAirports(
   metric: MetricKey = "expansion",
   topN = 5,
   userWords?: string,
+  options: { userMessage?: string; order?: "asc" | "desc" } = {},
 ): ToolOutput {
   if (!(metric in METRIC_SCORERS)) {
     return { result: { error: `Unknown metric '${metric}'.`, valid_metrics: Object.keys(METRIC_SCORERS) } };
   }
-  topN = rankLimit(topN);
+  // The user's own words win over the model's arguments for "top 3" and for "least congested".
+  const askedCount = requestedCount(options.userMessage);
+  const order = requestedOrder(options.userMessage) ?? (options.order === "asc" ? "asc" : "desc");
+  topN = askedCount !== null ? Math.min(askedCount, MAX_RANKED) : rankLimit(topN);
   const resolution = resolveToolScope(scope, userWords);
   if (resolution.status !== "matched") return scopeProblem(resolution);
   const airports = resolution.airports;
@@ -181,7 +243,9 @@ export function rankAirports(
       },
     };
   }
-  const ranked = scored.sort((x, y) => y.res.score - x.res.score).slice(0, Math.max(1, topN));
+  const ranked = scored
+    .sort((x, y) => (order === "asc" ? x.res.score - y.res.score : y.res.score - x.res.score))
+    .slice(0, Math.max(1, topN));
 
   const columns = ["Rank", "Airport", SCORE_COLUMN[metric], "Growth YoY", "Load factor", "Avg delay (min)"];
   const rows = ranked.map(({ a, res }, i) => [
@@ -197,6 +261,8 @@ export function rankAirports(
   return {
     result: {
       metric,
+      order,
+      ranked_first_means: RANK_FIRST_MEANS[metric][order],
       scope,
       scope_resolved_as: resolution.resolvedAs,
       scope_label: resolution.label,
@@ -231,10 +297,12 @@ export function rankAirports(
         label: resolution.label,
         resolvedAs: resolution.resolvedAs!,
         readFrom: resolution.reinterpreted ? resolution.input : undefined,
+        detail: resolution.detail,
         matched: airports.length,
         unscored: unscored.length,
         shown: ranked.length,
         scoreLabel: SCORE_COLUMN[metric],
+        order,
       }),
       explain: explainScores(ranked.map(({ a }) => a), metric, airportLabel),
     },
@@ -273,7 +341,7 @@ function iatasFromScope(scope: string, userWords: string | undefined): { choice?
   const note = capped
     ? `${busiest.length} airports matched ${resolution.label}; the ${chosen.length} busiest by passengers are compared.`
     : `Compared all ${busiest.length} airports matched in ${resolution.label}.`;
-  const reading = ` in ${resolution.label}${kind ? ` (${kind})` : ""}${capped ? `, the busiest of ${busiest.length}` : ""}`;
+  const reading = ` in ${resolution.label}${kind ? ` (${kind}${resolution.detail ? `: ${resolution.detail}` : ""})` : ""}${capped ? `, the busiest of ${busiest.length}` : ""}`;
   return { choice: { iatas: chosen, note, reading } };
 }
 
@@ -309,6 +377,7 @@ export function compareAirports(
   metric: MetricKey = "congestion",
   scope?: string,
   userWords?: string,
+  options: { userMessage?: string } = {},
 ): ToolOutput {
   if (!(metric in METRIC_SCORERS)) {
     return { result: { error: `Unknown metric '${metric}'.`, valid_metrics: Object.keys(METRIC_SCORERS) } };
@@ -316,10 +385,32 @@ export function compareAirports(
   // Bound what the model can make us scan: place text to 200 characters, airport codes to 20.
   scope = capPlaceText(scope);
   userWords = capPlaceText(userWords);
-  iatas = Array.isArray(iatas) ? iatas.slice(0, 20) : [];
+  iatas = (Array.isArray(iatas) ? iatas.slice(0, 20) : []).map((code) => (typeof code === "string" ? collapseSpelledLetters(code) : code));
   let scopeNote: string | undefined;
   let reading = "";
-  if (iatas.length === 0 && (scope?.trim() || userWords?.trim())) {
+
+  // The user's own words are the authority on WHICH airports: when they name specific airports
+  // ("Portland Oregon and Seattle", "LAX and Santa Ana") those are compared even if the model passed
+  // different codes or an improvised scope, and a city with several airports ("Dallas") is asked
+  // about even if the model already picked one. The model's arguments cannot override this.
+  // The user's actual message is read first: a model that rewrote the place ("Dallas-Fort Worth and Austin")
+  // cannot hide that the user said "Dallas". A follow-up that picked one ("DFW please") arrives as a
+  // rewritten message that names it.
+  const fromMessage = namedAirports(options.userMessage);
+  const userNamed = fromMessage?.kind === "airports" || fromMessage?.kind === "ambiguous" ? fromMessage : namedAirports(userWords);
+  if (userNamed?.kind === "ambiguous") return ambiguousAirportName(userNamed.part, userNamed.candidates);
+  if (userNamed?.kind === "airports") {
+    const namedCodes = userNamed.airports.map((a) => a.iata);
+    const passed = iatas.map((code) => String(code).toUpperCase());
+    const disagrees = passed.length > 0 && (passed.length !== namedCodes.length || passed.some((code) => !namedCodes.includes(code)));
+    const passedText = passed.length > 0 ? passed.join(", ") : scope?.trim() ? `the scope '${scope.trim()}'` : "";
+    iatas = namedCodes;
+    scope = undefined;
+    scopeNote =
+      `Compared exactly the airports named: ${namedCodes.join(", ")}.${sameMetroNote(userNamed.viaCity, userNamed.airports)}` +
+      (disagrees || (passed.length === 0 && passedText) ? ` The user's words were used instead of ${passedText}.` : "");
+  }
+  if (scopeNote === undefined && iatas.length === 0 && (scope?.trim() || userWords?.trim())) {
     // Specific airports named in the words ("LAX and SNA") are compared exactly; only an area is expanded.
     const named = namedAirports(userWords) ?? namedAirports(scope);
     if (named?.kind === "ambiguous") return ambiguousAirportName(named.part, named.candidates);
@@ -530,12 +621,14 @@ const DISPATCH: Record<string, ToolFn> = {
       (a.metric as MetricKey) ?? "expansion",
       (a.top_n as number) ?? 5,
       a.user_words as string | undefined,
+      { userMessage: a.user_message as string | undefined, order: a.order as "asc" | "desc" | undefined },
     ),
   compare_airports: (a) => compareAirports(
       (a.iatas as string[]) ?? [],
       (a.metric as MetricKey) ?? "congestion",
       a.scope as string | undefined,
       a.user_words as string | undefined,
+      { userMessage: a.user_message as string | undefined },
     ),
   long_haul_breakdown: (a) => longHaulBreakdown(a.iata as string),
   unmet_demand: (a) => unmetDemand(a.iata as string),
@@ -544,6 +637,21 @@ const DISPATCH: Record<string, ToolFn> = {
 
 /** Execute a tool by name with the LLM-supplied arguments. */
 export async function runTool(name: string, input: Record<string, unknown>): Promise<ToolOutput> {
+  // A calendar-year question ("Atlanta in 2025 vs 2024", "last year") is answered from the dataset's calendar-year
+  // figures. The live BTS summary covers a trailing 12 months, and a model that used it labelled it as a year.
+  if (name === "bts_airport_traffic" && asksForCalendarYear(input?.user_message as string | undefined)) {
+    const profile = airportProfile(String(input.iata ?? ""));
+    if (profile.result.error) return profile;
+    return {
+      ...profile,
+      result: {
+        ...profile.result,
+        substituted_for: "bts_airport_traffic",
+        substitution_note:
+          "The question is about a calendar year (2025, 2024 or last year), so these are the dataset's calendar-year figures. The live BTS summary is a trailing 12 months and does not line up with a calendar year.",
+      },
+    };
+  }
   // Live public-API tools (lib/live) validate their own input and never throw.
   if (isLiveTool(name)) return withLiveSource(name, await runLiveTool(name, input ?? {}));
   const fn = Object.hasOwn(DISPATCH, name) ? DISPATCH[name] : undefined;
@@ -589,7 +697,12 @@ export const TOOL_SCHEMAS: ToolSchema[] = [
         scope: { type: "string", description: SCOPE_DESCRIPTION },
         user_words: { type: "string", description: USER_WORDS_DESCRIPTION },
         metric: { type: "string", enum: ["expansion", "congestion", "unmet_demand"] },
-        top_n: { type: "integer", description: "How many to return (default 5, at most 25)." },
+        order: {
+          type: "string",
+          enum: ["desc", "asc"],
+          description: "desc (default): highest score first. asc: lowest first, for 'least congested', 'lowest', 'fewest'.",
+        },
+        top_n: { type: "integer", description: "How many to return (default 5, at most 25). Use the number the user asked for." },
       },
       required: ["metric"],
     },

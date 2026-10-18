@@ -2,12 +2,12 @@
  "meta": {
   "vintage": "Calendar year 2025: BTS T-100 Segment (all carriers) and BTS On-Time Reporting Carrier data; OurAirports reference; U.S. Census geography. Retrieved 2026-10-18.",
   "year": 2025,
-  "generated_at": "2026-10-18T14:50:15.095Z",
+  "generated_at": "2026-10-18T18:40:34.724Z",
   "staging_sha256": {
-   "airports.next.json": "6067e021bf3535111f566ced7ebe0a9fd8bc988281979350bd0a401c793ffcd4",
-   "routes.next.json": "49b260d2c0569564313fa54bb5e913f2b90ae3f75204d8ef8abd69aafe28a429",
-   "places.next.json": "c8700840e4e23db9602ea606932dab93ce7ddb4f1ddaee6184ba58a4e2ffd7fa",
-   "provenance.next.json": "eae3142ebef0242be569c7e39dfebe797416855efa0aa33871d7b21b33380fc9"
+   "airports.next.json": "5426a95b9ccc64e5a3ac609cf9924da6712e81cd40f8587fd0982cb4c2eab75d",
+   "routes.next.json": "c562795301d167f90640d4ba9eb7fa11f4bf208e2a89e72a5fdb3167a0bb3ce4",
+   "places.next.json": "0dbc6bd940303791a34152ef96ebb6ecb4e528cb6aa19eb42d4eddef4e1b71d1",
+   "provenance.next.json": "0105dec0c7a937098b2db677ab47643b97ef067154168b7eec1f34782c3acd8c"
   },
   "coverage": {
    "airports": 102,
@@ -148,7 +148,7 @@
    "census_geocoder": {
     "url": "https://geocoding.geo.census.gov/geocoder/geographies/coordinates",
     "bytes": 26268,
-    "retrieved_at": "2026-10-18T14:50:14.607Z",
+    "retrieved_at": "2026-10-18T18:40:34.132Z",
     "sha256": "8d0521cb707402d9c0c6487669ace2c6596d4af2baa2446410fb116e8f4278b4",
     "table": "Geographies by coordinates (benchmark Public_AR_Current, vintage Current_Current)",
     "period": "current Census boundaries at retrieval"
@@ -178,6 +178,21 @@
     "formula": "SUM(PASSENGERS) by ORIGIN, CY2025",
     "filter": "T-100 Segment (All Carriers), CLASS=F (scheduled passenger/cargo), AIRCRAFT_CONFIG<>2 (not freight config), ORIGIN_COUNTRY=US, DEPARTURES_PERFORMED>0",
     "note": "enplaned passengers, domestic + international, all carriers"
+   },
+   "international_passengers": {
+    "sources": [
+     "bts_t100_current"
+    ],
+    "formula": "SUM(PASSENGERS) on segments with DEST_COUNTRY<>US by ORIGIN, CY2025 (exact count; the share below is this over annual_passengers, rounded)",
+    "filter": "T-100 Segment (All Carriers), CLASS=F (scheduled passenger/cargo), AIRCRAFT_CONFIG<>2 (not freight config), ORIGIN_COUNTRY=US, DEPARTURES_PERFORMED>0"
+   },
+   "previous_year_passengers": {
+    "sources": [
+     "bts_t100_previous"
+    ],
+    "formula": "SUM(PASSENGERS) by ORIGIN, CY2024",
+    "filter": "T-100 Segment (All Carriers), CLASS=F (scheduled passenger/cargo), AIRCRAFT_CONFIG<>2 (not freight config), ORIGIN_COUNTRY=US, DEPARTURES_PERFORMED>0",
+    "note": "exact prior-year count behind pax_growth_yoy; null if no CY2024 base"
    },
    "international_passenger_share": {
     "sources": [
@@ -291,7 +306,9 @@
    "runways_legacy_count": 5,
    "annual_passengers": 51483324,
    "annual_departures": 385996,
+   "international_passengers": 7251136,
    "international_passenger_share": 0.1408,
+   "previous_year_passengers": 52592890,
    "pax_growth_yoy": -0.0211,
    "load_factor": 0.8271,
    "haul_mix": {
@@ -325,7 +342,9 @@
    "runways_legacy_count": 7,
    "annual_passengers": 41338411,
    "annual_departures": 353347,
+   "international_passengers": 6227678,
    "international_passenger_share": 0.1507,
+   "previous_year_passengers": 42433077,
    "pax_growth_yoy": -0.0258,
    "load_factor": 0.8246,
    "haul_mix": {
@@ -359,7 +378,9 @@
    "runways_legacy_count": 11,
    "annual_passengers": 40831171,
    "annual_departures": 403958,
+   "international_passengers": 7262379,
    "international_passenger_share": 0.1779,
+   "previous_year_passengers": 38713631,
    "pax_growth_yoy": 0.0547,
    "load_factor": 0.815,
    "haul_mix": {
@@ -393,7 +414,9 @@
    "runways_legacy_count": 6,
    "annual_passengers": 40087200,
    "annual_departures": 339035,
+   "international_passengers": 2391134,
    "international_passenger_share": 0.0596,
+   "previous_year_passengers": 40165386,
    "pax_growth_yoy": -0.0019,
    "load_factor": 0.8119,
    "haul_mix": {
@@ -427,7 +450,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 36718978,
    "annual_departures": 257468,
+   "international_passengers": 11828373,
    "international_passenger_share": 0.3221,
+   "previous_year_passengers": 38192617,
    "pax_growth_yoy": -0.0386,
    "load_factor": 0.817,
    "haul_mix": {
@@ -461,7 +486,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 31021616,
    "annual_departures": 212036,
+   "international_passengers": 17009706,
    "international_passenger_share": 0.5483,
+   "previous_year_passengers": 31464221,
    "pax_growth_yoy": -0.0141,
    "load_factor": 0.8192,
    "haul_mix": {
@@ -495,7 +522,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 28057622,
    "annual_departures": 191250,
+   "international_passengers": 4064659,
    "international_passenger_share": 0.1449,
+   "previous_year_passengers": 27927259,
    "pax_growth_yoy": 0.0047,
    "load_factor": 0.8145,
    "haul_mix": {
@@ -529,7 +558,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 26477602,
    "annual_departures": 187325,
+   "international_passengers": 7727235,
    "international_passenger_share": 0.2918,
+   "previous_year_passengers": 25288609,
    "pax_growth_yoy": 0.047,
    "load_factor": 0.8231,
    "haul_mix": {
@@ -563,7 +594,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 26474351,
    "annual_departures": 198705,
+   "international_passengers": 1678775,
    "international_passenger_share": 0.0634,
+   "previous_year_passengers": 28158816,
    "pax_growth_yoy": -0.0598,
    "load_factor": 0.7808,
    "haul_mix": {
@@ -597,7 +630,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 26263626,
    "annual_departures": 186094,
+   "international_passengers": 11570198,
    "international_passenger_share": 0.4405,
+   "previous_year_passengers": 26562974,
    "pax_growth_yoy": -0.0113,
    "load_factor": 0.8174,
    "haul_mix": {
@@ -631,7 +666,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 25891580,
    "annual_departures": 258788,
+   "international_passengers": 2273507,
    "international_passenger_share": 0.0878,
+   "previous_year_passengers": 28563070,
    "pax_growth_yoy": -0.0935,
    "load_factor": 0.798,
    "haul_mix": {
@@ -665,7 +702,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 25462053,
    "annual_departures": 206610,
+   "international_passengers": 3435346,
    "international_passenger_share": 0.1349,
+   "previous_year_passengers": 25503698,
    "pax_growth_yoy": -0.0016,
    "load_factor": 0.8219,
    "haul_mix": {
@@ -699,7 +738,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 25162611,
    "annual_departures": 213820,
+   "international_passengers": 1395203,
    "international_passenger_share": 0.0554,
+   "previous_year_passengers": 25717370,
    "pax_growth_yoy": -0.0216,
    "load_factor": 0.7887,
    "haul_mix": {
@@ -733,7 +774,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 23521435,
    "annual_departures": 179794,
+   "international_passengers": 7660175,
    "international_passenger_share": 0.3257,
+   "previous_year_passengers": 24541614,
    "pax_growth_yoy": -0.0416,
    "load_factor": 0.831,
    "haul_mix": {
@@ -767,7 +810,9 @@
    "runways_legacy_count": 5,
    "annual_passengers": 23328272,
    "annual_departures": 214001,
+   "international_passengers": 6131935,
    "international_passenger_share": 0.2629,
+   "previous_year_passengers": 23471216,
    "pax_growth_yoy": -0.0061,
    "load_factor": 0.7997,
    "haul_mix": {
@@ -801,7 +846,9 @@
    "runways_legacy_count": 6,
    "annual_passengers": 21128285,
    "annual_departures": 188313,
+   "international_passengers": 4634235,
    "international_passenger_share": 0.2193,
+   "previous_year_passengers": 21294487,
    "pax_growth_yoy": -0.0078,
    "load_factor": 0.8166,
    "haul_mix": {
@@ -835,7 +882,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 17468150,
    "annual_departures": 153638,
+   "international_passengers": 1766330,
    "international_passenger_share": 0.1011,
+   "previous_year_passengers": 18035271,
    "pax_growth_yoy": -0.0314,
    "load_factor": 0.8135,
    "haul_mix": {
@@ -869,7 +918,9 @@
    "runways_legacy_count": 6,
    "annual_passengers": 16304747,
    "annual_departures": 153418,
+   "international_passengers": 1756486,
    "international_passenger_share": 0.1077,
+   "previous_year_passengers": 16109567,
    "pax_growth_yoy": 0.0121,
    "load_factor": 0.7935,
    "haul_mix": {
@@ -903,7 +954,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 16278731,
    "annual_departures": 171881,
+   "international_passengers": 779615,
    "international_passenger_share": 0.0479,
+   "previous_year_passengers": 16715149,
    "pax_growth_yoy": -0.0261,
    "load_factor": 0.8108,
    "haul_mix": {
@@ -937,7 +990,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 15654567,
    "annual_departures": 113896,
+   "international_passengers": 2960723,
    "international_passenger_share": 0.1891,
+   "previous_year_passengers": 17080101,
    "pax_growth_yoy": -0.0835,
    "load_factor": 0.793,
    "haul_mix": {
@@ -971,7 +1026,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 14790913,
    "annual_departures": 136238,
+   "international_passengers": 2003454,
    "international_passenger_share": 0.1355,
+   "previous_year_passengers": 15119133,
    "pax_growth_yoy": -0.0217,
    "load_factor": 0.8109,
    "haul_mix": {
@@ -1005,7 +1062,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 13922056,
    "annual_departures": 127222,
+   "international_passengers": 5218642,
    "international_passenger_share": 0.3748,
+   "previous_year_passengers": 13183514,
    "pax_growth_yoy": 0.056,
    "load_factor": 0.803,
    "haul_mix": {
@@ -1039,7 +1098,9 @@
    "runways_legacy_count": 6,
    "annual_passengers": 13434832,
    "annual_departures": 122410,
+   "international_passengers": 700653,
    "international_passenger_share": 0.0522,
+   "previous_year_passengers": 13556150,
    "pax_growth_yoy": -0.0089,
    "load_factor": 0.8088,
    "haul_mix": {
@@ -1073,7 +1134,9 @@
    "runways_legacy_count": 1,
    "annual_passengers": 12726358,
    "annual_departures": 102639,
+   "international_passengers": 535183,
    "international_passenger_share": 0.0421,
+   "previous_year_passengers": 12859026,
    "pax_growth_yoy": -0.0103,
    "load_factor": 0.7984,
    "haul_mix": {
@@ -1107,7 +1170,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 12599065,
    "annual_departures": 111372,
+   "international_passengers": 314267,
    "international_passenger_share": 0.0249,
+   "previous_year_passengers": 12111413,
    "pax_growth_yoy": 0.0403,
    "load_factor": 0.7629,
    "haul_mix": {
@@ -1141,7 +1206,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 12289542,
    "annual_departures": 99666,
+   "international_passengers": 539161,
    "international_passenger_share": 0.0439,
+   "previous_year_passengers": 13275928,
    "pax_growth_yoy": -0.0743,
    "load_factor": 0.753,
    "haul_mix": {
@@ -1175,7 +1242,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 12142664,
    "annual_departures": 90728,
+   "international_passengers": 820472,
    "international_passenger_share": 0.0676,
+   "previous_year_passengers": 12104682,
    "pax_growth_yoy": 0.0031,
    "load_factor": 0.782,
    "haul_mix": {
@@ -1209,7 +1278,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 11995358,
    "annual_departures": 144879,
+   "international_passengers": 199887,
    "international_passenger_share": 0.0167,
+   "previous_year_passengers": 12744916,
    "pax_growth_yoy": -0.0588,
    "load_factor": 0.7558,
    "haul_mix": {
@@ -1243,7 +1314,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 10748597,
    "annual_departures": 91121,
+   "international_passengers": 521573,
    "international_passenger_share": 0.0485,
+   "previous_year_passengers": 10791828,
    "pax_growth_yoy": -0.004,
    "load_factor": 0.7656,
    "haul_mix": {
@@ -1277,7 +1350,9 @@
    "runways_legacy_count": 6,
    "annual_passengers": 10530507,
    "annual_departures": 81560,
+   "international_passengers": 1797495,
    "international_passenger_share": 0.1707,
+   "previous_year_passengers": 10507670,
    "pax_growth_yoy": 0.0022,
    "load_factor": 0.802,
    "haul_mix": {
@@ -1311,7 +1386,9 @@
    "runways_legacy_count": 5,
    "annual_passengers": 9416324,
    "annual_departures": 76619,
+   "international_passengers": 350441,
    "international_passenger_share": 0.0372,
+   "previous_year_passengers": 10468954,
    "pax_growth_yoy": -0.1005,
    "load_factor": 0.762,
    "haul_mix": {
@@ -1345,7 +1422,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 9064755,
    "annual_departures": 80488,
+   "international_passengers": 378700,
    "international_passenger_share": 0.0418,
+   "previous_year_passengers": 8644179,
    "pax_growth_yoy": 0.0487,
    "load_factor": 0.8237,
    "haul_mix": {
@@ -1379,7 +1458,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 8197974,
    "annual_departures": 70460,
+   "international_passengers": 126,
    "international_passenger_share": 0,
+   "previous_year_passengers": 8727462,
    "pax_growth_yoy": -0.0607,
    "load_factor": 0.7269,
    "haul_mix": {
@@ -1413,7 +1494,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 7724186,
    "annual_departures": 69924,
+   "international_passengers": 374622,
    "international_passenger_share": 0.0485,
+   "previous_year_passengers": 7609581,
    "pax_growth_yoy": 0.0151,
    "load_factor": 0.7751,
    "haul_mix": {
@@ -1447,7 +1530,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 7518325,
    "annual_departures": 71519,
+   "international_passengers": 230515,
    "international_passenger_share": 0.0307,
+   "previous_year_passengers": 7864578,
    "pax_growth_yoy": -0.044,
    "load_factor": 0.7408,
    "haul_mix": {
@@ -1481,7 +1566,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 6824550,
    "annual_departures": 61191,
+   "international_passengers": 256634,
    "international_passenger_share": 0.0376,
+   "previous_year_passengers": 6705481,
    "pax_growth_yoy": 0.0178,
    "load_factor": 0.7659,
    "haul_mix": {
@@ -1515,7 +1602,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 6806761,
    "annual_departures": 58389,
+   "international_passengers": 426034,
    "international_passenger_share": 0.0626,
+   "previous_year_passengers": 7153470,
    "pax_growth_yoy": -0.0485,
    "load_factor": 0.7412,
    "haul_mix": {
@@ -1549,7 +1638,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 6662792,
    "annual_departures": 60227,
+   "international_passengers": 816442,
    "international_passenger_share": 0.1225,
+   "previous_year_passengers": 6462679,
    "pax_growth_yoy": 0.031,
    "load_factor": 0.8372,
    "haul_mix": {
@@ -1583,7 +1674,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 6237687,
    "annual_departures": 53135,
+   "international_passengers": 120512,
    "international_passenger_share": 0.0193,
+   "previous_year_passengers": 6576646,
    "pax_growth_yoy": -0.0515,
    "load_factor": 0.7351,
    "haul_mix": {
@@ -1617,7 +1710,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 5651658,
    "annual_departures": 51233,
+   "international_passengers": 65919,
    "international_passenger_share": 0.0117,
+   "previous_year_passengers": 5976244,
    "pax_growth_yoy": -0.0543,
    "load_factor": 0.7693,
    "haul_mix": {
@@ -1651,7 +1746,9 @@
    "runways_legacy_count": 1,
    "annual_passengers": 5516140,
    "annual_departures": 40944,
+   "international_passengers": 162442,
    "international_passenger_share": 0.0294,
+   "previous_year_passengers": 5449203,
    "pax_growth_yoy": 0.0123,
    "load_factor": 0.7907,
    "haul_mix": {
@@ -1685,7 +1782,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 5472687,
    "annual_departures": 47930,
+   "international_passengers": 149002,
    "international_passenger_share": 0.0272,
+   "previous_year_passengers": 5339555,
    "pax_growth_yoy": 0.0249,
    "load_factor": 0.7985,
    "haul_mix": {
@@ -1719,7 +1818,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 5274645,
    "annual_departures": 45517,
+   "international_passengers": 369404,
    "international_passenger_share": 0.07,
+   "previous_year_passengers": 5540916,
    "pax_growth_yoy": -0.0481,
    "load_factor": 0.7456,
    "haul_mix": {
@@ -1753,7 +1854,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 5272671,
    "annual_departures": 49601,
+   "international_passengers": 283621,
    "international_passenger_share": 0.0538,
+   "previous_year_passengers": 5850919,
    "pax_growth_yoy": -0.0988,
    "load_factor": 0.7425,
    "haul_mix": {
@@ -1787,7 +1890,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 5221076,
    "annual_departures": 51802,
+   "international_passengers": 38025,
    "international_passenger_share": 0.0073,
+   "previous_year_passengers": 5202199,
    "pax_growth_yoy": 0.0036,
    "load_factor": 0.7725,
    "haul_mix": {
@@ -1821,7 +1926,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 4860822,
    "annual_departures": 45681,
+   "international_passengers": 116322,
    "international_passenger_share": 0.0239,
+   "previous_year_passengers": 4955206,
    "pax_growth_yoy": -0.019,
    "load_factor": 0.7591,
    "haul_mix": {
@@ -1855,7 +1962,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 4814258,
    "annual_departures": 50502,
+   "international_passengers": 97044,
    "international_passenger_share": 0.0202,
+   "previous_year_passengers": 4868051,
    "pax_growth_yoy": -0.0111,
    "load_factor": 0.7574,
    "haul_mix": {
@@ -1889,7 +1998,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 4501620,
    "annual_departures": 39275,
+   "international_passengers": 408350,
    "international_passenger_share": 0.0907,
+   "previous_year_passengers": 5290031,
    "pax_growth_yoy": -0.149,
    "load_factor": 0.7335,
    "haul_mix": {
@@ -1923,7 +2034,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 4397579,
    "annual_departures": 47673,
+   "international_passengers": 25982,
    "international_passenger_share": 0.0059,
+   "previous_year_passengers": 4391873,
    "pax_growth_yoy": 0.0013,
    "load_factor": 0.7536,
    "haul_mix": {
@@ -1957,7 +2070,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 4357040,
    "annual_departures": 44262,
+   "international_passengers": 129514,
    "international_passenger_share": 0.0297,
+   "previous_year_passengers": 4494103,
    "pax_growth_yoy": -0.0305,
    "load_factor": 0.7901,
    "haul_mix": {
@@ -1991,7 +2106,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 4256152,
    "annual_departures": 32100,
+   "international_passengers": 41886,
    "international_passenger_share": 0.0098,
+   "previous_year_passengers": 4135065,
    "pax_growth_yoy": 0.0293,
    "load_factor": 0.7931,
    "haul_mix": {
@@ -2025,7 +2142,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 3724570,
    "annual_departures": 32251,
+   "international_passengers": 8051,
    "international_passenger_share": 0.0022,
+   "previous_year_passengers": 3772932,
    "pax_growth_yoy": -0.0128,
    "load_factor": 0.7947,
    "haul_mix": {
@@ -2059,7 +2178,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 3495769,
    "annual_departures": 28421,
+   "international_passengers": 280162,
    "international_passenger_share": 0.0801,
+   "previous_year_passengers": 3527303,
    "pax_growth_yoy": -0.0089,
    "load_factor": 0.7482,
    "haul_mix": {
@@ -2093,7 +2214,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 3449978,
    "annual_departures": 31721,
+   "international_passengers": 104592,
    "international_passenger_share": 0.0303,
+   "previous_year_passengers": 3416133,
    "pax_growth_yoy": 0.0099,
    "load_factor": 0.7794,
    "haul_mix": {
@@ -2127,7 +2250,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 3283623,
    "annual_departures": 28143,
+   "international_passengers": 62404,
    "international_passenger_share": 0.019,
+   "previous_year_passengers": 3294371,
    "pax_growth_yoy": -0.0033,
    "load_factor": 0.8041,
    "haul_mix": {
@@ -2161,7 +2286,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 3168026,
    "annual_departures": 31289,
+   "international_passengers": 4103,
    "international_passenger_share": 0.0013,
+   "previous_year_passengers": 3143412,
    "pax_growth_yoy": 0.0078,
    "load_factor": 0.777,
    "haul_mix": {
@@ -2195,7 +2322,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 3101162,
    "annual_departures": 31749,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 3279228,
    "pax_growth_yoy": -0.0543,
    "load_factor": 0.7146,
    "haul_mix": {
@@ -2229,7 +2358,9 @@
    "runways_legacy_count": 5,
    "annual_passengers": 2890422,
    "annual_departures": 30913,
+   "international_passengers": 25589,
    "international_passenger_share": 0.0089,
+   "previous_year_passengers": 3088403,
    "pax_growth_yoy": -0.0641,
    "load_factor": 0.7675,
    "haul_mix": {
@@ -2263,7 +2394,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 2636007,
    "annual_departures": 36040,
+   "international_passengers": 34340,
    "international_passenger_share": 0.013,
+   "previous_year_passengers": 2660772,
    "pax_growth_yoy": -0.0093,
    "load_factor": 0.7384,
    "haul_mix": {
@@ -2297,7 +2430,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 2596844,
    "annual_departures": 28308,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 2724817,
    "pax_growth_yoy": -0.047,
    "load_factor": 0.7268,
    "haul_mix": {
@@ -2331,7 +2466,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 2583401,
    "annual_departures": 29231,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 2479900,
    "pax_growth_yoy": 0.0417,
    "load_factor": 0.7948,
    "haul_mix": {
@@ -2365,7 +2502,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 2579517,
    "annual_departures": 25699,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 2611229,
    "pax_growth_yoy": -0.0121,
    "load_factor": 0.7783,
    "haul_mix": {
@@ -2399,7 +2538,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 2527199,
    "annual_departures": 25651,
+   "international_passengers": 1290,
    "international_passenger_share": 0.0005,
+   "previous_year_passengers": 2497917,
    "pax_growth_yoy": 0.0117,
    "load_factor": 0.7993,
    "haul_mix": {
@@ -2433,7 +2574,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 2502070,
    "annual_departures": 26479,
+   "international_passengers": 191,
    "international_passenger_share": 0.0001,
+   "previous_year_passengers": 2468389,
    "pax_growth_yoy": 0.0136,
    "load_factor": 0.7811,
    "haul_mix": {
@@ -2467,7 +2610,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 2501667,
    "annual_departures": 27325,
+   "international_passengers": 452,
    "international_passenger_share": 0.0002,
+   "previous_year_passengers": 2476171,
    "pax_growth_yoy": 0.0103,
    "load_factor": 0.7953,
    "haul_mix": {
@@ -2501,7 +2646,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 2387836,
    "annual_departures": 22963,
+   "international_passengers": 36599,
    "international_passenger_share": 0.0153,
+   "previous_year_passengers": 2351539,
    "pax_growth_yoy": 0.0154,
    "load_factor": 0.7604,
    "haul_mix": {
@@ -2535,7 +2682,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 2380461,
    "annual_departures": 26490,
+   "international_passengers": 482,
    "international_passenger_share": 0.0002,
+   "previous_year_passengers": 2453285,
    "pax_growth_yoy": -0.0297,
    "load_factor": 0.7452,
    "haul_mix": {
@@ -2569,7 +2718,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 2285923,
    "annual_departures": 25774,
+   "international_passengers": 1017,
    "international_passenger_share": 0.0004,
+   "previous_year_passengers": 2302064,
    "pax_growth_yoy": -0.007,
    "load_factor": 0.7715,
    "haul_mix": {
@@ -2603,7 +2754,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 2254904,
    "annual_departures": 26694,
+   "international_passengers": 151,
    "international_passenger_share": 0.0001,
+   "previous_year_passengers": 2372496,
    "pax_growth_yoy": -0.0496,
    "load_factor": 0.7571,
    "haul_mix": {
@@ -2637,7 +2790,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 2249411,
    "annual_departures": 18385,
+   "international_passengers": 10190,
    "international_passenger_share": 0.0045,
+   "previous_year_passengers": 2118596,
    "pax_growth_yoy": 0.0617,
    "load_factor": 0.7724,
    "haul_mix": {
@@ -2671,7 +2826,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 2139676,
    "annual_departures": 21059,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 2075096,
    "pax_growth_yoy": 0.0311,
    "load_factor": 0.8158,
    "haul_mix": {
@@ -2705,7 +2862,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 2113478,
    "annual_departures": 20723,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 1983074,
    "pax_growth_yoy": 0.0658,
    "load_factor": 0.7812,
    "haul_mix": {
@@ -2739,7 +2898,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 2109994,
    "annual_departures": 21961,
+   "international_passengers": 419,
    "international_passenger_share": 0.0002,
+   "previous_year_passengers": 2065111,
    "pax_growth_yoy": 0.0217,
    "load_factor": 0.7987,
    "haul_mix": {
@@ -2773,7 +2934,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 2074328,
    "annual_departures": 22940,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 2030522,
    "pax_growth_yoy": 0.0216,
    "load_factor": 0.7721,
    "haul_mix": {
@@ -2807,7 +2970,9 @@
    "runways_legacy_count": 1,
    "annual_passengers": 2026776,
    "annual_departures": 16209,
+   "international_passengers": 30492,
    "international_passenger_share": 0.015,
+   "previous_year_passengers": 2017919,
    "pax_growth_yoy": 0.0044,
    "load_factor": 0.7855,
    "haul_mix": {
@@ -2841,7 +3006,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 1902756,
    "annual_departures": 20878,
+   "international_passengers": 376,
    "international_passenger_share": 0.0002,
+   "previous_year_passengers": 1957416,
    "pax_growth_yoy": -0.0279,
    "load_factor": 0.7633,
    "haul_mix": {
@@ -2875,7 +3042,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 1897928,
    "annual_departures": 19205,
+   "international_passengers": 186,
    "international_passenger_share": 0.0001,
+   "previous_year_passengers": 2056777,
    "pax_growth_yoy": -0.0772,
    "load_factor": 0.7419,
    "haul_mix": {
@@ -2909,7 +3078,9 @@
    "runways_legacy_count": 5,
    "annual_passengers": 1884673,
    "annual_departures": 16712,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 2057022,
    "pax_growth_yoy": -0.0838,
    "load_factor": 0.7152,
    "haul_mix": {
@@ -2943,7 +3114,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 1822898,
    "annual_departures": 15604,
+   "international_passengers": 8926,
    "international_passenger_share": 0.0049,
+   "previous_year_passengers": 1777576,
    "pax_growth_yoy": 0.0255,
    "load_factor": 0.7639,
    "haul_mix": {
@@ -2977,7 +3150,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 1785912,
    "annual_departures": 22118,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 1636896,
    "pax_growth_yoy": 0.091,
    "load_factor": 0.8288,
    "haul_mix": {
@@ -3011,7 +3186,9 @@
    "runways_legacy_count": 1,
    "annual_passengers": 1750402,
    "annual_departures": 16804,
+   "international_passengers": 157,
    "international_passenger_share": 0.0001,
+   "previous_year_passengers": 1900521,
    "pax_growth_yoy": -0.079,
    "load_factor": 0.7511,
    "haul_mix": {
@@ -3045,7 +3222,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 1659757,
    "annual_departures": 17187,
+   "international_passengers": 180054,
    "international_passenger_share": 0.1085,
+   "previous_year_passengers": 1627306,
    "pax_growth_yoy": 0.0199,
    "load_factor": 0.7451,
    "haul_mix": {
@@ -3079,7 +3258,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 1640125,
    "annual_departures": 20637,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 1624989,
    "pax_growth_yoy": 0.0093,
    "load_factor": 0.7444,
    "haul_mix": {
@@ -3113,7 +3294,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 1628134,
    "annual_departures": 19956,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 1662529,
    "pax_growth_yoy": -0.0207,
    "load_factor": 0.7167,
    "haul_mix": {
@@ -3147,7 +3330,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 1604483,
    "annual_departures": 17935,
+   "international_passengers": 98,
    "international_passenger_share": 0.0001,
+   "previous_year_passengers": 1563887,
    "pax_growth_yoy": 0.026,
    "load_factor": 0.7951,
    "haul_mix": {
@@ -3181,7 +3366,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 1583086,
    "annual_departures": 17009,
+   "international_passengers": 47,
    "international_passenger_share": 0,
+   "previous_year_passengers": 1501490,
    "pax_growth_yoy": 0.0543,
    "load_factor": 0.8095,
    "haul_mix": {
@@ -3215,7 +3402,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 1546530,
    "annual_departures": 10479,
+   "international_passengers": 2475,
    "international_passenger_share": 0.0016,
+   "previous_year_passengers": 1408801,
    "pax_growth_yoy": 0.0978,
    "load_factor": 0.8228,
    "haul_mix": {
@@ -3249,7 +3438,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 1530286,
    "annual_departures": 15755,
+   "international_passengers": 122,
    "international_passenger_share": 0.0001,
+   "previous_year_passengers": 1537426,
    "pax_growth_yoy": -0.0046,
    "load_factor": 0.7865,
    "haul_mix": {
@@ -3283,7 +3474,9 @@
    "runways_legacy_count": 1,
    "annual_passengers": 1514161,
    "annual_departures": 19742,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 1423270,
    "pax_growth_yoy": 0.0639,
    "load_factor": 0.8071,
    "haul_mix": {
@@ -3317,7 +3510,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 1421958,
    "annual_departures": 16480,
+   "international_passengers": 161,
    "international_passenger_share": 0.0001,
+   "previous_year_passengers": 1489999,
    "pax_growth_yoy": -0.0457,
    "load_factor": 0.8195,
    "haul_mix": {
@@ -3351,7 +3546,9 @@
    "runways_legacy_count": 4,
    "annual_passengers": 1405594,
    "annual_departures": 12436,
+   "international_passengers": 162,
    "international_passenger_share": 0.0001,
+   "previous_year_passengers": 1320687,
    "pax_growth_yoy": 0.0643,
    "load_factor": 0.8069,
    "haul_mix": {
@@ -3385,7 +3582,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 1395731,
    "annual_departures": 15174,
+   "international_passengers": 230820,
    "international_passenger_share": 0.1654,
+   "previous_year_passengers": 1317506,
    "pax_growth_yoy": 0.0594,
    "load_factor": 0.7949,
    "haul_mix": {
@@ -3419,7 +3618,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 1388556,
    "annual_departures": 16826,
+   "international_passengers": 150,
    "international_passenger_share": 0.0001,
+   "previous_year_passengers": 1335324,
    "pax_growth_yoy": 0.0399,
    "load_factor": 0.8163,
    "haul_mix": {
@@ -3453,7 +3654,9 @@
    "runways_legacy_count": 5,
    "annual_passengers": 1384269,
    "annual_departures": 9414,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 1211781,
    "pax_growth_yoy": 0.1423,
    "load_factor": 0.8225,
    "haul_mix": {
@@ -3487,7 +3690,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 1285656,
    "annual_departures": 13962,
+   "international_passengers": 73,
    "international_passenger_share": 0.0001,
+   "previous_year_passengers": 1221636,
    "pax_growth_yoy": 0.0524,
    "load_factor": 0.8244,
    "haul_mix": {
@@ -3521,7 +3726,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 1268012,
    "annual_departures": 14533,
+   "international_passengers": 791,
    "international_passenger_share": 0.0006,
+   "previous_year_passengers": 1272813,
    "pax_growth_yoy": -0.0038,
    "load_factor": 0.7624,
    "haul_mix": {
@@ -3555,7 +3762,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 1232736,
    "annual_departures": 18189,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 1120702,
    "pax_growth_yoy": 0.1,
    "load_factor": 0.8013,
    "haul_mix": {
@@ -3589,7 +3798,9 @@
    "runways_legacy_count": 3,
    "annual_passengers": 1224366,
    "annual_departures": 14965,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 1153208,
    "pax_growth_yoy": 0.0617,
    "load_factor": 0.8435,
    "haul_mix": {
@@ -3623,7 +3834,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 1222881,
    "annual_departures": 10754,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 1165928,
    "pax_growth_yoy": 0.0488,
    "load_factor": 0.7755,
    "haul_mix": {
@@ -3657,7 +3870,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 1160180,
    "annual_departures": 15594,
+   "international_passengers": 1696,
    "international_passenger_share": 0.0015,
+   "previous_year_passengers": 1154768,
    "pax_growth_yoy": 0.0047,
    "load_factor": 0.752,
    "haul_mix": {
@@ -3691,7 +3906,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 708570,
    "annual_departures": 9615,
+   "international_passengers": 339,
    "international_passenger_share": 0.0005,
+   "previous_year_passengers": 670297,
    "pax_growth_yoy": 0.0571,
    "load_factor": 0.8134,
    "haul_mix": {
@@ -3725,7 +3942,9 @@
    "runways_legacy_count": 2,
    "annual_passengers": 685294,
    "annual_departures": 8454,
+   "international_passengers": 0,
    "international_passenger_share": 0,
+   "previous_year_passengers": 633010,
    "pax_growth_yoy": 0.0826,
    "load_factor": 0.7601,
    "haul_mix": {

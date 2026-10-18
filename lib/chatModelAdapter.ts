@@ -4,6 +4,7 @@ import { CHAT_CANCELLED, sendChat } from "./api";
 import { buildSpokenText, speakableModelLine } from "./spoken";
 import { getSpeechPlayer } from "./voicePlayback";
 import { bumpVoiceEpoch, currentVoiceEpoch } from "./voiceSession";
+import { traceVoice, voiceTrace } from "./voiceTrace";
 import { consumeVoiceTurn } from "./voiceTurn";
 import type { AssistantExtras, ChatResponse, ChatRole, ChatTurn } from "./types";
 
@@ -28,12 +29,16 @@ export const airportChatAdapter: ChatModelAdapter = {
     // A new question makes every earlier pending answer stale. If End, a pause or a tap bumps this
     // again before the answer arrives, nothing is spoken: the answer just appears on screen.
     const epoch = bumpVoiceEpoch();
+    voiceTrace().startTurn();
+    traceVoice("turn start", askedByVoice ? "spoken question" : "typed question");
     const stillWanted = (): boolean => epoch === currentVoiceEpoch() && !abortSignal.aborted;
     const player = getSpeechPlayer();
     const acknowledgement =
       askedByVoice && player.autoSpeakAllowed
         ? scheduleAcknowledgement((phrase) => {
-            if (stillWanted()) player.speak(phrase);
+            if (!stillWanted()) return;
+            traceVoice("ack start");
+            player.speak(phrase, { kind: "ack" });
           })
         : null;
 
@@ -43,11 +48,15 @@ export const airportChatAdapter: ChatModelAdapter = {
     // The user pressed Stop: end quietly. A short neutral line (not an error bubble, no Try again) is
     // the simplest thing that renders cleanly, and the runtime marks the message as cancelled itself.
     if (response.error === CHAT_CANCELLED) {
-      if (acknowledged && epoch === currentVoiceEpoch()) player.cancel();
+      if (acknowledged && epoch === currentVoiceEpoch()) player.cancel("stopped by the user");
       return { content: [{ type: "text", text: STOPPED_TEXT }], metadata: { custom: { spoken: null } } };
     }
 
     const spoken = spokenFor(response);
+    traceVoice(
+      "answer arrived",
+      `source=${response.meta?.spoken_source ?? "client"}${response.meta?.spoken_guard_rejections ? ` guard rejected ${response.meta.spoken_guard_rejections} check(s)` : response.spoken ? " guard accepted" : ""}${acknowledged ? ", acknowledgement had started" : ""}`,
+    );
     const extras: AssistantExtras = {
       structured: response.structured ?? null,
       assumptions: response.assumptions ?? null,
@@ -58,8 +67,9 @@ export const airportChatAdapter: ChatModelAdapter = {
       error: response.error ?? null,
     };
 
-    if (spoken && askedByVoice && stillWanted() && player.autoSpeakAllowed) player.speak(spoken);
-    else if (acknowledged && epoch === currentVoiceEpoch()) player.cancel(); // never leave a "one moment" hanging with no answer behind it
+    // An acknowledgement that has started is finished, not cut off: the answer is spoken right after it.
+    if (spoken && askedByVoice && stillWanted() && player.autoSpeakAllowed) player.speak(spoken, { afterAck: true });
+    else if (acknowledged && epoch === currentVoiceEpoch()) player.cancel("no answer to speak"); // nothing follows a "one moment", so don't leave it hanging
 
     return {
       content: [{ type: "text", text: response.reply }],

@@ -61,7 +61,9 @@ function buildAirportRecord(iata, ctx) {
     runways_legacy_count: runways.legacyAllRows,
     annual_passengers: current.passengers,
     annual_departures: current.departures,
+    international_passengers: current.international_passengers,
     international_passenger_share: current.international_share,
+    previous_year_passengers: previousTotals?.passengers ?? null,
     pax_growth_yoy: yearOverYearGrowth(current.passengers, previousTotals?.passengers),
     load_factor: current.load_factor,
     haul_mix: current.haul_mix,
@@ -90,6 +92,8 @@ function fieldProvenance() {
   const ontimeNote = `On-Time Reporting Carrier, origin airport, CY${CURRENT_YEAR}; null if fewer than ${MIN_SCHEDULED_DEPARTURES} scheduled departures`;
   return {
     annual_passengers: { sources: ["bts_t100_current"], formula: `SUM(PASSENGERS) by ORIGIN, CY${CURRENT_YEAR}`, filter: t100Filter, note: "enplaned passengers, domestic + international, all carriers" },
+    international_passengers: { sources: ["bts_t100_current"], formula: `SUM(PASSENGERS) on segments with DEST_COUNTRY<>US by ORIGIN, CY${CURRENT_YEAR} (exact count; the share below is this over annual_passengers, rounded)`, filter: t100Filter },
+    previous_year_passengers: { sources: ["bts_t100_previous"], formula: `SUM(PASSENGERS) by ORIGIN, CY${PREVIOUS_YEAR}`, filter: t100Filter, note: "exact prior-year count behind pax_growth_yoy; null if no CY2024 base" },
     international_passenger_share: { sources: ["bts_t100_current"], formula: "1 - passengers on segments with DEST_COUNTRY=US / all passengers (territories count as US)", filter: t100Filter },
     annual_departures: { sources: ["bts_t100_current"], formula: `SUM(DEPARTURES_PERFORMED) by ORIGIN, CY${CURRENT_YEAR}`, filter: t100Filter },
     pax_growth_yoy: { sources: ["bts_t100_current", "bts_t100_previous"], formula: `passengers CY${CURRENT_YEAR} / passengers CY${PREVIOUS_YEAR} - 1`, filter: t100Filter, note: "null if no CY2024 base" },

@@ -19,6 +19,8 @@ in the `meta` block of `data/airports.json`.
 |---|---|---|---|---|
 | Annual passengers | People boarding a scheduled passenger flight at the airport | BTS T-100 Segment (All Carriers) | 2025 | Sum of passengers by origin airport; domestic and international, U.S. and foreign carriers |
 | International share | Part of those passengers flying to a foreign destination | BTS T-100 Segment | 2025 | 1 − passengers to U.S. destinations / all passengers (U.S. territories count as U.S.) |
+| International passengers | Passengers on segments to a foreign destination | BTS T-100 Segment | 2025 | Exact count by origin: passengers minus passengers to U.S. destinations (the international share above is this over annual passengers, rounded) |
+| Prior-year passengers | Passengers in the year before | BTS T-100 Segment | 2024 | Sum of passengers by origin airport; the base behind passenger growth |
 | Annual departures | Scheduled passenger flights that departed | BTS T-100 Segment | 2025 | Sum of departures performed by origin airport |
 | Passenger growth | Change against the year before | BTS T-100 Segment | 2025 vs 2024 | passengers 2025 / passengers 2024 − 1 |
 | Load factor | How full the departing flights were | BTS T-100 Segment | 2025 | passengers / seats on departing flights |

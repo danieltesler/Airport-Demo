@@ -13,8 +13,18 @@
 
 import type { SessionResult } from "./conversation";
 
+/**
+ * Echo cancellation, noise suppression and auto gain, all requested explicitly. Voice barge-in listens
+ * while the assistant is talking, and the browser's echo cancellation is what keeps the assistant's own
+ * voice (from the phone speaker) out of that signal. Most Chrome Android devices honour it against audio
+ * the same page plays; some do not, which is why the barge-in detector also assumes leftover echo.
+ */
+export const MIC_CONSTRAINTS: MediaStreamConstraints = {
+  audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+};
+
 export interface MicDeps {
-  getUserMedia: () => Promise<MediaStream>;
+  getUserMedia: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
   /** Undefined where there is no Web Audio: hands-free needs the level meter, so that is "unsupported". */
   createAudioContext: (() => AudioContext) | null;
   wait: (ms: number) => Promise<void>;
@@ -78,7 +88,7 @@ export class MicSession {
 
     let stream: MediaStream;
     try {
-      stream = await this.deps.getUserMedia();
+      stream = await this.deps.getUserMedia(MIC_CONSTRAINTS);
     } catch {
       void audioCtx.close().catch(() => undefined);
       return "denied";

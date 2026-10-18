@@ -23,12 +23,25 @@ export function scopeProblem(resolution: ScopeResolution<Airport>): ToolOutput {
   const messages: Record<string, string> = {
     ambiguous: `Scope '${resolution.input}' is ambiguous. Ask the user which one they mean, or call again with one option's scope.`,
     empty: `Scope '${resolution.input}' was understood as ${resolution.label}, but no airports in the dataset fall in it.`,
-    unknown: `Scope '${resolution.input}' was not recognized.`,
+    unknown: `I don't have '${resolution.input}' as a ready-made area.`,
   };
+  const suggestions = resolution.suggestions ?? [];
+  const asChoice = (items: string[]): string => (items.length > 1 ? `${items.slice(0, -1).join(", ")} or ${items.at(-1)}` : items[0]);
+  const unknownReply =
+    suggestions.length > 0
+      ? `I don't have '${resolution.input}' as a ready-made area. Did you mean ${asChoice(suggestions)}?`
+      : `I don't have '${resolution.input}' as a ready-made area. I can use a U.S. state, a region such as the Northeast or the West Coast, a metro like the Bay Area, or 'near <city>'.`;
   return {
     result: {
       error: messages[resolution.status] ?? `Scope '${resolution.input}' could not be resolved.`,
       status: resolution.status,
+      ...(resolution.status === "unknown"
+        ? {
+            suggested_reply: unknownReply,
+            reply_instruction:
+              "Say this plainly in your own words, offering only the suggestions given. Do not use the words 'scope' or 'recognized'.",
+          }
+        : {}),
       options: resolution.options,
       suggestions: resolution.suggestions,
       notes: resolution.notes,
@@ -109,7 +122,7 @@ export const SCOPE_DESCRIPTION =
   "Area, as the user's own place words, passed through VERBATIM. Never translate, narrow, " +
   "broaden or substitute them (e.g. 'northeast' stays 'northeast', not 'new england'; a " +
   "city stays the city). Code resolves them: 'all'; a U.S. state (name or postal code); a " +
-  "Census division or region; a named metro; an airport code; 'near <city or airport code>'; " +
+  "Census division or region; an informal region such as the West Coast or Gulf Coast; a named metro; an airport code; 'near <city or airport code>'; " +
   "'within N miles of <city or airport code>'. If the tool reports the scope as ambiguous, " +
   "unknown or empty, relay its options, suggestions and coverage to the user.";
 

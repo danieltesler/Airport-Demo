@@ -85,6 +85,19 @@
           "NYC",
           "DC"
         ],
+        "informal_regions": [
+          "West Coast",
+          "East Coast",
+          "Gulf Coast",
+          "Pacific Northwest",
+          "Southwest",
+          "Southeast",
+          "Mid-Atlantic",
+          "Great Lakes states",
+          "Rocky Mountain states",
+          "Sun Belt",
+          "Deep South"
+        ],
         "supported_scopes": [
           "'all'",
           "an airport code present in the dataset",
@@ -92,6 +105,7 @@
           "a U.S. state or territory (name or postal code)",
           "a U.S. Census division (e.g. New England, Pacific, Mountain)",
           "a U.S. Census region (Northeast, Midwest, South, West)",
+          "an informal region with a stated definition (West Coast, East Coast, Gulf Coast, Pacific Northwest, Southwest, Sun Belt, ...)",
           "'near <city or airport code>' (default 50 miles)",
           "'within N miles of <city or airport code>'"
         ]

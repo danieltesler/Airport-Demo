@@ -9,6 +9,8 @@
   "output": {
     "result": {
       "metric": "expansion",
+      "order": "desc",
+      "ranked_first_means": "Rank 1 has the STRONGEST demand-side case for expansion.",
       "scope": "northeast",
       "scope_resolved_as": "census_region",
       "scope_label": "Northeast",

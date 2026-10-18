@@ -241,7 +241,10 @@ export async function btsAirportTraffic(args: Record<string, unknown>, deps: Liv
       prior_12_months: prior12
         ? { period: `${prior12.from} to ${prior12.to}`, enplaned_passengers: prior12.passengers }
         : null,
+      period_label: `trailing 12 months, ${t12.from} to ${t12.to}: this is not a calendar year and not the dataset's period, so never label it 2025`,
       passenger_growth_yoy: passengerGrowthYoy,
+      passenger_growth_pct: percentValue(passengerGrowthYoy),
+      passenger_growth_direction: passengerGrowthYoy === null ? null : passengerGrowthYoy > 0 ? "up" : passengerGrowthYoy < 0 ? "down" : "flat",
       ...bundledDatasetNote(airport.annual_passengers, t12.passengers, summary, deps.datasetVintage),
       source: SOURCE,
       retrieved_at: retrievedAtIso(deps, [cache.storedAt(airport.iata, nowOf(deps).getTime())]),
@@ -264,8 +267,8 @@ export const btsTrafficTool: LiveTool = {
     description:
       "Official BTS T-100 traffic for one airport by IATA code, queried live: trailing-12-month " +
       "enplaned passengers, departures, seats, load factor and year-over-year passenger growth, " +
-      "with the months covered. Use for questions about actual passenger volume, growth or load " +
-      "factor at a specific airport.",
+      "with the months covered. Use ONLY for 'latest' or 'recent' traffic. It is a trailing 12 months, NOT a " +
+      "calendar year: for 'in 2025', '2025 vs 2024' or 'last year' call airport_profile instead.",
     input_schema: {
       type: "object",
       properties: { iata: { type: "string", description: "IATA code, e.g. 'BOS'." } },

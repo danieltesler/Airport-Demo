@@ -14,7 +14,8 @@
 
 import * as data from "./data";
 import type { Airport } from "./data";
-import { describeCarrier } from "./carriers";
+import { carriersNamedIn, describeCarrier, findCarrier } from "./carriers";
+import { requestedCount } from "./requestedCount";
 import {
   OPERATING_CARRIER_ASSUMPTION,
   ROUTE_UNCERTAINTY,
@@ -189,6 +190,81 @@ function destinationFacts(filter: DestinationFilter | null): Record<string, unkn
 const keepDestination = (rows: RouteRow[], filter: DestinationFilter | null): RouteRow[] =>
   filter ? rows.filter((r) => filter.codes.has(r.dest)) : rows;
 
+/** An optional carrier filter: one airline, or several the user named together. */
+interface CarrierFilter {
+  codes: string[];
+  label: string;
+  /** Where it came from, so the result can say so. */
+  source: "user's message" | "argument";
+}
+
+const joinLabels = (labels: string[]): string =>
+  labels.length > 1 ? `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}` : (labels[0] ?? "");
+
+/**
+ * The carrier(s) to filter by. Airlines the user NAMED in their message win over the model's argument
+ * (a model often forgets it and then reports airport totals as the airline's); otherwise the model's
+ * argument is used, by code or name.
+ */
+function parseCarrier(args: ToolArgs): Parsed<CarrierFilter | null> {
+  const fromMessage = carriersNamedIn(typeof args.user_message === "string" ? args.user_message : undefined);
+  if (fromMessage.length > 0) {
+    return ok({ codes: fromMessage.map((c) => c.code), label: joinLabels(fromMessage.map((c) => c.label)), source: "user's message" });
+  }
+  const wanted = text(args.carrier);
+  if (!wanted) return ok(null);
+  const found = findCarrier(wanted);
+  if (found.ok) return ok({ codes: [found.code], label: found.label, source: "argument" });
+  return fail(
+    found.reason === "ambiguous"
+      ? `'${wanted}' matches more than one carrier. Ask the user which one, or pass its code.`
+      : `I don't have a carrier called '${wanted}' in the carrier table. Pass its two-letter BTS code, or leave carrier out.`,
+    { carrier_options: found.options },
+  );
+}
+
+const keepCarrier = (rows: RouteRow[], filter: CarrierFilter | null): RouteRow[] =>
+  filter ? rows.filter((r) => filter.codes.includes(r.carrier)) : rows;
+
+/**
+ * Every filter the code applied, stated plainly, so the reply describes exactly the filtered scope
+ * (a carrier's own totals are not the airport's, and a destination the user never named is not
+ * to be added).
+ */
+function filtersApplied(destination: DestinationFilter | null, carrier: CarrierFilter | null): Record<string, unknown> {
+  const filters = [
+    ...(carrier ? [`carrier: ${carrier.label}`] : []),
+    ...(destination ? [`destination: ${destination.label}`] : []),
+  ];
+  const airlines = carrier
+    ? {
+        carriers_included: carrier.label,
+        ...(carrier.source === "user's message" ? { carrier_note: "The airline(s) were taken from the user's own message." } : {}),
+      }
+    : {
+        carriers_included: "all airlines combined",
+        all_airlines_note:
+          "These figures cover ALL airlines combined. Never present them as one airline's; if the user asked about a single airline, say these are the airport totals or ask which airline.",
+      };
+  return {
+    filters_applied: filters,
+    ...airlines,
+    ...(filters.length > 0
+      ? {
+          describe_exactly:
+            "These filters shaped every figure. Describe the numbers as covering exactly that scope (for example, one carrier's flying, not the airport's total), and never add a filter the user did not ask for.",
+        }
+      : {}),
+  };
+}
+
+/** "top 3" in the user's message beats the model's top_n. */
+function topNFor(args: ToolArgs, fallback: number, max: number): Parsed<number> {
+  const asked = requestedCount(typeof args.user_message === "string" ? args.user_message : undefined);
+  if (asked !== null) return ok(Math.min(asked, max), asked > max ? `top_n was capped at ${max}.` : undefined);
+  return parseCount(args.top_n, fallback, max, "top_n");
+}
+
 // --------------------------------------------------------------------------- //
 // Aggregation
 // --------------------------------------------------------------------------- //
@@ -238,8 +314,8 @@ function carrierFacts(code: string): { code: string; name: string | null; operat
 
 const usesOperatingCarrier = (codes: string[]): boolean => codes.some((code) => describeCarrier(code).operatingCarrier);
 
-function noService(origin: Airport, filter: DestinationFilter | null, years: number[]): ToolOutput {
-  const to = filter ? ` to ${filter.label}` : "";
+function noService(origin: Airport, filter: DestinationFilter | null, years: number[], carrier: CarrierFilter | null = null): ToolOutput {
+  const to = (filter ? ` to ${filter.label}` : "") + (carrier ? ` by ${carrier.label}` : "");
   return {
     result: {
       iata: origin.iata,
@@ -248,6 +324,7 @@ function noService(origin: Airport, filter: DestinationFilter | null, years: num
         `No nonstop service in this data from ${origin.iata}${to} in ${years.join(" or ")} ` +
         "(BTS T-100 scheduled passenger segments). Say exactly that; do not call the market underserved or unserved.",
       ...destinationFacts(filter),
+      ...filtersApplied(filter, carrier),
     },
     uncertainty: ROUTE_UNCERTAINTY,
   };
@@ -273,17 +350,19 @@ export async function routeSearch(args: ToolArgs): Promise<ToolOutput> {
   if (!year.ok) return year.output;
   const sortBy = parseChoice(args.sort_by, SORT_FIELDS, "passengers", "sort_by");
   if (!sortBy.ok) return sortBy.output;
-  const topN = parseCount(args.top_n, 10, MAX_ROUTES, "top_n");
+  const topN = topNFor(args, 10, MAX_ROUTES);
   if (!topN.ok) return topN.output;
   const destination = await resolveDestination(args);
   if (!destination.ok) return destination.output;
+  const carrier = parseCarrier(args);
+  if (!carrier.ok) return carrier.output;
 
   const { prior } = routeYears();
   const compareWithPrior = year.value > prior;
-  const currentRows = keepDestination(await routesFrom(origin.value.iata, year.value), destination.value);
-  if (currentRows.length === 0) return noService(origin.value, destination.value, [year.value]);
+  const currentRows = keepCarrier(keepDestination(await routesFrom(origin.value.iata, year.value), destination.value), carrier.value);
+  if (currentRows.length === 0) return noService(origin.value, destination.value, [year.value], carrier.value);
   const priorByDest = compareWithPrior
-    ? groupRows(keepDestination(await routesFrom(origin.value.iata, prior), destination.value), (r) => r.dest)
+    ? groupRows(keepCarrier(keepDestination(await routesFrom(origin.value.iata, prior), destination.value), carrier.value), (r) => r.dest)
     : new Map<string, RouteRow[]>();
 
   const field: SortField = sortBy.value;
@@ -343,6 +422,7 @@ export async function routeSearch(args: ToolArgs): Promise<ToolOutput> {
       year: year.value,
       sort_by: field,
       ...destinationFacts(destination.value),
+      ...filtersApplied(destination.value, carrier.value),
       row_count: entries.length,
       returned: routes.length,
       truncated: entries.length > routes.length,
@@ -362,6 +442,7 @@ export async function routeSearch(args: ToolArgs): Promise<ToolOutput> {
         shown: routes.length,
         total: entries.length,
         sortLabel: SORT_LABEL[field],
+        carrier: carrier.value?.label ?? null,
       }),
     },
     assumptions: baseAssumptions(years, top.flatMap((e) => e.carrierSeats.map((c) => c.code))),
@@ -378,7 +459,7 @@ export async function carrierShare(args: ToolArgs): Promise<ToolOutput> {
   if (!origin.ok) return origin.output;
   const year = parseYear(args.year, routeYears().current);
   if (!year.ok) return year.output;
-  const topN = parseCount(args.top_n, 8, MAX_CARRIERS, "top_n");
+  const topN = topNFor(args, 8, MAX_CARRIERS);
   if (!topN.ok) return topN.output;
   const destination = await resolveDestination(args);
   if (!destination.ok) return destination.output;
@@ -523,17 +604,25 @@ export async function capacityTrend(args: ToolArgs): Promise<ToolOutput> {
   if (!origin.ok) return origin.output;
   const destination = await resolveDestination(args);
   if (!destination.ok) return destination.output;
-  // A single route is best explained by who flies it; an airport or an area by where it goes.
-  const defaultGroup: GroupField = destination.value?.single ? "carrier" : "destination";
-  const groupBy = parseChoice(args.group_by, GROUP_FIELDS, defaultGroup, "group_by");
+  const carrier = parseCarrier(args);
+  if (!carrier.ok) return carrier.output;
+  // Several airlines named together are one combined table by airline; a single route is best explained by
+  // who flies it; an airport or an area by where it goes.
+  const multipleCarriers = (carrier.value?.codes.length ?? 0) > 1;
+  const defaultGroup: GroupField = multipleCarriers || destination.value?.single ? "carrier" : "destination";
+  const groupBy = parseChoice(args.group_by, GROUP_FIELDS, multipleCarriers ? "carrier" : defaultGroup, "group_by");
   if (!groupBy.ok) return groupBy.output;
-  const topN = parseCount(args.top_n, 5, MAX_TREND_ROWS, "top_n");
-  if (!topN.ok) return topN.output;
+  const asked = topNFor(args, 5, MAX_TREND_ROWS);
+  if (!asked.ok) return asked.output;
+  // Every airline the user named gets a row, however small the requested top N.
+  const topN: Parsed<number> = multipleCarriers
+    ? { ...asked, value: Math.min(Math.max(asked.value, carrier.value!.codes.length), MAX_TREND_ROWS) }
+    : asked;
 
   const { prior: priorYear, current: year } = routeYears();
-  const priorRows = keepDestination(await routesFrom(origin.value.iata, priorYear), destination.value);
-  const currentRows = keepDestination(await routesFrom(origin.value.iata, year), destination.value);
-  if (priorRows.length === 0 && currentRows.length === 0) return noService(origin.value, destination.value, [priorYear, year]);
+  const priorRows = keepCarrier(keepDestination(await routesFrom(origin.value.iata, priorYear), destination.value), carrier.value);
+  const currentRows = keepCarrier(keepDestination(await routesFrom(origin.value.iata, year), destination.value), carrier.value);
+  if (priorRows.length === 0 && currentRows.length === 0) return noService(origin.value, destination.value, [priorYear, year], carrier.value);
 
   const all = movements(priorRows, currentRows, groupBy.value);
   const increases = all.filter((m) => seatChange(m) > 0).sort((a, b) => seatChange(b) - seatChange(a) || a.key.localeCompare(b.key));
@@ -568,7 +657,13 @@ export async function capacityTrend(args: ToolArgs): Promise<ToolOutput> {
   ];
   const describedIncreases = shownIncreases.map(describeMovement);
   const describedCuts = shownCuts.map(describeMovement);
-  const scopeLabel = destination.value ? destination.value.label : `all destinations from ${origin.value.iata}`;
+  const where = destination.value ? `${origin.value.iata} to ${destination.value.label}` : `all destinations from ${origin.value.iata}`;
+  // The label says exactly whose totals these are: one carrier's flying is not the airport's.
+  const scopeLabel = `${carrier.value ? carrier.value.label : "all airlines"}, ${where}`;
+  const signed = (n: number | null): string => (n === null ? "n/a" : `${n > 0 ? "+" : ""}${n}%`);
+  const headline =
+    `${scopeLabel}: seats ${totals.seats_prior.toLocaleString("en-US")} in ${priorYear} to ${totals.seats_current.toLocaleString("en-US")} in ${year} (${signed(totals.seats_change_pct)}); ` +
+    `passengers ${totals.passengers_prior.toLocaleString("en-US")} to ${totals.passengers_current.toLocaleString("en-US")} (${signed(totals.passengers_change_pct)}).`;
 
   const carrierCodes = groupBy.value === "carrier" ? [...shownIncreases, ...shownCuts].map((m) => m.key) : [...priorRows, ...currentRows].map((r) => r.carrier);
   return {
@@ -578,6 +673,14 @@ export async function capacityTrend(args: ToolArgs): Promise<ToolOutput> {
       years: { prior: priorYear, current: year },
       group_by: groupBy.value,
       ...destinationFacts(destination.value),
+      ...filtersApplied(destination.value, carrier.value),
+      totals_scope: scopeLabel,
+      totals_note: carrier.value
+        ? `The totals cover only ${carrier.value.label}, not the whole airport. Never call them the airport's totals.`
+        : "The totals cover all airlines combined at this airport.",
+      headline_facts: headline,
+      explanation_limit:
+        "The data shows what changed, not why. Do not use causal wording (driven by, due to, because of, caused by, as a result of, reflects a decision) and do not state any figure that is not in this result.",
       totals,
       groups_with_increase: increases.length,
       groups_with_cut: cuts.length,
@@ -603,6 +706,7 @@ export async function capacityTrend(args: ToolArgs): Promise<ToolOutput> {
         priorYear,
         year,
         groupBy: groupBy.value,
+        carrier: carrier.value?.label ?? null,
       }),
     },
     assumptions: baseAssumptions([priorYear, year], carrierCodes),
@@ -660,6 +764,7 @@ export async function airportSearch(args: ToolArgs): Promise<ToolOutput> {
         label: resolution.label,
         resolvedAs: resolution.resolvedAs!,
         readFrom: resolution.reinterpreted ? resolution.input : undefined,
+        detail: resolution.detail,
         matched: matched.length,
         shown: top.length,
         scoreLabel: `${year} passengers`,
@@ -701,6 +806,12 @@ const DESTINATION_SCHEMA = {
   },
 };
 
+const CARRIER_SCHEMA = {
+  type: "string",
+  description:
+    "Optional. Restrict to ONE airline the user named, by name or BTS code (e.g. 'Southwest' or 'WN'). Totals then cover only that airline's flying. Leave out unless the user named an airline.",
+};
+
 const YEAR_SCHEMA = { type: "integer", enum: [2024, 2025], description: "Calendar year; 2025 (the latest complete year) by default." };
 
 export function routeToolSchemas(): ToolSchema[] {
@@ -716,6 +827,7 @@ export function routeToolSchemas(): ToolSchema[] {
         properties: {
           origin: ORIGIN_SCHEMA,
           ...DESTINATION_SCHEMA,
+          carrier: CARRIER_SCHEMA,
           year: YEAR_SCHEMA,
           sort_by: { type: "string", enum: [...SORT_FIELDS], description: "Ranking measure (default passengers)." },
           top_n: { type: "integer", description: `How many routes (default 10, at most ${MAX_ROUTES}).` },
@@ -751,6 +863,7 @@ export function routeToolSchemas(): ToolSchema[] {
         properties: {
           origin: ORIGIN_SCHEMA,
           ...DESTINATION_SCHEMA,
+          carrier: CARRIER_SCHEMA,
           group_by: {
             type: "string",
             enum: [...GROUP_FIELDS],
