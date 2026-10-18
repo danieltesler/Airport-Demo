@@ -8,7 +8,7 @@ import {
 import type { AssistantExtras } from "@/lib/types";
 import { StructuredResult } from "@/components/StructuredResult";
 import { AssumptionsPanel } from "@/components/AssumptionsPanel";
-import { useSpeechSupport } from "@/hooks/useSpeechSupport";
+import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
 import { MarkdownText } from "./MarkdownText";
 import { TypingIndicator } from "./TypingIndicator";
 import { SpeakerIcon, StopIcon } from "./icons";
@@ -19,13 +19,14 @@ import styles from "./chat.module.css";
  * the non-text extras (structured table + assumptions panel) are read from the
  * message's `metadata.custom` — where the chat-model adapter stashed them — and
  * rendered beneath, so every answer keeps its supporting context. A
- * read-aloud control is shown when the browser supports speech synthesis.
+ * read-aloud control speaks the code-built summary (extras.spoken), not the prose.
  */
 export function AssistantMessage() {
   const extras = useExtras();
   const isError = !!extras?.error;
-  const hasText = useHasText();
-  const { synthesis } = useSpeechSupport();
+  const speechText = extras?.spoken ?? "";
+  const { playback, player } = useSpeechPlayback();
+  const isReadingThis = playback.text === speechText && playback.status !== "idle" && playback.status !== "error";
 
   return (
     <MessagePrimitive.Root className={styles.assistantRow}>
@@ -62,28 +63,35 @@ export function AssistantMessage() {
           </ActionBarPrimitive.Root>
         )}
 
-        {synthesis && hasText && !isError && (
-          <ActionBarPrimitive.Root className={styles.messageActions}>
-            <MessagePrimitive.If speaking={false}>
-              <ActionBarPrimitive.Speak
-                className={styles.actionButton}
-                aria-label="Read this answer aloud"
-              >
-                <SpeakerIcon />
-                <span>Read aloud</span>
-              </ActionBarPrimitive.Speak>
-            </MessagePrimitive.If>
-
-            <MessagePrimitive.If speaking>
-              <ActionBarPrimitive.StopSpeaking
+        {speechText && !isError && (
+          <div className={styles.messageActions}>
+            {isReadingThis ? (
+              <button
+                type="button"
                 className={styles.actionButton}
                 aria-label="Stop reading"
+                onClick={() => player.cancel()}
               >
                 <StopIcon />
                 <span>Stop</span>
-              </ActionBarPrimitive.StopSpeaking>
-            </MessagePrimitive.If>
-          </ActionBarPrimitive.Root>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.actionButton}
+                aria-label="Read the spoken summary aloud"
+                onClick={() => {
+                  // Unlock inside the tap so the browser lets this clip play.
+                  player.unlock();
+                  player.speak(speechText);
+                }}
+              >
+                <SpeakerIcon />
+                <span>Read aloud</span>
+              </button>
+            )}
+            <span className={styles.aiVoiceLabel}>AI voice</span>
+          </div>
         )}
       </div>
     </MessagePrimitive.Root>
@@ -96,13 +104,3 @@ function useExtras(): AssistantExtras | undefined {
     | AssistantExtras
     | undefined;
 }
-
-/** True once the reply has rendered text (i.e. it is no longer just pending). */
-function useHasText(): boolean {
-  return useAuiState((state) =>
-    state.message.content.some(
-      (part) => part.type === "text" && part.text.length > 0
-    )
-  );
-}
-

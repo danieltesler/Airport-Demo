@@ -1,5 +1,15 @@
-import type { Cell, StructuredResult as StructuredData } from "@/lib/types";
+import type { StructuredResult as StructuredData } from "@/lib/types";
 import { ScoreBreakdown } from "./ScoreBreakdown";
+import {
+  buildChart,
+  columnKinds,
+  displayCell,
+  isMissing,
+  labelColumnIndex,
+  scoreColumnIndex,
+  unscoredLabels,
+  type ColumnKind,
+} from "./tableModel";
 import styles from "./StructuredResult.module.css";
 
 interface StructuredResultProps {
@@ -7,23 +17,28 @@ interface StructuredResultProps {
 }
 
 /**
- * Renders the agent's structured payload as a tidy table, plus a pure-CSS
- * horizontal bar chart for kinds that compare a single measure across rows
- * (ranking / comparison / breakdown). `metric` shows just the table.
+ * Renders the agent's structured payload as a tidy table, plus a pure-CSS horizontal
+ * bar chart when the table declares a "... score" column. Alignment, formatting and
+ * charting are decided from the payload's own columns (see tableModel.ts), so any
+ * table kind renders sensibly.
  */
 export function StructuredResult({ data }: StructuredResultProps) {
   const { kind, columns, rows, caption, explain } = data;
   const chart = buildChart(data);
+  const kinds = columnKinds(columns, rows);
+  const scoreIndex = scoreColumnIndex(columns);
+  const firstTextIndex = labelColumnIndex(rows, columns);
+  const notScored = unscoredLabels(data);
 
   return (
     <section className={styles.wrap} aria-label={`${kind} result`}>
-      <div className={styles.tableScroll}>
+      <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Table, scrolls sideways">
         <table className={styles.table}>
           {caption && <caption className={styles.caption}>{caption}</caption>}
           <thead>
             <tr>
               {columns.map((col, i) => (
-                <th key={i} className={i === 0 ? styles.thLabel : styles.thNum}>
+                <th key={i} scope="col" className={kinds[i] === "text" ? styles.thLabel : styles.thNum}>
                   {col}
                 </th>
               ))}
@@ -32,10 +47,14 @@ export function StructuredResult({ data }: StructuredResultProps) {
           <tbody>
             {rows.map((row, r) => (
               <tr key={r}>
-                {row.map((cell, c) => (
-                  <td key={c} className={c === 0 ? styles.tdLabel : styles.tdNum}>
-                    {formatCell(cell)}
-                  </td>
+                {columns.map((col, c) => (
+                  <Cell
+                    key={c}
+                    text={displayCell(row[c], col, c === scoreIndex)}
+                    missing={isMissing(row[c])}
+                    kind={kinds[c]}
+                    isRowLabel={c === firstTextIndex}
+                  />
                 ))}
               </tr>
             ))}
@@ -52,70 +71,44 @@ export function StructuredResult({ data }: StructuredResultProps) {
                 {bar.label}
               </span>
               <div className={styles.barTrack}>
-                <div
-                  className={styles.barFill}
-                  style={{ width: `${bar.widthPct}%` }}
-                />
+                <div className={styles.barFill} style={{ width: `${bar.widthPct}%` }} />
               </div>
               <span className={styles.barValue}>{bar.display}</span>
             </div>
           ))}
+          {chart.skippedLabels.length > 0 && (
+            <p className={styles.chartNote}>
+              Not charted (insufficient data): {chart.skippedLabels.join(", ")}
+            </p>
+          )}
         </div>
       )}
 
-      {explain && <ScoreBreakdown explain={explain} />}
+      {explain && explain.rows.length > 0 && <ScoreBreakdown explain={explain} notScored={notScored} />}
     </section>
   );
 }
 
-interface ChartBar {
-  label: string;
-  display: string;
-  widthPct: number;
+interface CellProps {
+  text: string;
+  missing: boolean;
+  kind: ColumnKind;
+  isRowLabel: boolean;
 }
 
-interface ChartModel {
-  measureLabel: string;
-  ariaLabel: string;
-  bars: ChartBar[];
-}
-
-/**
- * Build a bar chart when the data has a label column and at least one numeric
- * column. We chart the first numeric column (the primary measure). Returns null
- * when a chart wouldn't be meaningful (e.g. no numeric column, or a single
- * scalar `metric`).
- */
-function buildChart(data: StructuredData): ChartModel | null {
-  const { kind, columns, rows } = data;
-  if (kind === "metric") return null;
-  if (rows.length === 0 || columns.length < 2) return null;
-
-  const measureIndex = columns.findIndex(
-    (_, i) => i > 0 && rows.every((row) => typeof row[i] === "number")
+/** One body cell: numbers right-aligned, text left-aligned and ellipsised with the full text on hover. */
+function Cell({ text, missing, kind, isRowLabel }: CellProps) {
+  const alignment = kind === "text" ? (isRowLabel ? styles.tdLabel : styles.tdText) : styles.tdNum;
+  const className = missing ? `${alignment} ${styles.tdMissing}` : alignment;
+  return (
+    <td className={className}>
+      {kind === "text" ? (
+        <span className={styles.truncate} title={text}>
+          {text}
+        </span>
+      ) : (
+        text
+      )}
+    </td>
   );
-  if (measureIndex === -1) return null;
-
-  const values = rows.map((row) => Number(row[measureIndex]));
-  const maxValue = Math.max(...values, 0);
-  if (maxValue <= 0) return null;
-
-  const bars: ChartBar[] = rows.map((row, i) => ({
-    label: String(row[0]),
-    display: formatCell(row[measureIndex]),
-    widthPct: Math.max((values[i] / maxValue) * 100, 1),
-  }));
-
-  return {
-    measureLabel: columns[measureIndex],
-    ariaLabel: `${columns[measureIndex]} by ${columns[0]}`,
-    bars,
-  };
-}
-
-/** Format numbers compactly; pass strings through unchanged. */
-function formatCell(cell: Cell): string {
-  if (typeof cell !== "number") return cell;
-  if (Number.isInteger(cell)) return cell.toLocaleString("en-US");
-  return cell.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }

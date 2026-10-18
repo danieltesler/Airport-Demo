@@ -1,0 +1,21 @@
+{
+  "tool": "route_search",
+  "args": {
+    "origin": "BTV",
+    "destination": "SEA"
+  },
+  "output": {
+    "result": {
+      "iata": "BTV",
+      "no_service": true,
+      "message": "No nonstop service in this data from BTV to SEA — Seattle in 2025 (BTS T-100 scheduled passenger segments). Say exactly that; do not call the market underserved or unserved.",
+      "destination_filter": {
+        "label": "SEA — Seattle",
+        "kind": "airport",
+        "airports_in_filter": 1,
+        "notes": []
+      }
+    },
+    "uncertainty": "'No nonstop service in this data' is a fact about T-100 segments from the 102 covered airports; it does not show a market is 'underserved', which is an inference this data cannot support on its own (it ignores connecting itineraries, fares, nearby airports and seasonal or charter service)."
+  }
+}

@@ -1,0 +1,197 @@
+{
+  "tool": "rank_airports",
+  "args": {
+    "scope": "Washington state",
+    "user_words": "WA",
+    "metric": "expansion",
+    "top_n": 5
+  },
+  "output": {
+    "result": {
+      "metric": "expansion",
+      "scope": "Washington state",
+      "scope_resolved_as": "state",
+      "scope_label": "Washington",
+      "airports_matched": 2,
+      "requested_top_n": 5,
+      "airports_returned": 2,
+      "count_note": "Only 2 airports in the dataset matched, fewer than the 5 asked for. Say so plainly; do not say \"top 5\".",
+      "dataset_states": [
+        "AK",
+        "AL",
+        "AR",
+        "AZ",
+        "CA",
+        "CO",
+        "CT",
+        "DC",
+        "FL",
+        "GA",
+        "HI",
+        "IA",
+        "ID",
+        "IL",
+        "IN",
+        "KY",
+        "LA",
+        "MA",
+        "MD",
+        "ME",
+        "MI",
+        "MN",
+        "MO",
+        "MT",
+        "NC",
+        "NE",
+        "NH",
+        "NJ",
+        "NM",
+        "NV",
+        "NY",
+        "OH",
+        "OK",
+        "OR",
+        "PA",
+        "PR",
+        "RI",
+        "SC",
+        "TN",
+        "TX",
+        "UT",
+        "VA",
+        "VT",
+        "WA",
+        "WI"
+      ],
+      "scope_notes": [
+        "The scope was resolved from the user's words 'WA', not from the passed scope 'Washington state'. Describe the area as Washington; do not describe it as 'Washington state'."
+      ],
+      "note": "score is a 0-100 composite; the other fields are the real underlying metrics.",
+      "ranking": [
+        {
+          "iata": "SEA",
+          "city": "Seattle",
+          "score": 63.1,
+          "pax_growth_yoy_pct": -0.2,
+          "load_factor": 0.8219,
+          "load_factor_pct": 82.2,
+          "avg_dep_delay_min": 12.9,
+          "annual_passengers": 25462053
+        },
+        {
+          "iata": "GEG",
+          "city": "Spokane",
+          "score": 40,
+          "pax_growth_yoy_pct": 2.2,
+          "load_factor": 0.7987,
+          "load_factor_pct": 79.9,
+          "avg_dep_delay_min": 10.68,
+          "annual_passengers": 2109994
+        }
+      ]
+    },
+    "structured": {
+      "kind": "ranking",
+      "columns": [
+        "Rank",
+        "Airport",
+        "Expansion score",
+        "Growth YoY",
+        "Load factor",
+        "Avg delay (min)"
+      ],
+      "rows": [
+        [
+          1,
+          "SEA — Seattle",
+          63.1,
+          "-0.2%",
+          "82.2%",
+          12.9
+        ],
+        [
+          2,
+          "GEG — Spokane",
+          40,
+          "2.2%",
+          "79.9%",
+          10.68
+        ]
+      ],
+      "caption": "Scope: Washington · state · 2 airports matched · top 2 by expansion score",
+      "explain": {
+        "metricLabel": "Expansion",
+        "components": [
+          {
+            "label": "Passenger growth",
+            "weight": 0.3
+          },
+          {
+            "label": "Congestion (a 0-100 score itself)",
+            "weight": 0.3
+          },
+          {
+            "label": "Load-factor pressure",
+            "weight": 0.25
+          },
+          {
+            "label": "Passenger volume",
+            "weight": 0.15
+          }
+        ],
+        "rows": [
+          {
+            "airport": "SEA — Seattle",
+            "score": 63.1,
+            "parts": [
+              {
+                "value": 0.549,
+                "points": 16.5
+              },
+              {
+                "value": 0.38,
+                "points": 11.4
+              },
+              {
+                "value": 0.919,
+                "points": 23
+              },
+              {
+                "value": 0.814,
+                "points": 12.2
+              }
+            ]
+          },
+          {
+            "airport": "GEG — Spokane",
+            "score": 40,
+            "parts": [
+              {
+                "value": 0.705,
+                "points": 21.1
+              },
+              {
+                "value": 0.04,
+                "points": 1.2
+              },
+              {
+                "value": 0.687,
+                "points": 17.2
+              },
+              {
+                "value": 0.031,
+                "points": 0.5
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "assumptions": [
+      "Investment thesis (demand-side): the case for terminal expansion is strongest where strong, growing demand meets a capacity-constrained airport — so renovation unlocks revenue rather than adding idle space.",
+      "Score blends passenger growth (2025 vs 2024), current congestion, seat load pressure, and passenger volume (every enplaned passenger, domestic and international, all carriers); weights are documented and adjustable. Each input is scaled 0-1 between anchors set by one rule: the 5th and 95th percentile of that input across the dataset's airports, rounded to two significant figures.",
+      "Airport scope is limited to the bundled dataset: the 100 busiest U.S. airports by 2025 passengers, plus Burlington (BTV) and Manchester (MHT)."
+    ],
+    "uncertainty": "Score reflects demand-side opportunity only. It does not model construction cost, land/gate availability, or local regulatory limits (e.g. noise curfews), which a full investment case would weigh. Growth is a single year (2025 vs 2024)."
+  }
+}

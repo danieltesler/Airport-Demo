@@ -1,0 +1,114 @@
+{
+  "tool": "rank_airports",
+  "args": {
+    "scope": "Portland",
+    "user_words": "Portland",
+    "metric": "expansion"
+  },
+  "output": {
+    "result": {
+      "error": "Scope 'Portland' is ambiguous. Ask the user which one they mean, or call again with one option's scope.",
+      "status": "ambiguous",
+      "options": [
+        {
+          "label": "Portland, OR (city)",
+          "scope": "near Portland, OR"
+        },
+        {
+          "label": "Portland, ME (city)",
+          "scope": "near Portland, ME"
+        },
+        {
+          "label": "Portland, TX (city)",
+          "scope": "near Portland, TX"
+        },
+        {
+          "label": "Portland, TN (city)",
+          "scope": "near Portland, TN"
+        }
+      ],
+      "notes": [
+        "'Portland' could mean more than one thing. Ask which was meant, or pass one of the option scopes.",
+        "The scope was resolved from the user's words 'Portland', not from the passed scope 'Portland'. Describe the area as Portland; do not describe it as 'Portland'."
+      ],
+      "coverage": {
+        "airport_count": 102,
+        "states": [
+          "AK",
+          "AL",
+          "AR",
+          "AZ",
+          "CA",
+          "CO",
+          "CT",
+          "DC",
+          "FL",
+          "GA",
+          "HI",
+          "IA",
+          "ID",
+          "IL",
+          "IN",
+          "KY",
+          "LA",
+          "MA",
+          "MD",
+          "ME",
+          "MI",
+          "MN",
+          "MO",
+          "MT",
+          "NC",
+          "NE",
+          "NH",
+          "NJ",
+          "NM",
+          "NV",
+          "NY",
+          "OH",
+          "OK",
+          "OR",
+          "PA",
+          "PR",
+          "RI",
+          "SC",
+          "TN",
+          "TX",
+          "UT",
+          "VA",
+          "VT",
+          "WA",
+          "WI"
+        ],
+        "census_divisions": [
+          "New England",
+          "Middle Atlantic",
+          "East North Central",
+          "West North Central",
+          "South Atlantic",
+          "East South Central",
+          "West South Central",
+          "Mountain",
+          "Pacific"
+        ],
+        "metro_aliases": [
+          "LA",
+          "SoCal",
+          "Bay Area",
+          "NYC",
+          "DC"
+        ],
+        "supported_scopes": [
+          "'all'",
+          "an airport code present in the dataset",
+          "a named metro alias",
+          "a U.S. state or territory (name or postal code)",
+          "a U.S. Census division (e.g. New England, Pacific, Mountain)",
+          "a U.S. Census region (Northeast, Midwest, South, West)",
+          "'near <city or airport code>' (default 50 miles)",
+          "'within N miles of <city or airport code>'"
+        ]
+      }
+    }
+  }
+}

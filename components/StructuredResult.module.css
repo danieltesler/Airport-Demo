@@ -83,7 +83,7 @@
 
 .barRow {
   display: grid;
-  grid-template-columns: minmax(64px, 130px) 1fr auto;
+  grid-template-columns: minmax(64px, min(12rem, 42%)) 1fr auto;
   align-items: center;
   gap: 0.6rem;
 }
@@ -132,4 +132,36 @@
   color: var(--slate-600);
   background: var(--slate-50);
   border-bottom: 1px solid var(--slate-200);
+}
+
+/* Text columns after the row label, plain weight */
+.tdText {
+  color: var(--slate-600);
+  text-align: left;
+}
+
+/* Long text is cut with an ellipsis; the full text is in the title attribute. */
+.truncate {
+  display: inline-block;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+/* Suppressed values read as a muted note, never as a number. */
+.tdMissing {
+  color: var(--slate-500);
+  font-style: italic;
+}
+
+.chartNote {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  color: var(--slate-600);
+}
+
+.wrap {
+  max-width: 100%;
 }

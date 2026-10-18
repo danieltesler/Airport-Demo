@@ -1,0 +1,52 @@
+{
+  "tool": "unmet_demand",
+  "args": {
+    "iata": "SFO"
+  },
+  "output": {
+    "result": {
+      "iata": "SFO",
+      "name": "San Francisco International Airport",
+      "unmet_demand_score": 68.6,
+      "drivers": {
+        "load_pressure": 0.931,
+        "congestion": 0.334,
+        "growth_vs_capacity": 0.786
+      },
+      "context": {
+        "load_factor": 0.8231,
+        "load_factor_pct": 82.3,
+        "pax_growth_yoy": 0.047,
+        "runways": 4,
+        "avg_dep_delay_min": 14.25
+      }
+    },
+    "structured": {
+      "kind": "metric",
+      "columns": [
+        "Driver",
+        "Contribution (0-1)"
+      ],
+      "rows": [
+        [
+          "Load-factor pressure",
+          0.931
+        ],
+        [
+          "Congestion (delay/throughput)",
+          0.334
+        ],
+        [
+          "Growth vs. capacity",
+          0.786
+        ]
+      ]
+    },
+    "assumptions": [
+      "'Unmet demand' has no direct public measurement (bookings that never happened aren't observable in free data). We estimate it as a composite lower-bound proxy.",
+      "Load factor (passengers / seats on departing scheduled flights, BTS T-100 2025, all carriers) is the primary signal: sustained high seat utilization implies demand that current supply cannot absorb.",
+      "Passenger growth (2025 vs 2024) measured against how hard the runways are already worked indicates a widening gap; a declining airport scores below a flat one."
+    ],
+    "uncertainty": "This is a lower-bound proxy. True unmet demand (searches that didn't convert, fares that priced people out) requires proprietary GDS/OAG data not available for free. Rates are never defaulted: an airport with under 5,000 scheduled departures in the BTS On-Time data, or under 365 departures in T-100, has that rate suppressed and the score is shown as insufficient data."
+  }
+}

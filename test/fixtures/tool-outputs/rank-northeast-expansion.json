@@ -1,0 +1,269 @@
+{
+  "tool": "rank_airports",
+  "args": {
+    "scope": "northeast",
+    "user_words": "northeast",
+    "metric": "expansion",
+    "top_n": 5
+  },
+  "output": {
+    "result": {
+      "metric": "expansion",
+      "scope": "northeast",
+      "scope_resolved_as": "census_region",
+      "scope_label": "Northeast",
+      "airports_matched": 16,
+      "requested_top_n": 5,
+      "airports_returned": 5,
+      "scope_notes": [
+        "Census region (New England + Middle Atlantic). Source: U.S. Census Bureau."
+      ],
+      "note": "score is a 0-100 composite; the other fields are the real underlying metrics.",
+      "ranking": [
+        {
+          "iata": "BTV",
+          "city": "Burlington",
+          "score": 73.3,
+          "pax_growth_yoy_pct": 5.7,
+          "load_factor": 0.8134,
+          "load_factor_pct": 81.3,
+          "avg_dep_delay_min": 25.44,
+          "annual_passengers": 708570
+        },
+        {
+          "iata": "JFK",
+          "city": "New York",
+          "score": 70.1,
+          "pax_growth_yoy_pct": -1.4,
+          "load_factor": 0.8192,
+          "load_factor_pct": 81.9,
+          "avg_dep_delay_min": 17.47,
+          "annual_passengers": 31021616
+        },
+        {
+          "iata": "EWR",
+          "city": "Newark",
+          "score": 68.1,
+          "pax_growth_yoy_pct": -4.2,
+          "load_factor": 0.831,
+          "load_factor_pct": 83.1,
+          "avg_dep_delay_min": 19.47,
+          "annual_passengers": 23521435
+        },
+        {
+          "iata": "BOS",
+          "city": "Boston",
+          "score": 67.2,
+          "pax_growth_yoy_pct": -0.8,
+          "load_factor": 0.8166,
+          "load_factor_pct": 81.7,
+          "avg_dep_delay_min": 18.06,
+          "annual_passengers": 21128285
+        },
+        {
+          "iata": "PWM",
+          "city": "Portland",
+          "score": 67.1,
+          "pax_growth_yoy_pct": 5.2,
+          "load_factor": 0.8244,
+          "load_factor_pct": 82.4,
+          "avg_dep_delay_min": 17.35,
+          "annual_passengers": 1285656
+        }
+      ]
+    },
+    "structured": {
+      "kind": "ranking",
+      "columns": [
+        "Rank",
+        "Airport",
+        "Expansion score",
+        "Growth YoY",
+        "Load factor",
+        "Avg delay (min)"
+      ],
+      "rows": [
+        [
+          1,
+          "BTV — Burlington",
+          73.3,
+          "5.7%",
+          "81.3%",
+          25.44
+        ],
+        [
+          2,
+          "JFK — New York",
+          70.1,
+          "-1.4%",
+          "81.9%",
+          17.47
+        ],
+        [
+          3,
+          "EWR — Newark",
+          68.1,
+          "-4.2%",
+          "83.1%",
+          19.47
+        ],
+        [
+          4,
+          "BOS — Boston",
+          67.2,
+          "-0.8%",
+          "81.7%",
+          18.06
+        ],
+        [
+          5,
+          "PWM — Portland",
+          67.1,
+          "5.2%",
+          "82.4%",
+          17.35
+        ]
+      ],
+      "caption": "Scope: Northeast · Census region · 16 airports matched · top 5 by expansion score",
+      "explain": {
+        "metricLabel": "Expansion",
+        "components": [
+          {
+            "label": "Passenger growth",
+            "weight": 0.3
+          },
+          {
+            "label": "Congestion (a 0-100 score itself)",
+            "weight": 0.3
+          },
+          {
+            "label": "Load-factor pressure",
+            "weight": 0.25
+          },
+          {
+            "label": "Passenger volume",
+            "weight": 0.15
+          }
+        ],
+        "rows": [
+          {
+            "airport": "BTV — Burlington",
+            "score": 73.3,
+            "parts": [
+              {
+                "value": 0.941,
+                "points": 28.2
+              },
+              {
+                "value": 0.806,
+                "points": 24.2
+              },
+              {
+                "value": 0.834,
+                "points": 20.9
+              },
+              {
+                "value": 0,
+                "points": 0
+              }
+            ]
+          },
+          {
+            "airport": "JFK — New York",
+            "score": 70.1,
+            "parts": [
+              {
+                "value": 0.466,
+                "points": 14
+              },
+              {
+                "value": 0.627,
+                "points": 18.8
+              },
+              {
+                "value": 0.892,
+                "points": 22.3
+              },
+              {
+                "value": 1,
+                "points": 15
+              }
+            ]
+          },
+          {
+            "airport": "EWR — Newark",
+            "score": 68.1,
+            "parts": [
+              {
+                "value": 0.283,
+                "points": 8.5
+              },
+              {
+                "value": 0.779,
+                "points": 23.4
+              },
+              {
+                "value": 1,
+                "points": 25
+              },
+              {
+                "value": 0.749,
+                "points": 11.2
+              }
+            ]
+          },
+          {
+            "airport": "BOS — Boston",
+            "score": 67.2,
+            "parts": [
+              {
+                "value": 0.508,
+                "points": 15.2
+              },
+              {
+                "value": 0.675,
+                "points": 20.2
+              },
+              {
+                "value": 0.866,
+                "points": 21.7
+              },
+              {
+                "value": 0.669,
+                "points": 10
+              }
+            ]
+          },
+          {
+            "airport": "PWM — Portland",
+            "score": 67.1,
+            "parts": [
+              {
+                "value": 0.909,
+                "points": 27.3
+              },
+              {
+                "value": 0.539,
+                "points": 16.2
+              },
+              {
+                "value": 0.944,
+                "points": 23.6
+              },
+              {
+                "value": 0.003,
+                "points": 0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "assumptions": [
+      "Investment thesis (demand-side): the case for terminal expansion is strongest where strong, growing demand meets a capacity-constrained airport — so renovation unlocks revenue rather than adding idle space.",
+      "Score blends passenger growth (2025 vs 2024), current congestion, seat load pressure, and passenger volume (every enplaned passenger, domestic and international, all carriers); weights are documented and adjustable. Each input is scaled 0-1 between anchors set by one rule: the 5th and 95th percentile of that input across the dataset's airports, rounded to two significant figures.",
+      "Airport scope is limited to the bundled dataset: the 100 busiest U.S. airports by 2025 passengers, plus Burlington (BTV) and Manchester (MHT)."
+    ],
+    "uncertainty": "Score reflects demand-side opportunity only. It does not model construction cost, land/gate availability, or local regulatory limits (e.g. noise curfews), which a full investment case would weigh. Growth is a single year (2025 vs 2024)."
+  }
+}

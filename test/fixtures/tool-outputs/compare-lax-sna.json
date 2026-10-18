@@ -1,0 +1,128 @@
+{
+  "tool": "compare_airports",
+  "args": {
+    "iatas": [
+      "LAX",
+      "SNA"
+    ],
+    "metric": "congestion"
+  },
+  "output": {
+    "result": {
+      "metric": "congestion",
+      "note": "score is a 0-100 composite; the other fields are the real underlying metrics. A null score is insufficient data, not zero.",
+      "comparison": [
+        {
+          "iata": "SNA",
+          "city": "Santa Ana",
+          "score": 40.2,
+          "avg_dep_delay_min": 15.2,
+          "pct_flights_delayed_over_15min": 19,
+          "cancel_rate_pct": 1.1,
+          "load_factor": 0.7985,
+          "load_factor_pct": 79.9
+        },
+        {
+          "iata": "LAX",
+          "city": "Los Angeles",
+          "score": 28.6,
+          "avg_dep_delay_min": 13.82,
+          "pct_flights_delayed_over_15min": 18,
+          "cancel_rate_pct": 0.7,
+          "load_factor": 0.817,
+          "load_factor_pct": 81.7
+        }
+      ]
+    },
+    "structured": {
+      "kind": "comparison",
+      "columns": [
+        "Airport",
+        "Congestion score",
+        "Avg delay (min)",
+        "Delayed >15m",
+        "Load factor",
+        "Cancel rate"
+      ],
+      "rows": [
+        [
+          "SNA — Santa Ana",
+          40.2,
+          15.2,
+          "19%",
+          "79.9%",
+          "1.1%"
+        ],
+        [
+          "LAX — Los Angeles",
+          28.6,
+          13.82,
+          "18%",
+          "81.7%",
+          "0.7%"
+        ]
+      ],
+      "caption": "Comparing 2 airports: LAX, SNA · congestion score",
+      "explain": {
+        "metricLabel": "Congestion",
+        "components": [
+          {
+            "label": "Flights delayed >15 min",
+            "weight": 0.4375
+          },
+          {
+            "label": "Average departure delay",
+            "weight": 0.375
+          },
+          {
+            "label": "Cancellation rate",
+            "weight": 0.1875
+          }
+        ],
+        "rows": [
+          {
+            "airport": "SNA — Santa Ana",
+            "score": 40.2,
+            "parts": [
+              {
+                "value": 0.436,
+                "points": 19.1
+              },
+              {
+                "value": 0.433,
+                "points": 16.3
+              },
+              {
+                "value": 0.258,
+                "points": 4.8
+              }
+            ]
+          },
+          {
+            "airport": "LAX — Los Angeles",
+            "score": 28.6,
+            "parts": [
+              {
+                "value": 0.343,
+                "points": 15
+              },
+              {
+                "value": 0.318,
+                "points": 11.9
+              },
+              {
+                "value": 0.086,
+                "points": 1.6
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "assumptions": [
+      "Congestion is proxied by operational strain: average departure delay, the share of departures more than 15 minutes late, and the cancellation rate (BTS On-Time Reporting Carrier data, calendar year 2025). Seat load factor is scored separately in the unmet-demand and expansion scores.",
+      "Metrics are compared as rates (per flight), not totals, so large hubs and small airports are judged on the same footing. Each input is scaled 0-1 between anchors set by one rule: the 5th and 95th percentile of that input across the dataset's airports, rounded to two significant figures."
+    ],
+    "uncertainty": "Delays are 2025 averages for the large reporting carriers (and their regional partners) on domestic flights. Short-term peaks are smoothed out, weather is mixed with true capacity saturation, and a smaller airport's delays often originate at the hubs its flights go to. Rates are never defaulted: an airport with under 5,000 scheduled departures in the BTS On-Time data, or under 365 departures in T-100, has that rate suppressed and the score is shown as insufficient data."
+  }
+}

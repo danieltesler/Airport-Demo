@@ -1,0 +1,82 @@
+{
+  "tool": "airport_search",
+  "args": {
+    "scope": "Bay Area",
+    "user_words": "Bay Area"
+  },
+  "output": {
+    "result": {
+      "scope": "Bay Area",
+      "scope_resolved_as": "metro",
+      "scope_label": "San Francisco Bay Area",
+      "scope_notes": [
+        "Metro alias defined as data: 50 mi around (37.6, -122.2)."
+      ],
+      "year": 2025,
+      "row_count": 3,
+      "returned": 3,
+      "truncated": false,
+      "note": "Only airports in the dataset can be listed. A null passenger figure is insufficient data, never zero.",
+      "airports": [
+        {
+          "iata": "SFO",
+          "name": "San Francisco International Airport",
+          "city": "San Francisco",
+          "state": "CA",
+          "metro_area": "San Francisco-Oakland-Fremont, CA",
+          "passengers": 26477602
+        },
+        {
+          "iata": "SJC",
+          "name": "Mineta San Jose International Airport",
+          "city": "San Jose",
+          "state": "CA",
+          "metro_area": "San Jose-Sunnyvale-Santa Clara, CA",
+          "passengers": 5272671
+        },
+        {
+          "iata": "OAK",
+          "name": "Oakland San Francisco Bay Airport",
+          "city": "Oakland",
+          "state": "CA",
+          "metro_area": "San Francisco-Oakland-Fremont, CA",
+          "passengers": 4501620
+        }
+      ]
+    },
+    "structured": {
+      "kind": "metric",
+      "columns": [
+        "Airport",
+        "State",
+        "Metro area",
+        "Passengers 2025"
+      ],
+      "rows": [
+        [
+          "SFO — San Francisco",
+          "CA",
+          "San Francisco-Oakland-Fremont, CA",
+          26477602
+        ],
+        [
+          "SJC — San Jose",
+          "CA",
+          "San Jose-Sunnyvale-Santa Clara, CA",
+          5272671
+        ],
+        [
+          "OAK — Oakland",
+          "CA",
+          "San Francisco-Oakland-Fremont, CA",
+          4501620
+        ]
+      ],
+      "caption": "Scope: San Francisco Bay Area · metro area · 3 airports matched · top 3 by 2025 passengers"
+    },
+    "assumptions": [
+      "Airport scope is limited to the 102 U.S. airports in the dataset; passengers are enplaned passengers in 2025 (BTS T-100)."
+    ],
+    "uncertainty": null
+  }
+}

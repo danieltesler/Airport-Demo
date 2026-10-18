@@ -240,6 +240,7 @@
 
 .composer {
   display: flex;
+  flex-wrap: wrap; /* a long voice status wraps the actions below the input instead of squeezing it to zero width */
   align-items: flex-end;
   gap: 0.5rem;
   padding: 0.5rem 0.5rem 0.5rem 0.9rem;
@@ -257,6 +258,7 @@
 
 .composerInput {
   flex: 1;
+  min-width: 9rem;
   border: none;
   outline: none;
   resize: none;
@@ -275,6 +277,7 @@
 
 .composerActions {
   display: flex;
+  margin-left: auto;
   align-items: center;
   gap: 0.35rem;
 }
@@ -488,4 +491,65 @@
     height: 24px;
     font-size: 0.75rem;
   }
+}
+
+/* ---- Voice status chip and AI-voice label ---- */
+.voiceChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.74rem;
+  font-weight: 550;
+  color: var(--accent-strong);
+}
+
+.voiceError {
+  color: var(--danger);
+}
+
+.chipButton {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent-strong);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.aiVoiceLabel {
+  align-self: center;
+  font-size: 0.7rem;
+  color: var(--slate-500);
+}
+
+/* Touch targets: mic and send reach 44px on touch devices and narrow screens. The composer
+   already wraps its actions under the input when space runs out, so the larger buttons
+   cannot squeeze the text field below its min-width. */
+@media (max-width: 600px), (pointer: coarse) {
+  .iconButton,
+  .micActive,
+  .sendButton {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* ---- Conversation mode: End button ---- */
+.endButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.65rem;
+  border: 1px solid var(--danger);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--danger);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.endButton:hover {
+  background: var(--danger);
+  color: #fff;
 }

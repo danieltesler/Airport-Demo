@@ -32,3 +32,9 @@ yarn-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+
+# Raw ingestion downloads (large, reproducible via npm run build:data:staging)
+data/.cache/
+
+# Staging build (reproducible via npm run build:data:staging; promoted copies live in data/*.json)
+data/staging/

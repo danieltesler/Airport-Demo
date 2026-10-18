@@ -1,0 +1,163 @@
+{
+  "tool": "compare_airports",
+  "args": {
+    "scope": "Bay Area",
+    "user_words": "Bay Area",
+    "metric": "congestion"
+  },
+  "output": {
+    "result": {
+      "metric": "congestion",
+      "scope_note": "Compared all 3 airports matched in San Francisco Bay Area.",
+      "note": "score is a 0-100 composite; the other fields are the real underlying metrics. A null score is insufficient data, not zero.",
+      "comparison": [
+        {
+          "iata": "SFO",
+          "city": "San Francisco",
+          "score": 33.4,
+          "avg_dep_delay_min": 14.25,
+          "pct_flights_delayed_over_15min": 19,
+          "cancel_rate_pct": 0.8,
+          "load_factor": 0.8231,
+          "load_factor_pct": 82.3
+        },
+        {
+          "iata": "OAK",
+          "city": "Oakland",
+          "score": 27.5,
+          "avg_dep_delay_min": 11.49,
+          "pct_flights_delayed_over_15min": 20,
+          "cancel_rate_pct": 0.6,
+          "load_factor": 0.7335,
+          "load_factor_pct": 73.4
+        },
+        {
+          "iata": "SJC",
+          "city": "San Jose",
+          "score": 12.7,
+          "avg_dep_delay_min": 10.58,
+          "pct_flights_delayed_over_15min": 17,
+          "cancel_rate_pct": 0.6,
+          "load_factor": 0.7425,
+          "load_factor_pct": 74.3
+        }
+      ]
+    },
+    "structured": {
+      "kind": "comparison",
+      "columns": [
+        "Airport",
+        "Congestion score",
+        "Avg delay (min)",
+        "Delayed >15m",
+        "Load factor",
+        "Cancel rate"
+      ],
+      "rows": [
+        [
+          "SFO — San Francisco",
+          33.4,
+          14.25,
+          "19%",
+          "82.3%",
+          "0.8%"
+        ],
+        [
+          "OAK — Oakland",
+          27.5,
+          11.49,
+          "20%",
+          "73.4%",
+          "0.6%"
+        ],
+        [
+          "SJC — San Jose",
+          12.7,
+          10.58,
+          "17%",
+          "74.3%",
+          "0.6%"
+        ]
+      ],
+      "caption": "Comparing 3 airports in San Francisco Bay Area (metro area) · congestion score",
+      "explain": {
+        "metricLabel": "Congestion",
+        "components": [
+          {
+            "label": "Flights delayed >15 min",
+            "weight": 0.4375
+          },
+          {
+            "label": "Average departure delay",
+            "weight": 0.375
+          },
+          {
+            "label": "Cancellation rate",
+            "weight": 0.1875
+          }
+        ],
+        "rows": [
+          {
+            "airport": "SFO — San Francisco",
+            "score": 33.4,
+            "parts": [
+              {
+                "value": 0.411,
+                "points": 18
+              },
+              {
+                "value": 0.354,
+                "points": 13.3
+              },
+              {
+                "value": 0.115,
+                "points": 2.2
+              }
+            ]
+          },
+          {
+            "airport": "OAK — Oakland",
+            "score": 27.5,
+            "parts": [
+              {
+                "value": 0.496,
+                "points": 21.7
+              },
+              {
+                "value": 0.124,
+                "points": 4.7
+              },
+              {
+                "value": 0.062,
+                "points": 1.2
+              }
+            ]
+          },
+          {
+            "airport": "SJC — San Jose",
+            "score": 12.7,
+            "parts": [
+              {
+                "value": 0.227,
+                "points": 9.9
+              },
+              {
+                "value": 0.048,
+                "points": 1.8
+              },
+              {
+                "value": 0.053,
+                "points": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "assumptions": [
+      "Congestion is proxied by operational strain: average departure delay, the share of departures more than 15 minutes late, and the cancellation rate (BTS On-Time Reporting Carrier data, calendar year 2025). Seat load factor is scored separately in the unmet-demand and expansion scores.",
+      "Metrics are compared as rates (per flight), not totals, so large hubs and small airports are judged on the same footing. Each input is scaled 0-1 between anchors set by one rule: the 5th and 95th percentile of that input across the dataset's airports, rounded to two significant figures."
+    ],
+    "uncertainty": "Delays are 2025 averages for the large reporting carriers (and their regional partners) on domestic flights. Short-term peaks are smoothed out, weather is mixed with true capacity saturation, and a smaller airport's delays often originate at the hubs its flights go to. Rates are never defaulted: an airport with under 5,000 scheduled departures in the BTS On-Time data, or under 365 departures in T-100, has that rate suppressed and the score is shown as insufficient data."
+  }
+}

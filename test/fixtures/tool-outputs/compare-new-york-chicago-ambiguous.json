@@ -1,0 +1,101 @@
+{
+  "tool": "compare_airports",
+  "args": {
+    "user_words": "New York and Chicago",
+    "metric": "congestion"
+  },
+  "output": {
+    "result": {
+      "error": "'New York' matches more than one airport (JFK, LGA). Ask the user which airports to compare, or call again with the airport codes in iatas.",
+      "status": "ambiguous",
+      "options": [
+        {
+          "label": "JFK — New York",
+          "scope": "JFK"
+        },
+        {
+          "label": "LGA — New York",
+          "scope": "LGA"
+        }
+      ],
+      "coverage": {
+        "airport_count": 102,
+        "states": [
+          "AK",
+          "AL",
+          "AR",
+          "AZ",
+          "CA",
+          "CO",
+          "CT",
+          "DC",
+          "FL",
+          "GA",
+          "HI",
+          "IA",
+          "ID",
+          "IL",
+          "IN",
+          "KY",
+          "LA",
+          "MA",
+          "MD",
+          "ME",
+          "MI",
+          "MN",
+          "MO",
+          "MT",
+          "NC",
+          "NE",
+          "NH",
+          "NJ",
+          "NM",
+          "NV",
+          "NY",
+          "OH",
+          "OK",
+          "OR",
+          "PA",
+          "PR",
+          "RI",
+          "SC",
+          "TN",
+          "TX",
+          "UT",
+          "VA",
+          "VT",
+          "WA",
+          "WI"
+        ],
+        "census_divisions": [
+          "New England",
+          "Middle Atlantic",
+          "East North Central",
+          "West North Central",
+          "South Atlantic",
+          "East South Central",
+          "West South Central",
+          "Mountain",
+          "Pacific"
+        ],
+        "metro_aliases": [
+          "LA",
+          "SoCal",
+          "Bay Area",
+          "NYC",
+          "DC"
+        ],
+        "supported_scopes": [
+          "'all'",
+          "an airport code present in the dataset",
+          "a named metro alias",
+          "a U.S. state or territory (name or postal code)",
+          "a U.S. Census division (e.g. New England, Pacific, Mountain)",
+          "a U.S. Census region (Northeast, Midwest, South, West)",
+          "'near <city or airport code>' (default 50 miles)",
+          "'within N miles of <city or airport code>'"
+        ]
+      }
+    }
+  }
+}

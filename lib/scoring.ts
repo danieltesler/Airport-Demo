@@ -7,51 +7,70 @@
  * independent of any language-model output.
  *
  * Design choices (see docs/DESIGN.md for the full rationale):
- *  - Every sub-metric is normalized to 0-1 against a **fixed, documented reference
- *    scale** (e.g. "30 min average delay = fully congested"), not against the
- *    current dataset's distribution. Fixed scales keep a score meaning the same
- *    thing regardless of which airports are loaded.
+ *  - Every input is scaled to 0-1 between two **anchors** produced by one rule (lib/anchors.ts):
+ *    the 5th and 95th percentile of that input across the bundled airports, rounded outward to
+ *    two significant figures. The anchors are frozen here as constants, so a score means the same
+ *    thing whichever scope is asked about; a test re-derives them from the data.
+ *  - Scaling is two-sided, so a declining airport scores below a flat one.
  *  - Composite scores are simple **transparent weighted sums** on a 0-100 scale.
  *    Weights live in one place and are easy to defend.
+ *  - A missing (suppressed) input is never defaulted: the score is reported as
+ *    insufficient data, naming the missing inputs.
  *  - Each scorer returns not just a number but its **components** and the
  *    **assumptions** behind it, so the agent can explain itself and stay honest.
  */
 
 import type { Airport } from "./data";
-import { ASSUMPTIONS, UNCERTAINTY } from "./i18n";
+import { scaleToAnchor, type Anchor } from "./anchors";
+import { ASSUMPTIONS, UNCERTAINTY, insufficientDataReason } from "./i18n";
 
 // --------------------------------------------------------------------------- //
-// Reference scales — the anchors that turn raw metrics into 0-1 components.
-// Chosen from domain norms; documented so a reviewer can challenge any one value.
+// Anchors — the raw values that scale to 0 and 1. Produced by the rule in
+// lib/anchors.ts from the 2025 data; lib/anchors.test.ts fails if they drift.
 // --------------------------------------------------------------------------- //
 
-export const FULL_CONGESTION_DELAY_MIN = 30.0; // avg departure delay treated as "saturated"
-export const FULL_CONGESTION_DELAYED_SHARE = 0.35; // share >15 min late at saturation
-export const FULL_CONGESTION_CANCEL_RATE = 0.05; // cancellation rate at saturation
-export const LOAD_FACTOR_FLOOR = 0.7; // below this, seats are not a constraint
-export const LOAD_FACTOR_CEILING = 0.9; // at/above this, effectively sold out
+export type AnchorKey =
+  | "avg_dep_delay_min"
+  | "delayed_share"
+  | "cancel_rate"
+  | "load_factor"
+  | "pax_growth_yoy"
+  | "annual_passengers"
+  | "departures_per_runway";
 
-export const STRONG_GROWTH_YOY = 0.1; // 10% YoY growth = maximal demand signal
-export const LARGE_AIRPORT_PAX = 30_000_000; // domestic enplaned passengers where volume upside maxes out
-export const HIGH_THROUGHPUT_PER_RUNWAY = 85_000; // departures/runway treated as runway-constrained
+export const ANCHORS: Record<AnchorKey, Anchor> = {
+  avg_dep_delay_min: { low: 10, high: 22 }, // minutes, average departure delay
+  delayed_share: { low: 0.14, high: 0.26 }, // share of departures >15 min late
+  cancel_rate: { low: 0.0051, high: 0.026 }, // share of scheduled departures cancelled
+  load_factor: { low: 0.73, high: 0.83 }, // passengers / seats on departing segments
+  pax_growth_yoy: { low: -0.084, high: 0.066 }, // passengers vs the previous calendar year
+  annual_passengers: { low: 1_200_000, high: 31_000_000 }, // enplaned, all carriers, incl. international
+  departures_per_runway: { low: 4_800, high: 69_000 }, // passenger departures per open runway
+};
+
+/** The raw value each anchor applies to; null when the input is suppressed. */
+export const ANCHOR_INPUTS: Record<AnchorKey, (a: Airport) => number | null> = {
+  avg_dep_delay_min: (a) => a.avg_dep_delay_min,
+  delayed_share: (a) => a.delayed_share,
+  cancel_rate: (a) => a.cancel_rate,
+  load_factor: (a) => a.load_factor,
+  pax_growth_yoy: (a) => a.pax_growth_yoy,
+  annual_passengers: (a) => a.annual_passengers,
+  departures_per_runway: (a) => a.annual_departures / Math.max(a.runways, 1),
+};
 
 export function clamp(value: number, low = 0, high = 1): number {
   return Math.max(low, Math.min(high, value));
 }
 
-/** Map a raw value onto 0-1 where `fullScale` maps to 1.0. */
-export function normalize(value: number, fullScale: number): number {
-  if (fullScale <= 0) return 0;
-  return clamp(value / fullScale);
+/** Scale one anchored input of an airport to 0-1. Callers check for null inputs first. */
+function scaled(a: Airport, key: AnchorKey): number {
+  return scaleToAnchor(ANCHOR_INPUTS[key](a) as number, ANCHORS[key]);
 }
 
-/**
- * Seat-supply pressure on 0-1. Below the floor there is spare capacity (0); at/above
- * the ceiling the airport is effectively full (1); linear in between.
- */
+/** Seat-supply pressure on 0-1: 0 at or below the low anchor, 1 at or above the high one. */
 export function loadFactorPressure(loadFactor: number): number {
-  const span = LOAD_FACTOR_CEILING - LOAD_FACTOR_FLOOR;
-  return clamp((loadFactor - LOAD_FACTOR_FLOOR) / span);
+  return scaleToAnchor(loadFactor, ANCHORS.load_factor);
 }
 
 export type MetricKey = "congestion" | "unmet_demand" | "expansion";
@@ -64,44 +83,76 @@ export interface ScoreResult {
   uncertainty: string | null;
 }
 
+/** A score that could not be computed because a required input is suppressed (null). */
+export interface InsufficientData {
+  score: null;
+  /** Names of the null input fields. */
+  missing: string[];
+  reason: string;
+  assumptions: string[];
+  uncertainty: string | null;
+}
+
+export type ScoreOutcome = ScoreResult | InsufficientData;
+
+export function isScored(outcome: ScoreOutcome): outcome is ScoreResult {
+  return outcome.score !== null;
+}
+
+/** Input fields each score needs. A null in any of them means "insufficient data". */
+export const REQUIRED_INPUTS: Record<MetricKey, (keyof Airport)[]> = {
+  congestion: ["avg_dep_delay_min", "delayed_share", "cancel_rate"],
+  unmet_demand: ["avg_dep_delay_min", "delayed_share", "cancel_rate", "load_factor", "pax_growth_yoy"],
+  expansion: ["avg_dep_delay_min", "delayed_share", "cancel_rate", "load_factor", "pax_growth_yoy"],
+};
+
+function missingInputs(a: Airport, metric: MetricKey): string[] {
+  return REQUIRED_INPUTS[metric].filter((field) => a[field] === null || a[field] === undefined).map(String);
+}
+
+function insufficient(metric: MetricKey, missing: string[], assumptions: string[], uncertainty: string): InsufficientData {
+  return { score: null, missing, reason: insufficientDataReason(metric, missing), assumptions, uncertainty };
+}
+
 const round = (n: number, dp = 1): number => {
   const f = 10 ** dp;
   return Math.round(n * f) / f;
 };
 
-/** Round a ScoreResult for transport (mirrors the Python `as_dict`). */
-export function roundResult(result: ScoreResult): ScoreResult {
+/** Round an outcome for transport. */
+export function roundResult(result: ScoreOutcome): ScoreOutcome {
+  if (!isScored(result)) return result;
   const components: Record<string, number> = {};
   for (const [k, v] of Object.entries(result.components)) components[k] = round(v, 3);
   return { ...result, score: round(result.score, 1), components };
+}
+
+function weightedSum(weights: Record<string, number>, components: Record<string, number>): number {
+  return 100 * Object.entries(weights).reduce((sum, [key, weight]) => sum + weight * components[key], 0);
 }
 
 // --------------------------------------------------------------------------- //
 // Congestion
 // --------------------------------------------------------------------------- //
 
+// Load factor is deliberately absent: unmet demand and expansion already weight it
+// directly, so keeping it here would count it a second time through this score.
 export const CONGESTION_WEIGHTS: Record<string, number> = {
-  delayed_share: 0.35,
-  avg_delay: 0.3,
-  cancellations: 0.15,
-  load_pressure: 0.2,
+  delayed_share: 0.4375,
+  avg_delay: 0.375,
+  cancellations: 0.1875,
 };
 
-export function congestionScore(a: Airport): ScoreResult {
+export function congestionScore(a: Airport): ScoreOutcome {
+  const missing = missingInputs(a, "congestion");
+  if (missing.length > 0) return insufficient("congestion", missing, ASSUMPTIONS.congestion, UNCERTAINTY.congestion);
   const components = {
-    delayed_share: normalize(a.delayed_share, FULL_CONGESTION_DELAYED_SHARE),
-    avg_delay: normalize(a.avg_dep_delay_min, FULL_CONGESTION_DELAY_MIN),
-    cancellations: normalize(a.cancel_rate, FULL_CONGESTION_CANCEL_RATE),
-    load_pressure: loadFactorPressure(a.load_factor),
+    delayed_share: scaled(a, "delayed_share"),
+    avg_delay: scaled(a, "avg_dep_delay_min"),
+    cancellations: scaled(a, "cancel_rate"),
   };
-  const score =
-    100 *
-    Object.entries(CONGESTION_WEIGHTS).reduce(
-      (sum, [k, w]) => sum + w * components[k as keyof typeof components],
-      0,
-    );
   return {
-    score,
+    score: weightedSum(CONGESTION_WEIGHTS, components),
     components,
     assumptions: ASSUMPTIONS.congestion,
     uncertainty: UNCERTAINTY.congestion,
@@ -112,7 +163,9 @@ export function congestionScore(a: Airport): ScoreResult {
 // Long-haul mix
 // --------------------------------------------------------------------------- //
 
-export function haulBreakdown(a: Airport): { short: number; medium: number; long: number } {
+/** Haul mix as percentages; null when the source suppressed it (too few departures). */
+export function haulBreakdown(a: Airport): { short: number; medium: number; long: number } | null {
+  if (!a.haul_mix) return null;
   return {
     short: round(100 * a.haul_mix.short),
     medium: round(100 * a.haul_mix.medium),
@@ -130,31 +183,24 @@ export const UNMET_DEMAND_WEIGHTS: Record<string, number> = {
   growth_vs_capacity: 0.25, // fast growth against fixed runways => widening gap
 };
 
-/** 0-1: fast passenger growth relative to runway throughput headroom. */
+/** 0-1: passenger growth relative to how hard the runways are already worked. Inputs must be non-null. */
 export function growthVsCapacity(a: Airport): number {
-  const growth = normalize(a.pax_growth_yoy, STRONG_GROWTH_YOY);
-  const throughputPerRunway = a.annual_departures / Math.max(a.runways, 1);
-  const runwayPressure = normalize(throughputPerRunway, HIGH_THROUGHPUT_PER_RUNWAY);
-  // A weighted blend of the two signals — demand growth (weighted more) and how
-  // hard the runways are already worked. Higher on either raises the gap estimate.
-  return clamp(0.6 * growth + 0.4 * runwayPressure);
+  // A weighted blend of the two signals — demand growth (weighted more) and runway
+  // throughput. Higher on either raises the gap estimate; decline lowers it.
+  return clamp(0.6 * scaled(a, "pax_growth_yoy") + 0.4 * scaled(a, "departures_per_runway"));
 }
 
-export function unmetDemandScore(a: Airport): ScoreResult {
-  const congestion = congestionScore(a).score / 100;
+export function unmetDemandScore(a: Airport): ScoreOutcome {
+  const missing = missingInputs(a, "unmet_demand");
+  if (missing.length > 0) return insufficient("unmet_demand", missing, ASSUMPTIONS.unmet, UNCERTAINTY.unmet);
+  const congestion = congestionScore(a) as ScoreResult;
   const components = {
-    load_pressure: loadFactorPressure(a.load_factor),
-    congestion,
+    load_pressure: scaled(a, "load_factor"),
+    congestion: congestion.score / 100,
     growth_vs_capacity: growthVsCapacity(a),
   };
-  const score =
-    100 *
-    Object.entries(UNMET_DEMAND_WEIGHTS).reduce(
-      (sum, [k, w]) => sum + w * components[k as keyof typeof components],
-      0,
-    );
   return {
-    score,
+    score: weightedSum(UNMET_DEMAND_WEIGHTS, components),
     components,
     assumptions: ASSUMPTIONS.unmet,
     uncertainty: UNCERTAINTY.unmet,
@@ -172,21 +218,18 @@ export const EXPANSION_WEIGHTS: Record<string, number> = {
   volume_upside: 0.15, // scale of passengers who benefit
 };
 
-export function expansionScore(a: Airport): ScoreResult {
+export function expansionScore(a: Airport): ScoreOutcome {
+  const missing = missingInputs(a, "expansion");
+  if (missing.length > 0) return insufficient("expansion", missing, ASSUMPTIONS.expansion, UNCERTAINTY.expansion);
+  const congestion = congestionScore(a) as ScoreResult;
   const components = {
-    demand_growth: normalize(a.pax_growth_yoy, STRONG_GROWTH_YOY),
-    congestion: congestionScore(a).score / 100,
-    load_pressure: loadFactorPressure(a.load_factor),
-    volume_upside: normalize(a.annual_passengers, LARGE_AIRPORT_PAX),
+    demand_growth: scaled(a, "pax_growth_yoy"),
+    congestion: congestion.score / 100,
+    load_pressure: scaled(a, "load_factor"),
+    volume_upside: scaled(a, "annual_passengers"),
   };
-  const score =
-    100 *
-    Object.entries(EXPANSION_WEIGHTS).reduce(
-      (sum, [k, w]) => sum + w * components[k as keyof typeof components],
-      0,
-    );
   return {
-    score,
+    score: weightedSum(EXPANSION_WEIGHTS, components),
     components,
     assumptions: ASSUMPTIONS.expansion,
     uncertainty: UNCERTAINTY.expansion,
@@ -194,7 +237,7 @@ export function expansionScore(a: Airport): ScoreResult {
 }
 
 /** Registry so tools can look up a scorer by name. */
-export type Scorer = (a: Airport) => ScoreResult;
+export type Scorer = (a: Airport) => ScoreOutcome;
 
 export const METRIC_SCORERS: Record<MetricKey, Scorer> = {
   congestion: congestionScore,
@@ -208,16 +251,3 @@ export const METRIC_WEIGHTS: Record<MetricKey, Record<string, number>> = {
   unmet_demand: UNMET_DEMAND_WEIGHTS,
   expansion: EXPANSION_WEIGHTS,
 };
-
-/**
- * How much of a metric's score load factor really drives: its direct weight plus the
- * share that enters again inside the nested congestion score. Both paths are real in
- * the formulas, so the total exceeds the direct weight whenever congestion is a component.
- */
-export function loadFactorInfluence(metric: MetricKey): { direct: number; viaCongestion: number } {
-  const weights = METRIC_WEIGHTS[metric];
-  return {
-    direct: weights.load_pressure ?? 0,
-    viaCongestion: (weights.congestion ?? 0) * CONGESTION_WEIGHTS.load_pressure,
-  };
-}

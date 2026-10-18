@@ -1,0 +1,192 @@
+{
+  "tool": "carrier_share",
+  "args": {
+    "origin": "SLC",
+    "top_n": 8
+  },
+  "output": {
+    "result": {
+      "origin": "SLC",
+      "origin_name": "Salt Lake City International Airport",
+      "year": 2025,
+      "total_seats": 16611319,
+      "total_departures": 122410,
+      "row_count": 27,
+      "returned": 8,
+      "truncated": true,
+      "note": "Shares are of seats and of departures performed. 'other' groups the remaining carriers so the shares add up to 100%.",
+      "carriers": [
+        {
+          "code": "DL",
+          "name": "Delta Air Lines",
+          "operating_carrier": false,
+          "label": "Delta Air Lines (DL)",
+          "seats": 9414489,
+          "seat_share_pct": 56.7,
+          "departures": 57557,
+          "departure_share_pct": 47
+        },
+        {
+          "code": "OO",
+          "name": "SkyWest Airlines",
+          "operating_carrier": true,
+          "label": "SkyWest Airlines (OO, operating carrier)",
+          "seats": 2617983,
+          "seat_share_pct": 15.8,
+          "departures": 37486,
+          "departure_share_pct": 30.6
+        },
+        {
+          "code": "WN",
+          "name": "Southwest Airlines",
+          "operating_carrier": false,
+          "label": "Southwest Airlines (WN)",
+          "seats": 1883631,
+          "seat_share_pct": 11.3,
+          "departures": 11585,
+          "departure_share_pct": 9.5
+        },
+        {
+          "code": "AA",
+          "name": "American Airlines",
+          "operating_carrier": false,
+          "label": "American Airlines (AA)",
+          "seats": 734530,
+          "seat_share_pct": 4.4,
+          "departures": 4181,
+          "departure_share_pct": 3.4
+        },
+        {
+          "code": "UA",
+          "name": "United Airlines",
+          "operating_carrier": false,
+          "label": "United Airlines (UA)",
+          "seats": 712170,
+          "seat_share_pct": 4.3,
+          "departures": 4616,
+          "departure_share_pct": 3.8
+        },
+        {
+          "code": "F9",
+          "name": "Frontier Airlines",
+          "operating_carrier": false,
+          "label": "Frontier Airlines (F9)",
+          "seats": 604528,
+          "seat_share_pct": 3.6,
+          "departures": 2937,
+          "departure_share_pct": 2.4
+        },
+        {
+          "code": "AS",
+          "name": "Alaska Airlines",
+          "operating_carrier": false,
+          "label": "Alaska Airlines (AS)",
+          "seats": 216096,
+          "seat_share_pct": 1.3,
+          "departures": 1274,
+          "departure_share_pct": 1
+        },
+        {
+          "code": "B6",
+          "name": "JetBlue Airways",
+          "operating_carrier": false,
+          "label": "JetBlue Airways (B6)",
+          "seats": 91986,
+          "seat_share_pct": 0.6,
+          "departures": 593,
+          "departure_share_pct": 0.5
+        }
+      ],
+      "other": {
+        "carrier_count": 19,
+        "seats": 335906,
+        "seat_share_pct": 2,
+        "departures": 2181,
+        "departure_share_pct": 1.8
+      }
+    },
+    "structured": {
+      "kind": "metric",
+      "columns": [
+        "Carrier",
+        "Seats",
+        "Seat share (%)",
+        "Departures",
+        "Departure share (%)"
+      ],
+      "rows": [
+        [
+          "Delta Air Lines (DL)",
+          9414489,
+          56.7,
+          57557,
+          47
+        ],
+        [
+          "SkyWest Airlines (OO, operating carrier)",
+          2617983,
+          15.8,
+          37486,
+          30.6
+        ],
+        [
+          "Southwest Airlines (WN)",
+          1883631,
+          11.3,
+          11585,
+          9.5
+        ],
+        [
+          "American Airlines (AA)",
+          734530,
+          4.4,
+          4181,
+          3.4
+        ],
+        [
+          "United Airlines (UA)",
+          712170,
+          4.3,
+          4616,
+          3.8
+        ],
+        [
+          "Frontier Airlines (F9)",
+          604528,
+          3.6,
+          2937,
+          2.4
+        ],
+        [
+          "Alaska Airlines (AS)",
+          216096,
+          1.3,
+          1274,
+          1
+        ],
+        [
+          "JetBlue Airways (B6)",
+          91986,
+          0.6,
+          593,
+          0.5
+        ],
+        [
+          "Other (19 carriers)",
+          335906,
+          2,
+          2181,
+          1.8
+        ]
+      ],
+      "caption": "Carrier share, flights from SLC · 2025 · top 8 of 27 carriers · 19 others grouped"
+    },
+    "assumptions": [
+      "Route figures are BTS T-100 Segment records for scheduled passenger service (2025): each row is one carrier's flights between two airports. Passengers are enplaned passengers per segment, so a connecting trip counts once on each segment and a route's figure is not the number of people travelling between two cities.",
+      "Seats and departures are those performed on the segment, and distance is great-circle miles.",
+      "Only the 102 airports in the dataset are origins; a destination can be any airport. 2025 is the latest complete year, and 2024 is the comparison year.",
+      "BTS reports the operating carrier. Regional airlines such as SkyWest, Republic, Envoy and Endeavor fly under other airlines' brands, so the name on the ticket may differ; carriers marked 'operating carrier' are such airlines."
+    ],
+    "uncertainty": "'No nonstop service in this data' is a fact about T-100 segments from the 102 covered airports; it does not show a market is 'underserved', which is an inference this data cannot support on its own (it ignores connecting itineraries, fares, nearby airports and seasonal or charter service)."
+  }
+}

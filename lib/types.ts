@@ -10,6 +10,11 @@ export type ChatRole = "user" | "assistant";
 export interface ChatTurn {
   role: ChatRole;
   content: string;
+  /**
+   * Optional, assistant turns only: the `shown` note the server returned with that answer
+   * (what was on screen: table rows in order). Sent back so follow-ups keep their referent.
+   */
+  shown?: string;
 }
 
 /** Request body for POST /api/chat. */
@@ -46,13 +51,27 @@ export interface ScoreExplanation {
     /** value = normalized 0-1 component; points = its contribution to the 0-100 score. */
     parts: { value: number; points: number }[];
   }[];
-  notes: string[];
 }
 
 /** Transparency metadata about how the answer was produced. */
 export interface ResponseMeta {
   tools_used?: string[];
   data_vintage?: string;
+  timings?: TurnTimings;
+  /** Which path produced the voice line: the verified model line, the client template, or neither. */
+  spoken_source?: "model" | "template" | "none";
+  /** How many checks rejected the model's spoken line (a count only, no content). Present when it was rejected. */
+  spoken_guard_rejections?: number;
+}
+
+/** Where time went in one turn, in milliseconds. */
+export interface TurnTimings {
+  total_ms: number;
+  model_calls: number;
+  model_ms: number;
+  tools_ms: number;
+  /** One entry per model call: its duration and the tools it triggered. */
+  hops: { model_ms: number; tools: { name: string; ms: number }[] }[];
 }
 
 /** Response body for POST /api/chat. `reply` is the only guaranteed field. */
@@ -62,6 +81,10 @@ export interface ChatResponse {
   assumptions?: string[] | null;
   uncertainty?: string | null;
   meta?: ResponseMeta | null;
+  /** The verified line to read aloud. Omitted unless the server-side guard accepted it. */
+  spoken?: string;
+  /** Code-built note of what is on screen for this answer; send it back as `shown` on this turn in `history`. */
+  shown?: string;
   /** Present only on error responses; for logs/debug, never shown to the user. */
   error?: string;
 }
@@ -101,6 +124,10 @@ export interface AssistantExtras {
   assumptions?: string[] | null;
   uncertainty?: string | null;
   meta?: ResponseMeta | null;
+  /** What is read aloud, built client-side by lib/spoken.ts from `structured` (never from model text when a table exists). */
+  spoken?: string | null;
+  /** The server's "shown on screen" note for this answer, sent back as `shown` in the next request's history. */
+  shown?: string | null;
   /** Set when the turn failed; the UI uses its presence only to style the reply as an error. */
   error?: string | null;
 }

@@ -1,0 +1,314 @@
+{
+  "tool": "capacity_trend",
+  "args": {
+    "origin": "OAK",
+    "group_by": "carrier",
+    "top_n": 5
+  },
+  "output": {
+    "result": {
+      "origin": "OAK",
+      "origin_name": "Oakland San Francisco Bay Airport",
+      "years": {
+        "prior": 2024,
+        "current": 2025
+      },
+      "group_by": "carrier",
+      "totals": {
+        "seats_prior": 7034708,
+        "seats_current": 6137508,
+        "seats_change": -897200,
+        "seats_change_pct": -12.8,
+        "passengers_prior": 5290031,
+        "passengers_current": 4501620,
+        "passengers_change": -788411,
+        "passengers_change_pct": -14.9
+      },
+      "groups_with_increase": 7,
+      "groups_with_cut": 13,
+      "row_count": 20,
+      "returned": 10,
+      "truncated": true,
+      "note": "Seat change is the ranking measure. Groups with no change are omitted. A 'new' group had no service in 2024; 'ended' had none in 2025.",
+      "biggest_increases": [
+        {
+          "key": "Y4",
+          "label": "Volaris (Y4)",
+          "operating_carrier": false,
+          "seats_prior": 330559,
+          "seats_current": 468311,
+          "seats_change": 137752,
+          "seats_change_pct": 41.7,
+          "passengers_prior": 260760,
+          "passengers_current": 327316,
+          "passengers_change": 66556,
+          "passengers_change_pct": 25.5
+        },
+        {
+          "key": "VB",
+          "label": "VivaAerobus (VB)",
+          "operating_carrier": false,
+          "seats_prior": 16586,
+          "seats_current": 78742,
+          "seats_change": 62156,
+          "seats_change_pct": 374.7,
+          "passengers_prior": 13234,
+          "passengers_current": 46261,
+          "passengers_change": 33027,
+          "passengers_change_pct": 249.6
+        },
+        {
+          "key": "QX",
+          "label": "Horizon Air (QX, operating carrier)",
+          "operating_carrier": true,
+          "seats_prior": 78128,
+          "seats_current": 102448,
+          "seats_change": 24320,
+          "seats_change_pct": 31.1,
+          "passengers_prior": 68635,
+          "passengers_current": 89752,
+          "passengers_change": 21117,
+          "passengers_change_pct": 30.8
+        },
+        {
+          "key": "G4",
+          "label": "Allegiant Air (G4)",
+          "operating_carrier": false,
+          "seats_prior": 24075,
+          "seats_current": 33252,
+          "seats_change": 9177,
+          "seats_change_pct": 38.1,
+          "passengers_prior": 20463,
+          "passengers_current": 27711,
+          "passengers_change": 7248,
+          "passengers_change_pct": 35.4
+        },
+        {
+          "key": "N3",
+          "label": "Vuela El Salvador (N3)",
+          "operating_carrier": false,
+          "seats_prior": 32550,
+          "seats_current": 38776,
+          "seats_change": 6226,
+          "seats_change_pct": 19.1,
+          "passengers_prior": 24000,
+          "passengers_current": 30515,
+          "passengers_change": 6515,
+          "passengers_change_pct": 27.1
+        }
+      ],
+      "biggest_cuts": [
+        {
+          "key": "WN",
+          "label": "Southwest Airlines (WN)",
+          "operating_carrier": false,
+          "seats_prior": 5511216,
+          "seats_current": 4800473,
+          "seats_change": -710743,
+          "seats_change_pct": -12.9,
+          "passengers_prior": 4091279,
+          "passengers_current": 3500130,
+          "passengers_change": -591149,
+          "passengers_change_pct": -14.4
+        },
+        {
+          "key": "NK",
+          "label": "Spirit Airlines (NK)",
+          "operating_carrier": false,
+          "seats_prior": 505469,
+          "seats_current": 201611,
+          "seats_change": -303858,
+          "seats_change_pct": -60.1,
+          "passengers_prior": 399278,
+          "passengers_current": 152228,
+          "passengers_change": -247050,
+          "passengers_change_pct": -61.9
+        },
+        {
+          "key": "DL",
+          "label": "Delta Air Lines (DL)",
+          "operating_carrier": false,
+          "seats_prior": 85319,
+          "seats_current": 20057,
+          "seats_change": -65262,
+          "seats_change_pct": -76.5,
+          "passengers_prior": 60436,
+          "passengers_current": 12278,
+          "passengers_change": -48158,
+          "passengers_change_pct": -79.7
+        },
+        {
+          "key": "AS",
+          "label": "Alaska Airlines (AS)",
+          "operating_carrier": false,
+          "seats_prior": 123305,
+          "seats_current": 99544,
+          "seats_change": -23761,
+          "seats_change_pct": -19.3,
+          "passengers_prior": 89939,
+          "passengers_current": 74705,
+          "passengers_change": -15234,
+          "passengers_change_pct": -16.9
+        },
+        {
+          "key": "OO",
+          "label": "SkyWest Airlines (OO, operating carrier)",
+          "operating_carrier": true,
+          "seats_prior": 99560,
+          "seats_current": 76804,
+          "seats_change": -22756,
+          "seats_change_pct": -22.9,
+          "passengers_prior": 83126,
+          "passengers_current": 65395,
+          "passengers_change": -17731,
+          "passengers_change_pct": -21.3
+        }
+      ]
+    },
+    "structured": {
+      "kind": "metric",
+      "columns": [
+        "Change",
+        "Carrier",
+        "Seats 2024",
+        "Seats 2025",
+        "Seat change",
+        "Seat change (%)",
+        "Passengers 2024",
+        "Passengers 2025",
+        "Passenger change (%)"
+      ],
+      "rows": [
+        [
+          "Total",
+          "all destinations from OAK",
+          7034708,
+          6137508,
+          -897200,
+          "-12.8%",
+          5290031,
+          4501620,
+          "-14.9%"
+        ],
+        [
+          "Increase",
+          "Volaris (Y4)",
+          330559,
+          468311,
+          137752,
+          "+41.7%",
+          260760,
+          327316,
+          "+25.5%"
+        ],
+        [
+          "Increase",
+          "VivaAerobus (VB)",
+          16586,
+          78742,
+          62156,
+          "+374.7%",
+          13234,
+          46261,
+          "+249.6%"
+        ],
+        [
+          "Increase",
+          "Horizon Air (QX, operating carrier)",
+          78128,
+          102448,
+          24320,
+          "+31.1%",
+          68635,
+          89752,
+          "+30.8%"
+        ],
+        [
+          "Increase",
+          "Allegiant Air (G4)",
+          24075,
+          33252,
+          9177,
+          "+38.1%",
+          20463,
+          27711,
+          "+35.4%"
+        ],
+        [
+          "Increase",
+          "Vuela El Salvador (N3)",
+          32550,
+          38776,
+          6226,
+          "+19.1%",
+          24000,
+          30515,
+          "+27.1%"
+        ],
+        [
+          "Cut",
+          "Southwest Airlines (WN)",
+          5511216,
+          4800473,
+          -710743,
+          "-12.9%",
+          4091279,
+          3500130,
+          "-14.4%"
+        ],
+        [
+          "Cut",
+          "Spirit Airlines (NK)",
+          505469,
+          201611,
+          -303858,
+          "-60.1%",
+          399278,
+          152228,
+          "-61.9%"
+        ],
+        [
+          "Cut",
+          "Delta Air Lines (DL)",
+          85319,
+          20057,
+          -65262,
+          "-76.5%",
+          60436,
+          12278,
+          "-79.7%"
+        ],
+        [
+          "Cut",
+          "Alaska Airlines (AS)",
+          123305,
+          99544,
+          -23761,
+          "-19.3%",
+          89939,
+          74705,
+          "-16.9%"
+        ],
+        [
+          "Cut",
+          "SkyWest Airlines (OO, operating carrier)",
+          99560,
+          76804,
+          -22756,
+          "-22.9%",
+          83126,
+          65395,
+          "-21.3%"
+        ]
+      ],
+      "caption": "Capacity trend, flights from OAK · 2024 to 2025 · biggest changes by carrier"
+    },
+    "assumptions": [
+      "Route figures are BTS T-100 Segment records for scheduled passenger service (2024 and 2025): each row is one carrier's flights between two airports. Passengers are enplaned passengers per segment, so a connecting trip counts once on each segment and a route's figure is not the number of people travelling between two cities.",
+      "Seats and departures are those performed on the segment, and distance is great-circle miles.",
+      "Only the 102 airports in the dataset are origins; a destination can be any airport. 2025 is the latest complete year, and 2024 is the comparison year.",
+      "BTS reports the operating carrier. Regional airlines such as SkyWest, Republic, Envoy and Endeavor fly under other airlines' brands, so the name on the ticket may differ; carriers marked 'operating carrier' are such airlines."
+    ],
+    "uncertainty": "'No nonstop service in this data' is a fact about T-100 segments from the 102 covered airports; it does not show a market is 'underserved', which is an inference this data cannot support on its own (it ignores connecting itineraries, fares, nearby airports and seasonal or charter service). The trend compares two calendar years: it shows which carriers and routes changed, not why (schedule, fleet, demand or strategy are not in the data)."
+  }
+}

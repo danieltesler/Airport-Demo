@@ -1,0 +1,331 @@
+{
+  "meta": {
+    "source": "U.S. Bureau of Transportation Statistics (BTS) carrier lookup table L_UNIQUE_CARRIERS (Download_Lookup, code to description), the same code system as the UNIQUE_CARRIER field of T-100 Segment",
+    "url": "https://www.transtats.bts.gov/Download_Lookup.asp?Y11x72=Y_haVdhR_PNeeVRef",
+    "retrieved": "2026-10-18",
+    "coverage": "The carriers with the most 2025 seats in data/routes.json (99% of seats). Any code not listed here is shown as its raw BTS code, never guessed.",
+    "notes": [
+      "bts_description is the lookup's text verbatim; name is a shortened display form of it.",
+      "operating_carrier marks regional airlines that fly under another airline's brand; the name on the ticket may differ. BTS reports the operating carrier.",
+      "BTS reuses codes over time; the current assignment (the lookup row without a '(1)' suffix) is used."
+    ]
+  },
+  "carriers": {
+    "WN": {
+      "name": "Southwest Airlines",
+      "bts_description": "Southwest Airlines Co."
+    },
+    "AA": {
+      "name": "American Airlines",
+      "bts_description": "American Airlines Inc."
+    },
+    "DL": {
+      "name": "Delta Air Lines",
+      "bts_description": "Delta Air Lines Inc."
+    },
+    "UA": {
+      "name": "United Airlines",
+      "bts_description": "United Air Lines Inc."
+    },
+    "OO": {
+      "name": "SkyWest Airlines",
+      "bts_description": "SkyWest Airlines Inc.",
+      "operating_carrier": true
+    },
+    "B6": {
+      "name": "JetBlue Airways",
+      "bts_description": "JetBlue Airways"
+    },
+    "F9": {
+      "name": "Frontier Airlines",
+      "bts_description": "Frontier Airlines Inc."
+    },
+    "AS": {
+      "name": "Alaska Airlines",
+      "bts_description": "Alaska Airlines Inc."
+    },
+    "NK": {
+      "name": "Spirit Airlines",
+      "bts_description": "Spirit Air Lines"
+    },
+    "YX": {
+      "name": "Republic Airways",
+      "bts_description": "Republic Airline",
+      "operating_carrier": true
+    },
+    "MQ": {
+      "name": "Envoy Air",
+      "bts_description": "Envoy Air",
+      "operating_carrier": true
+    },
+    "9E": {
+      "name": "Endeavor Air",
+      "bts_description": "Endeavor Air Inc.",
+      "operating_carrier": true
+    },
+    "OH": {
+      "name": "PSA Airlines",
+      "bts_description": "PSA Airlines Inc.",
+      "operating_carrier": true
+    },
+    "G4": {
+      "name": "Allegiant Air",
+      "bts_description": "Allegiant Air"
+    },
+    "HA": {
+      "name": "Hawaiian Airlines",
+      "bts_description": "Hawaiian Airlines Inc."
+    },
+    "MX": {
+      "name": "Breeze Airways",
+      "bts_description": "Breeze Aviation Group DBA  Breeze"
+    },
+    "QX": {
+      "name": "Horizon Air",
+      "bts_description": "Horizon Air",
+      "operating_carrier": true
+    },
+    "YV": {
+      "name": "Mesa Airlines",
+      "bts_description": "Mesa Airlines Inc.",
+      "operating_carrier": true
+    },
+    "PT": {
+      "name": "Piedmont Airlines",
+      "bts_description": "Piedmont Airlines",
+      "operating_carrier": true
+    },
+    "SY": {
+      "name": "Sun Country Airlines",
+      "bts_description": "Sun Country Airlines d/b/a MN Airlines"
+    },
+    "Y4": {
+      "name": "Volaris",
+      "bts_description": "Concesionaria Vuela Compania De Aviacion SA de CV (Volaris)"
+    },
+    "BA": {
+      "name": "British Airways",
+      "bts_description": "British Airways Plc"
+    },
+    "AC": {
+      "name": "Air Canada",
+      "bts_description": "Air Canada"
+    },
+    "LH": {
+      "name": "Lufthansa",
+      "bts_description": "Lufthansa German Airlines"
+    },
+    "G7": {
+      "name": "GoJet Airlines",
+      "bts_description": "GoJet Airlines LLC d/b/a United Express",
+      "operating_carrier": true
+    },
+    "WS": {
+      "name": "WestJet",
+      "bts_description": "Westjet"
+    },
+    "AF": {
+      "name": "Air France",
+      "bts_description": "Compagnie Natl Air France"
+    },
+    "C5": {
+      "name": "CommuteAir",
+      "bts_description": "CommuteAir LLC dba CommuteAir",
+      "operating_carrier": true
+    },
+    "TK": {
+      "name": "Turkish Airlines",
+      "bts_description": "Turk Hava Yollari A.O."
+    },
+    "VS": {
+      "name": "Virgin Atlantic",
+      "bts_description": "Virgin Atlantic Airways"
+    },
+    "AM": {
+      "name": "Aeromexico",
+      "bts_description": "Aeromexico"
+    },
+    "EK": {
+      "name": "Emirates",
+      "bts_description": "Emirates"
+    },
+    "CM": {
+      "name": "Copa Airlines",
+      "bts_description": "Compania Panamena (Copa)"
+    },
+    "QK": {
+      "name": "Jazz Aviation",
+      "bts_description": "Jazz Aviation LP",
+      "operating_carrier": true
+    },
+    "EI": {
+      "name": "Aer Lingus",
+      "bts_description": "Aer Lingus Plc"
+    },
+    "VB": {
+      "name": "VivaAerobus",
+      "bts_description": "Aeroenlaces Nacionales, S.A. de C.V. d/b/a VivaAerobus"
+    },
+    "QR": {
+      "name": "Qatar Airways",
+      "bts_description": "Qatar Airways (Q.C.S.C)"
+    },
+    "XP": {
+      "name": "Avelo Airlines",
+      "bts_description": "TEM Enterprises dba  Avelo Airlines"
+    },
+    "KE": {
+      "name": "Korean Air",
+      "bts_description": "Korean Air Lines Co. Ltd."
+    },
+    "AV": {
+      "name": "Avianca",
+      "bts_description": "Aerovias Nacl De Colombia"
+    },
+    "JL": {
+      "name": "Japan Airlines",
+      "bts_description": "Japan Air Lines Co. Ltd."
+    },
+    "RV": {
+      "name": "Air Canada Rouge",
+      "bts_description": "Air Canada rouge LP"
+    },
+    "NH": {
+      "name": "All Nippon Airways",
+      "bts_description": "All Nippon Airways Co."
+    },
+    "KL": {
+      "name": "KLM Royal Dutch Airlines",
+      "bts_description": "Klm Royal Dutch Airlines"
+    },
+    "BR": {
+      "name": "EVA Air",
+      "bts_description": "Eva Airways Corporation"
+    },
+    "IB": {
+      "name": "Iberia",
+      "bts_description": "Iberia Air Lines Of Spain"
+    },
+    "TA": {
+      "name": "TACA International Airlines",
+      "bts_description": "Taca International Airlines"
+    },
+    "CX": {
+      "name": "Cathay Pacific",
+      "bts_description": "Cathay Pacific Airways Ltd."
+    },
+    "LX": {
+      "name": "Swiss International Air Lines",
+      "bts_description": "Swiss International Airlines"
+    },
+    "FI": {
+      "name": "Icelandair",
+      "bts_description": "Icelandair"
+    },
+    "SK": {
+      "name": "Scandinavian Airlines",
+      "bts_description": "Scandinavian Airlines Sys."
+    },
+    "TP": {
+      "name": "TAP Air Portugal",
+      "bts_description": "TAP-TAP Air Portugal"
+    },
+    "PD": {
+      "name": "Porter Airlines",
+      "bts_description": "Porter Airlines Limited (PACL)"
+    },
+    "OZ": {
+      "name": "Asiana Airlines",
+      "bts_description": "Asiana Airlines Inc."
+    },
+    "SQ": {
+      "name": "Singapore Airlines",
+      "bts_description": "Singapore Airlines Ltd."
+    },
+    "AI": {
+      "name": "Air India",
+      "bts_description": "National Aviation Company of India Limited d/b/a Air India"
+    },
+    "QF": {
+      "name": "Qantas",
+      "bts_description": "Qantas Airways Ltd."
+    },
+    "AZ": {
+      "name": "ITA Airways",
+      "bts_description": "Italia Transporto Aereo S.P.A DBA ITA S.P.A"
+    },
+    "EY": {
+      "name": "Etihad Airways",
+      "bts_description": "Etihad Airways"
+    },
+    "JJ": {
+      "name": "LATAM Airlines Brasil",
+      "bts_description": "TAM Linhas Aereas SA dba Latam Airlines Brasil"
+    },
+    "CI": {
+      "name": "China Airlines",
+      "bts_description": "China Airlines Ltd."
+    },
+    "LY": {
+      "name": "El Al",
+      "bts_description": "El Al Israel Airlines Ltd."
+    },
+    "LP": {
+      "name": "LATAM Airlines Peru",
+      "bts_description": "Lan Peru Airlines"
+    },
+    "PR": {
+      "name": "Philippine Airlines",
+      "bts_description": "Philippine Airlines Inc."
+    },
+    "LO": {
+      "name": "LOT Polish Airlines",
+      "bts_description": "Polskie Linie Lotnicze"
+    },
+    "P3": {
+      "name": "Porter Airlines",
+      "bts_description": "Porter Airlines Inc. (PAI)"
+    },
+    "LA": {
+      "name": "LATAM Airlines",
+      "bts_description": "LATAM Airlines Group SA dba Lan Airlines"
+    },
+    "ET": {
+      "name": "Ethiopian Airlines",
+      "bts_description": "Ethiopian Airlines"
+    },
+    "OS": {
+      "name": "Austrian Airlines",
+      "bts_description": "Austrian Airlines"
+    },
+    "NZ": {
+      "name": "Air New Zealand",
+      "bts_description": "Air New Zealand"
+    },
+    "BW": {
+      "name": "Caribbean Airlines",
+      "bts_description": "Caribbean Airlines Limited"
+    },
+    "DE": {
+      "name": "Condor",
+      "bts_description": "Condor Flugdienst"
+    },
+    "N3": {
+      "name": "Vuela El Salvador",
+      "bts_description": "Vuela EL Salvador S.A. de C.V."
+    },
+    "AD": {
+      "name": "Azul Brazilian Airlines",
+      "bts_description": "Azul Linhas Aereas Brazileiras S A"
+    },
+    "4Y": {
+      "name": "Eurowings Discover",
+      "bts_description": "Eurowings Discover GmbH"
+    },
+    "ZW": {
+      "name": "Air Wisconsin",
+      "bts_description": "Air Wisconsin Airlines Corp",
+      "operating_carrier": true
+    }
+  }
+}

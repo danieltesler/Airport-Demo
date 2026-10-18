@@ -1,0 +1,46 @@
+{
+  "tool": "long_haul_breakdown",
+  "args": {
+    "iata": "ANC"
+  },
+  "output": {
+    "result": {
+      "iata": "ANC",
+      "name": "Ted Stevens Anchorage International Airport",
+      "haul_mix_pct": {
+        "short": 61.9,
+        "medium": 24.9,
+        "long": 13.2
+      },
+      "thresholds_miles": {
+        "short_max": 1100,
+        "long_min": 2200
+      }
+    },
+    "structured": {
+      "kind": "breakdown",
+      "columns": [
+        "Haul type",
+        "Share of departures"
+      ],
+      "rows": [
+        [
+          "Short (<1100 mi)",
+          "61.9%"
+        ],
+        [
+          "Medium (1100-2200 mi)",
+          "24.9%"
+        ],
+        [
+          "Long (>2200 mi)",
+          "13.2%"
+        ]
+      ]
+    },
+    "assumptions": [
+      "Haul class is by great-circle route distance from T-100 segment data: short <1100 mi, medium 1100-2200 mi, long >2200 mi.",
+      "Percentages are shares of scheduled passenger departures performed in 2025 (all carriers, international segments included), not passengers or seats."
+    ]
+  }
+}

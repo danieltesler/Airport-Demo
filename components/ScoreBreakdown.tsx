@@ -8,7 +8,13 @@ import styles from "./ScoreBreakdown.module.css";
  * rounded to 1 decimal, so a column matches the score only up to rounding. A native <details> keeps it keyboard- and
  * screen-reader-accessible without any state.
  */
-export function ScoreBreakdown({ explain }: { explain: ScoreExplanation }) {
+interface ScoreBreakdownProps {
+  explain: ScoreExplanation;
+  /** Airports in the table that have no score; named so a missing column is explained. */
+  notScored?: string[];
+}
+
+export function ScoreBreakdown({ explain, notScored = [] }: ScoreBreakdownProps) {
   return (
     <details className={styles.details}>
       <summary className={styles.summary}>{PANEL_LABELS.explainSummary}</summary>
@@ -64,11 +70,9 @@ export function ScoreBreakdown({ explain }: { explain: ScoreExplanation }) {
           </table>
         </div>
 
-        {explain.notes.map((note) => (
-          <p key={note} className={styles.note}>
-            {note}
-          </p>
-        ))}
+        {notScored.length > 0 && (
+          <p className={styles.note}>Not scored (insufficient data): {notScored.join(", ")}</p>
+        )}
       </div>
     </details>
   );

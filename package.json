@@ -10,7 +10,10 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build:data": "node scripts/build-dataset.mjs"
+    "build:data:staging": "node scripts/ingest/build-staging.mjs && node scripts/ingest/verify-staging.mjs && node scripts/ingest/before-after.mjs",
+    "verify:data:staging": "node scripts/ingest/verify-staging.mjs",
+    "promote:data": "node scripts/ingest/verify-staging.mjs && node scripts/promote-data.mjs",
+    "anchors": "node scripts/derive-anchors.mjs"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.16",

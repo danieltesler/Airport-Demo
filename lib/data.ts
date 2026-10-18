@@ -1,13 +1,26 @@
 /**
  * Data access layer over the bundled airport dataset.
  *
- * The dataset (a curated public-data snapshot) is imported directly as JSON, so it
- * is bundled at build time and available in any runtime (including Vercel functions)
- * with no filesystem access. This is the only module that knows how the data is
- * stored, keeping the scoring engine and tools independent of the storage format.
+ * data/airports.json and data/places.json are produced by the reproducible pipeline
+ * (npm run build:data:staging, then npm run promote:data) from BTS, OurAirports and U.S.
+ * Census files, and every field carries its source, period and formula in the file's meta.
+ * Both are imported as JSON, so they are bundled at build time and available in any runtime
+ * (including Vercel functions) with no filesystem access. The much larger route table
+ * (data/routes.json) is deliberately NOT imported here; see lib/routes.ts.
+ *
+ * This is the only module that knows how the airport data is stored, keeping the scoring
+ * engine and tools independent of the storage format.
  */
 
 import dataset from "@/data/airports.json";
+import gazetteer from "@/data/places.json";
+import {
+  createScopeResolver,
+  describeCoverage,
+  type Coverage,
+  type Place,
+  type ScopeResolution,
+} from "./geography";
 
 export interface HaulMix {
   short: number;
@@ -15,6 +28,10 @@ export interface HaulMix {
   long: number;
 }
 
+/**
+ * One airport as the app uses it. Rates are null when the source suppressed them (too few
+ * flights to be reliable); scorers then report "insufficient data" instead of a default.
+ */
 export interface Airport {
   iata: string;
   icao: string;
@@ -23,31 +40,68 @@ export interface Airport {
   state: string;
   lat: number;
   lon: number;
+  /** Open, non-helipad runways (OurAirports). */
   runways: number;
+  /** Enplaned passengers in the data year, all carriers, domestic + international (BTS T-100). */
   annual_passengers: number;
-  pax_growth_yoy: number;
-  load_factor: number;
-  avg_dep_delay_min: number;
-  delayed_share: number;
-  cancel_rate: number;
+  /** Passenger departures performed in the data year (BTS T-100). */
   annual_departures: number;
-  haul_mix: HaulMix;
+  /** Share of annual_passengers on segments to a foreign destination. */
+  international_passenger_share: number | null;
+  /** Passengers vs the previous calendar year, fractional (-0.05 = 5% fewer). */
+  pax_growth_yoy: number | null;
+  load_factor: number | null;
+  avg_dep_delay_min: number | null;
+  delayed_share: number | null;
+  cancel_rate: number | null;
+  haul_mix: HaulMix | null;
+  /** Census CBSA title containing the airport, e.g. "Boston-Cambridge-Newton, MA-NH". */
+  metro?: string;
+  /** Census CBSA code, e.g. "14460". */
+  metro_code?: string;
 }
 
-const AIRPORTS = dataset.airports as Airport[];
+/** The record shape in data/airports.json (pipeline output; extra fields are ignored). */
+interface AirportRecord extends Omit<Airport, "metro" | "metro_code"> {
+  cbsa_code: string | null;
+  cbsa_name: string | null;
+}
+
+/** Provenance of one field, as written by the pipeline. */
+export interface FieldProvenance {
+  sources: string[];
+  formula: string;
+  filter?: string;
+  note?: string;
+}
+
+function toAirport(record: AirportRecord): Airport {
+  const { cbsa_code, cbsa_name, ...rest } = record;
+  return { ...rest, metro: cbsa_name ?? undefined, metro_code: cbsa_code ?? undefined };
+}
+
 const META = dataset.meta;
+const AIRPORTS: Airport[] = (dataset.airports as unknown as AirportRecord[]).map(toAirport);
+const PLACES = gazetteer.places as Place[];
 const BY_IATA = new Map(AIRPORTS.map((a) => [a.iata, a]));
+const resolveScope = createScopeResolver(AIRPORTS, { places: PLACES });
 
 export function dataVintage(): string {
   return META.vintage;
 }
 
-export function newEnglandStates(): string[] {
-  return META.new_england_states;
+/** The calendar year the traffic and delay figures describe. */
+export function dataYear(): number {
+  return META.year;
 }
 
 export function haulThresholds(): { short_max: number; long_min: number } {
   return META.haul_thresholds_miles;
+}
+
+/** Source, formula and filter behind a field (keys as in data/airports.json meta.fields). */
+export function fieldProvenance(): Record<string, FieldProvenance> {
+  return META.fields as Record<string, FieldProvenance>;
 }
 
 export function allAirports(): Airport[] {
@@ -63,67 +117,26 @@ export function knownIatas(): string[] {
   return [...BY_IATA.keys()].sort();
 }
 
-const STATE_NAME_TO_CODE: Record<string, string> = {
-  alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA",
-  colorado: "CO", connecticut: "CT", delaware: "DE", florida: "FL", georgia: "GA",
-  hawaii: "HI", idaho: "ID", illinois: "IL", indiana: "IN", iowa: "IA", kansas: "KS",
-  kentucky: "KY", louisiana: "LA", maine: "ME", maryland: "MD", massachusetts: "MA",
-  michigan: "MI", minnesota: "MN", mississippi: "MS", missouri: "MO", montana: "MT",
-  nebraska: "NE", nevada: "NV", "new hampshire": "NH", "new jersey": "NJ",
-  "new mexico": "NM", "new york": "NY", "north carolina": "NC", "north dakota": "ND",
-  ohio: "OH", oklahoma: "OK", oregon: "OR", pennsylvania: "PA", "rhode island": "RI",
-  "south carolina": "SC", "south dakota": "SD", tennessee: "TN", texas: "TX",
-  utah: "UT", vermont: "VT", virginia: "VA", washington: "WA", "west virginia": "WV",
-  wisconsin: "WI", wyoming: "WY",
-};
-
-// Metro areas mapped to the airports we actually have in the dataset.
-const METRO_GROUPS: Record<string, string[]> = {
-  la: ["LAX", "SNA"], "los angeles": ["LAX", "SNA"], "l.a.": ["LAX", "SNA"],
-  socal: ["LAX", "SNA", "SAN"], "southern california": ["LAX", "SNA", "SAN"],
-  "bay area": ["SFO", "OAK", "SJC"], "sf bay": ["SFO", "OAK", "SJC"],
-  "san francisco bay": ["SFO", "OAK", "SJC"],
-  nyc: ["JFK", "LGA", "EWR"], "new york city": ["JFK", "LGA", "EWR"],
-  "new york metro": ["JFK", "LGA", "EWR"],
-  dc: ["DCA", "IAD"], "washington dc": ["DCA", "IAD"], "d.c.": ["DCA", "IAD"],
-};
-
-/** The distinct U.S. states the dataset covers (for helpful "no match" messages). */
+/** The distinct U.S. states the dataset covers (postal codes, sorted). */
 export function coveredStates(): string[] {
   return [...new Set(AIRPORTS.map((a) => a.state))].sort();
 }
 
 /**
- * Resolve a named scope to a list of airports.
- *  - "new_england" -> ME/NH/VT/MA/RI/CT
- *  - "all" | undefined -> every airport
- *  - a U.S. state, by 2-letter code ("CA") or full name ("California")
- *  - a metro area ("LA", "Bay Area", "NYC", "DC")
- * Returns [] for an unrecognized scope (callers surface a helpful message).
- * An explicit `states` list, if given, overrides `scope`.
+ * Resolve scope text to airports with a structured, explainable result (how it was
+ * understood, notes, ambiguity options, or suggestions). The geography rules live in
+ * geography.ts; this only binds them to the bundled airports and Census gazetteer.
  */
-export function airportsInScope(scope?: string | null, states?: string[]): Airport[] {
-  if (states && states.length > 0) {
-    const wanted = new Set(states.map((s) => s.trim().toUpperCase()));
-    return AIRPORTS.filter((a) => wanted.has(a.state));
-  }
+export function resolveAirportScope(scope?: string | null): ScopeResolution<Airport> {
+  return resolveScope(scope);
+}
 
-  if (!scope || scope.trim().toLowerCase() === "all") return AIRPORTS;
+/** What the bundled dataset covers (count, states, supported scope kinds). */
+export function datasetCoverage(): Coverage {
+  return describeCoverage(AIRPORTS);
+}
 
-  const key = scope.trim().toLowerCase();
-
-  if (["new_england", "new-england", "newengland", "new england"].includes(key)) {
-    const ne = new Set(newEnglandStates());
-    return AIRPORTS.filter((a) => ne.has(a.state));
-  }
-
-  if (METRO_GROUPS[key]) {
-    const codes = new Set(METRO_GROUPS[key]);
-    return AIRPORTS.filter((a) => codes.has(a.iata));
-  }
-
-  const stateCode = STATE_NAME_TO_CODE[key] ?? (key.length === 2 ? key.toUpperCase() : null);
-  if (stateCode) return AIRPORTS.filter((a) => a.state === stateCode);
-
-  return [];
+/** Airports for a scope; [] unless it resolved. Use resolveAirportScope to learn why a scope failed. */
+export function airportsInScope(scope?: string | null): Airport[] {
+  return resolveAirportScope(scope).airports;
 }

@@ -1,0 +1,442 @@
+{
+  "tool": "route_search",
+  "args": {
+    "origin": "OAK",
+    "top_n": 10
+  },
+  "output": {
+    "result": {
+      "origin": "OAK",
+      "origin_name": "Oakland San Francisco Bay Airport",
+      "year": 2025,
+      "sort_by": "passengers",
+      "row_count": 65,
+      "returned": 10,
+      "truncated": true,
+      "note": "passengers are enplaned per segment; carriers are BTS operating-carrier codes (names from the BTS lookup, raw code if unknown).",
+      "routes": [
+        {
+          "rank": 1,
+          "destination": "LAS",
+          "destination_name": "Las Vegas",
+          "carriers": [
+            {
+              "code": "WN",
+              "name": "Southwest Airlines",
+              "operating_carrier": false,
+              "label": "Southwest Airlines (WN)",
+              "seats": 537713
+            },
+            {
+              "code": "NK",
+              "name": "Spirit Airlines",
+              "operating_carrier": false,
+              "label": "Spirit Airlines (NK)",
+              "seats": 116251
+            }
+          ],
+          "other_carrier_count": 0,
+          "passengers": 508798,
+          "seats": 653964,
+          "departures": 3907,
+          "distance_mi": 407,
+          "yoy_pct": -15.7
+        },
+        {
+          "rank": 2,
+          "destination": "SAN",
+          "destination_name": "San Diego",
+          "carriers": [
+            {
+              "code": "WN",
+              "name": "Southwest Airlines",
+              "operating_carrier": false,
+              "label": "Southwest Airlines (WN)",
+              "seats": 472091
+            },
+            {
+              "code": "NK",
+              "name": "Spirit Airlines",
+              "operating_carrier": false,
+              "label": "Spirit Airlines (NK)",
+              "seats": 29568
+            },
+            {
+              "code": "OO",
+              "name": "SkyWest Airlines",
+              "operating_carrier": true,
+              "label": "SkyWest Airlines (OO, operating carrier)",
+              "seats": 76
+            }
+          ],
+          "other_carrier_count": 1,
+          "passengers": 363531,
+          "seats": 501811,
+          "departures": 3231,
+          "distance_mi": 446,
+          "yoy_pct": -3.6
+        },
+        {
+          "rank": 3,
+          "destination": "BUR",
+          "destination_name": "Burbank",
+          "carriers": [
+            {
+              "code": "WN",
+              "name": "Southwest Airlines",
+              "operating_carrier": false,
+              "label": "Southwest Airlines (WN)",
+              "seats": 421850
+            },
+            {
+              "code": "NK",
+              "name": "Spirit Airlines",
+              "operating_carrier": false,
+              "label": "Spirit Airlines (NK)",
+              "seats": 11264
+            }
+          ],
+          "other_carrier_count": 0,
+          "passengers": 290713,
+          "seats": 433114,
+          "departures": 3014,
+          "distance_mi": 325,
+          "yoy_pct": -9.7
+        },
+        {
+          "rank": 4,
+          "destination": "SEA",
+          "destination_name": "Seattle",
+          "carriers": [
+            {
+              "code": "WN",
+              "name": "Southwest Airlines",
+              "operating_carrier": false,
+              "label": "Southwest Airlines (WN)",
+              "seats": 198894
+            },
+            {
+              "code": "AS",
+              "name": "Alaska Airlines",
+              "operating_carrier": false,
+              "label": "Alaska Airlines (AS)",
+              "seats": 95797
+            },
+            {
+              "code": "QX",
+              "name": "Horizon Air",
+              "operating_carrier": true,
+              "label": "Horizon Air (QX, operating carrier)",
+              "seats": 54492
+            }
+          ],
+          "other_carrier_count": 1,
+          "passengers": 285186,
+          "seats": 355567,
+          "departures": 2607,
+          "distance_mi": 672,
+          "yoy_pct": -8.5
+        },
+        {
+          "rank": 5,
+          "destination": "PHX",
+          "destination_name": "Phoenix",
+          "carriers": [
+            {
+              "code": "WN",
+              "name": "Southwest Airlines",
+              "operating_carrier": false,
+              "label": "Southwest Airlines (WN)",
+              "seats": 326134
+            },
+            {
+              "code": "OO",
+              "name": "SkyWest Airlines",
+              "operating_carrier": true,
+              "label": "SkyWest Airlines (OO, operating carrier)",
+              "seats": 76
+            }
+          ],
+          "other_carrier_count": 0,
+          "passengers": 268350,
+          "seats": 326210,
+          "departures": 1995,
+          "distance_mi": 646,
+          "yoy_pct": -3
+        },
+        {
+          "rank": 6,
+          "destination": "SNA",
+          "destination_name": "Santa Ana",
+          "carriers": [
+            {
+              "code": "WN",
+              "name": "Southwest Airlines",
+              "operating_carrier": false,
+              "label": "Southwest Airlines (WN)",
+              "seats": 333424
+            },
+            {
+              "code": "NK",
+              "name": "Spirit Airlines",
+              "operating_carrier": false,
+              "label": "Spirit Airlines (NK)",
+              "seats": 44352
+            },
+            {
+              "code": "OO",
+              "name": "SkyWest Airlines",
+              "operating_carrier": true,
+              "label": "SkyWest Airlines (OO, operating carrier)",
+              "seats": 76
+            }
+          ],
+          "other_carrier_count": 0,
+          "passengers": 264720,
+          "seats": 377852,
+          "departures": 2541,
+          "distance_mi": 371,
+          "yoy_pct": 1
+        },
+        {
+          "rank": 7,
+          "destination": "DEN",
+          "destination_name": "Denver",
+          "carriers": [
+            {
+              "code": "WN",
+              "name": "Southwest Airlines",
+              "operating_carrier": false,
+              "label": "Southwest Airlines (WN)",
+              "seats": 279040
+            }
+          ],
+          "other_carrier_count": 0,
+          "passengers": 229427,
+          "seats": 279040,
+          "departures": 1696,
+          "distance_mi": 957,
+          "yoy_pct": -2.4
+        },
+        {
+          "rank": 8,
+          "destination": "LAX",
+          "destination_name": "Los Angeles",
+          "carriers": [
+            {
+              "code": "WN",
+              "name": "Southwest Airlines",
+              "operating_carrier": false,
+              "label": "Southwest Airlines (WN)",
+              "seats": 352288
+            },
+            {
+              "code": "QX",
+              "name": "Horizon Air",
+              "operating_carrier": true,
+              "label": "Horizon Air (QX, operating carrier)",
+              "seats": 380
+            },
+            {
+              "code": "OO",
+              "name": "SkyWest Airlines",
+              "operating_carrier": true,
+              "label": "SkyWest Airlines (OO, operating carrier)",
+              "seats": 76
+            }
+          ],
+          "other_carrier_count": 0,
+          "passengers": 212318,
+          "seats": 352744,
+          "departures": 2246,
+          "distance_mi": 337,
+          "yoy_pct": -43.1
+        },
+        {
+          "rank": 9,
+          "destination": "PDX",
+          "destination_name": "Portland",
+          "carriers": [
+            {
+              "code": "WN",
+              "name": "Southwest Airlines",
+              "operating_carrier": false,
+              "label": "Southwest Airlines (WN)",
+              "seats": 210297
+            },
+            {
+              "code": "QX",
+              "name": "Horizon Air",
+              "operating_carrier": true,
+              "label": "Horizon Air (QX, operating carrier)",
+              "seats": 47348
+            },
+            {
+              "code": "AS",
+              "name": "Alaska Airlines",
+              "operating_carrier": false,
+              "label": "Alaska Airlines (AS)",
+              "seats": 2755
+            }
+          ],
+          "other_carrier_count": 1,
+          "passengers": 202464,
+          "seats": 262376,
+          "departures": 1968,
+          "distance_mi": 543,
+          "yoy_pct": -8.5
+        },
+        {
+          "rank": 10,
+          "destination": "GDL",
+          "destination_name": null,
+          "carriers": [
+            {
+              "code": "Y4",
+              "name": "Volaris",
+              "operating_carrier": false,
+              "label": "Volaris (Y4)",
+              "seats": 192497
+            },
+            {
+              "code": "VB",
+              "name": "VivaAerobus",
+              "operating_carrier": false,
+              "label": "VivaAerobus (VB)",
+              "seats": 55204
+            }
+          ],
+          "other_carrier_count": 0,
+          "passengers": 180974,
+          "seats": 247701,
+          "departures": 1293,
+          "distance_mi": 1640,
+          "yoy_pct": 32.2
+        }
+      ]
+    },
+    "structured": {
+      "kind": "metric",
+      "columns": [
+        "Rank",
+        "Destination",
+        "Carriers",
+        "Passengers",
+        "Seats",
+        "Departures",
+        "Distance (mi)",
+        "Passengers YoY"
+      ],
+      "rows": [
+        [
+          1,
+          "LAS — Las Vegas",
+          "Southwest Airlines, Spirit Airlines",
+          508798,
+          653964,
+          3907,
+          407,
+          "-15.7%"
+        ],
+        [
+          2,
+          "SAN — San Diego",
+          "Southwest Airlines, Spirit Airlines, SkyWest Airlines +1 more",
+          363531,
+          501811,
+          3231,
+          446,
+          "-3.6%"
+        ],
+        [
+          3,
+          "BUR — Burbank",
+          "Southwest Airlines, Spirit Airlines",
+          290713,
+          433114,
+          3014,
+          325,
+          "-9.7%"
+        ],
+        [
+          4,
+          "SEA — Seattle",
+          "Southwest Airlines, Alaska Airlines, Horizon Air +1 more",
+          285186,
+          355567,
+          2607,
+          672,
+          "-8.5%"
+        ],
+        [
+          5,
+          "PHX — Phoenix",
+          "Southwest Airlines, SkyWest Airlines",
+          268350,
+          326210,
+          1995,
+          646,
+          "-3.0%"
+        ],
+        [
+          6,
+          "SNA — Santa Ana",
+          "Southwest Airlines, Spirit Airlines, SkyWest Airlines",
+          264720,
+          377852,
+          2541,
+          371,
+          "+1.0%"
+        ],
+        [
+          7,
+          "DEN — Denver",
+          "Southwest Airlines",
+          229427,
+          279040,
+          1696,
+          957,
+          "-2.4%"
+        ],
+        [
+          8,
+          "LAX — Los Angeles",
+          "Southwest Airlines, Horizon Air, SkyWest Airlines",
+          212318,
+          352744,
+          2246,
+          337,
+          "-43.1%"
+        ],
+        [
+          9,
+          "PDX — Portland",
+          "Southwest Airlines, Horizon Air, Alaska Airlines +1 more",
+          202464,
+          262376,
+          1968,
+          543,
+          "-8.5%"
+        ],
+        [
+          10,
+          "GDL",
+          "Volaris, VivaAerobus",
+          180974,
+          247701,
+          1293,
+          1640,
+          "+32.2%"
+        ]
+      ],
+      "caption": "Routes from OAK · 2025 · top 10 of 65 by passengers"
+    },
+    "assumptions": [
+      "Route figures are BTS T-100 Segment records for scheduled passenger service (2024 and 2025): each row is one carrier's flights between two airports. Passengers are enplaned passengers per segment, so a connecting trip counts once on each segment and a route's figure is not the number of people travelling between two cities.",
+      "Seats and departures are those performed on the segment, and distance is great-circle miles.",
+      "Only the 102 airports in the dataset are origins; a destination can be any airport. 2025 is the latest complete year, and 2024 is the comparison year.",
+      "BTS reports the operating carrier. Regional airlines such as SkyWest, Republic, Envoy and Endeavor fly under other airlines' brands, so the name on the ticket may differ; carriers marked 'operating carrier' are such airlines."
+    ],
+    "uncertainty": "'No nonstop service in this data' is a fact about T-100 segments from the 102 covered airports; it does not show a market is 'underserved', which is an inference this data cannot support on its own (it ignores connecting itineraries, fares, nearby airports and seasonal or charter service)."
+  }
+}

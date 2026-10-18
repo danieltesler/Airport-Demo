@@ -1,6 +1,10 @@
 import type { ChatModelAdapter, ThreadMessage } from "@assistant-ui/react";
+import { scheduleAcknowledgement } from "./acknowledgement";
 import { sendChat } from "./api";
-import type { AssistantExtras, ChatRole, ChatTurn } from "./types";
+import { buildSpokenText, speakableModelLine } from "./spoken";
+import { getSpeechPlayer } from "./voicePlayback";
+import { consumeVoiceTurn } from "./voiceTurn";
+import type { AssistantExtras, ChatResponse, ChatRole, ChatTurn } from "./types";
 
 /**
  * Bridges assistant-ui's LocalRuntime to our own `POST /api/chat` backend
@@ -11,20 +15,32 @@ import type { AssistantExtras, ChatRole, ChatTurn } from "./types";
  * message component can render them beneath the reply.
  */
 export const airportChatAdapter: ChatModelAdapter = {
-  async run({ messages }) {
+  async run({ messages, abortSignal }) {
     const latestUserTurn = messages[messages.length - 1];
     const message = latestUserTurn ? readText(latestUserTurn) : "";
     const history = toHistory(messages.slice(0, -1));
 
-    const response = await sendChat(message, history);
+    // Only an answer to a spoken question is read aloud on its own, and only that turn gets the "one moment".
+    const askedByVoice = consumeVoiceTurn(message);
+    const player = getSpeechPlayer();
+    const acknowledgement = askedByVoice && player.autoSpeakAllowed ? scheduleAcknowledgement((phrase) => player.speak(phrase)) : null;
 
+    const response = await sendChat(message, history);
+    const acknowledged = acknowledgement?.stop() ?? false;
+
+    const spoken = spokenFor(response);
     const extras: AssistantExtras = {
       structured: response.structured ?? null,
       assumptions: response.assumptions ?? null,
       uncertainty: response.uncertainty ?? null,
       meta: response.meta ?? null,
+      spoken,
+      shown: response.shown ?? null,
       error: response.error ?? null,
     };
+
+    if (spoken && askedByVoice && !abortSignal.aborted && player.autoSpeakAllowed) player.speak(spoken);
+    else if (acknowledged) player.cancel(); // never leave a "one moment" hanging with no answer behind it
 
     return {
       content: [{ type: "text", text: response.reply }],
@@ -32,6 +48,18 @@ export const airportChatAdapter: ChatModelAdapter = {
     };
   },
 };
+
+/**
+ * The line to read aloud. The server's `spoken` is sent only after its guard checked every figure
+ * and name against this turn's tool results, so it is used as is. Without one (older server, guard
+ * rejected it, model skipped it) the code-built template from the table is used, then the reply.
+ * Failed turns are not worth speaking: the on-screen error and Try again cover them.
+ */
+function spokenFor(response: ChatResponse): string | null {
+  if (response.error) return null;
+  const modelLine = response.spoken ? speakableModelLine(response.spoken) : null;
+  return modelLine ?? buildSpokenText(response.reply, response.structured, response.uncertainty);
+}
 
 /** Flatten a message's text parts into a single string for the contract. */
 function readText(message: ThreadMessage): string {
@@ -42,12 +70,19 @@ function readText(message: ThreadMessage): string {
     .trim();
 }
 
-/** Prior turns, mapped to the contract's `{ role, content }` history shape. */
+/** The "shown on screen" note the server returned with an assistant answer, if any. */
+function shownNoteOf(message: ThreadMessage): string | undefined {
+  const custom = message.metadata?.custom as AssistantExtras | undefined;
+  return typeof custom?.shown === "string" && custom.shown ? custom.shown : undefined;
+}
+
+/** Prior turns, mapped to the contract's `{ role, content }` history shape, with each answer's `shown` note. */
 function toHistory(messages: readonly ThreadMessage[]): ChatTurn[] {
   return messages
     .filter((message) => message.role === "user" || message.role === "assistant")
-    .map((message) => ({
-      role: message.role as ChatRole,
-      content: readText(message),
-    }));
+    .map((message) => {
+      const turn: ChatTurn = { role: message.role as ChatRole, content: readText(message) };
+      const shown = message.role === "assistant" ? shownNoteOf(message) : undefined;
+      return shown ? { ...turn, shown } : turn;
+    });
 }

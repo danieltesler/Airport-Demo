@@ -38,7 +38,7 @@
   font-size: 0.74rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #9a7420;
+  color: var(--amber-text);
   margin-bottom: 0.2rem;
 }
 
@@ -65,7 +65,7 @@
   padding-top: 0.55rem;
   border-top: 1px dashed var(--amber-border);
   font-size: 0.76rem;
-  color: #9a7420;
+  color: var(--amber-text);
 }
 
 .metaItem {

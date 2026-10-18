@@ -1,0 +1,81 @@
+{
+  "tool": "airport_profile",
+  "args": {
+    "iata": "JFK"
+  },
+  "output": {
+    "result": {
+      "iata": "JFK",
+      "name": "John F. Kennedy International Airport",
+      "city": "New York",
+      "state": "NY",
+      "metro_area": "New York-Newark-Jersey City, NY-NJ",
+      "data_year": 2025,
+      "note": "A null metric was suppressed in the source data (too few flights); say so, never guess it.",
+      "metrics": {
+        "annual_passengers": 31021616,
+        "international_passenger_share": 0.5483,
+        "pax_growth_yoy": -0.0141,
+        "load_factor": 0.8192,
+        "load_factor_pct": 81.9,
+        "avg_dep_delay_min": 17.47,
+        "delayed_share": 0.2107,
+        "cancel_rate": 0.0202,
+        "annual_departures": 212036,
+        "runways": 4
+      },
+      "haul_mix_pct": {
+        "short": 38.2,
+        "medium": 21.5,
+        "long": 40.3
+      },
+      "scores": {
+        "congestion": {
+          "score": 62.7,
+          "components": {
+            "delayed_share": 0.589,
+            "avg_delay": 0.622,
+            "cancellations": 0.722
+          },
+          "assumptions": [
+            "Congestion is proxied by operational strain: average departure delay, the share of departures more than 15 minutes late, and the cancellation rate (BTS On-Time Reporting Carrier data, calendar year 2025). Seat load factor is scored separately in the unmet-demand and expansion scores.",
+            "Metrics are compared as rates (per flight), not totals, so large hubs and small airports are judged on the same footing. Each input is scaled 0-1 between anchors set by one rule: the 5th and 95th percentile of that input across the dataset's airports, rounded to two significant figures."
+          ],
+          "uncertainty": "Delays are 2025 averages for the large reporting carriers (and their regional partners) on domestic flights. Short-term peaks are smoothed out, weather is mixed with true capacity saturation, and a smaller airport's delays often originate at the hubs its flights go to. Rates are never defaulted: an airport with under 5,000 scheduled departures in the BTS On-Time data, or under 365 departures in T-100, has that rate suppressed and the score is shown as insufficient data."
+        },
+        "unmet_demand": {
+          "score": 72.1,
+          "components": {
+            "load_pressure": 0.892,
+            "congestion": 0.627,
+            "growth_vs_capacity": 0.58
+          },
+          "assumptions": [
+            "'Unmet demand' has no direct public measurement (bookings that never happened aren't observable in free data). We estimate it as a composite lower-bound proxy.",
+            "Load factor (passengers / seats on departing scheduled flights, BTS T-100 2025, all carriers) is the primary signal: sustained high seat utilization implies demand that current supply cannot absorb.",
+            "Passenger growth (2025 vs 2024) measured against how hard the runways are already worked indicates a widening gap; a declining airport scores below a flat one."
+          ],
+          "uncertainty": "This is a lower-bound proxy. True unmet demand (searches that didn't convert, fares that priced people out) requires proprietary GDS/OAG data not available for free. Rates are never defaulted: an airport with under 5,000 scheduled departures in the BTS On-Time data, or under 365 departures in T-100, has that rate suppressed and the score is shown as insufficient data."
+        },
+        "expansion": {
+          "score": 70.1,
+          "components": {
+            "demand_growth": 0.466,
+            "congestion": 0.627,
+            "load_pressure": 0.892,
+            "volume_upside": 1
+          },
+          "assumptions": [
+            "Investment thesis (demand-side): the case for terminal expansion is strongest where strong, growing demand meets a capacity-constrained airport — so renovation unlocks revenue rather than adding idle space.",
+            "Score blends passenger growth (2025 vs 2024), current congestion, seat load pressure, and passenger volume (every enplaned passenger, domestic and international, all carriers); weights are documented and adjustable. Each input is scaled 0-1 between anchors set by one rule: the 5th and 95th percentile of that input across the dataset's airports, rounded to two significant figures.",
+            "Airport scope is limited to the bundled dataset: the 100 busiest U.S. airports by 2025 passengers, plus Burlington (BTV) and Manchester (MHT)."
+          ],
+          "uncertainty": "Score reflects demand-side opportunity only. It does not model construction cost, land/gate availability, or local regulatory limits (e.g. noise curfews), which a full investment case would weigh. Growth is a single year (2025 vs 2024)."
+        }
+      }
+    },
+    "assumptions": [
+      "Investment thesis (demand-side): the case for terminal expansion is strongest where strong, growing demand meets a capacity-constrained airport — so renovation unlocks revenue rather than adding idle space."
+    ]
+  }
+}
