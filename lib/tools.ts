@@ -26,9 +26,12 @@ import {
 import {
   ASSUMPTIONS,
   haulAssumptions,
+  rankingCaption,
+  comparisonCaption,
   liveFlightsAssumptions,
   LIVE_FLIGHTS_UNCERTAINTY,
 } from "./i18n";
+import { explainScores } from "./explain";
 import { flightsNearAirport } from "./liveflights";
 import type { StructuredResult } from "./types";
 
@@ -45,6 +48,7 @@ const SCORE_COLUMN: Record<MetricKey, string> = {
   expansion: "Expansion score",
 };
 
+const airportLabel = (a: Airport): string => `${a.iata} — ${a.city}`;
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 const pct = (frac: number, dp = 0): string => `${(frac * 100).toFixed(dp)}%`;
 
@@ -116,7 +120,7 @@ export function rankAirports(
   const columns = ["Rank", "Airport", SCORE_COLUMN[metric], "Growth YoY", "Load factor", "Avg delay (min)"];
   const rows = ranked.map(({ a, res }, i) => [
     i + 1,
-    `${a.iata} — ${a.city}`,
+    airportLabel(a),
     round1(res.score),
     pct(a.pax_growth_yoy, 1),
     Number(a.load_factor.toFixed(2)),
@@ -139,7 +143,18 @@ export function rankAirports(
         annual_passengers: a.annual_passengers,
       })),
     },
-    structured: { kind: "ranking", columns, rows },
+    structured: {
+      kind: "ranking",
+      columns,
+      rows,
+      caption: rankingCaption({
+        scope,
+        matched: airports.length,
+        shown: ranked.length,
+        scoreLabel: SCORE_COLUMN[metric],
+      }),
+      explain: explainScores(ranked.map(({ a }) => a), metric, airportLabel),
+    },
     assumptions: sample.assumptions,
     uncertainty: sample.uncertainty,
   };
@@ -159,7 +174,9 @@ export function compareAirports(
   }
 
   const scorer = METRIC_SCORERS[metric];
-  const scored = resolved.map((r) => ({ a: r.a as Airport, res: scorer(r.a as Airport) }));
+  // The same airport named twice (e.g. "LAX, lax") is compared once.
+  const unique = resolved.filter((r, i) => resolved.findIndex((o) => o.a!.iata === r.a!.iata) === i);
+  const scored = unique.map((r) => ({ a: r.a as Airport, res: scorer(r.a as Airport) }));
 
   const columns = [
     "Airport",
@@ -170,7 +187,7 @@ export function compareAirports(
     "Cancel rate",
   ];
   const rows = scored.map(({ a, res }) => [
-    `${a.iata} — ${a.city}`,
+    airportLabel(a),
     round1(res.score),
     a.avg_dep_delay_min,
     pct(a.delayed_share),
@@ -192,7 +209,13 @@ export function compareAirports(
         load_factor: a.load_factor,
       })),
     },
-    structured: { kind: "comparison", columns, rows },
+    structured: {
+      kind: "comparison",
+      columns,
+      rows,
+      caption: comparisonCaption(scored.length, SCORE_COLUMN[metric]),
+      explain: explainScores(scored.map(({ a }) => a), metric, airportLabel),
+    },
     assumptions: scored[0].res.assumptions,
     uncertainty: scored[0].res.uncertainty,
   };

@@ -17,6 +17,7 @@ export function Composer() {
         className={styles.composerInput}
         placeholder="Ask about airport capacity, congestion, or demand…"
         rows={1}
+        aria-label="Ask a question about U.S. airports"
       />
 
       <div className={styles.composerActions}>

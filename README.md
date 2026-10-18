@@ -32,8 +32,9 @@ assumptions behind the score and where the data came from.
 
 ## How it works
 
-It's a single Next.js app. The browser talks to the app's own `/api/chat` route, so
-there's no separate backend to run and no cross-origin setup to worry about.
+It's a single Next.js 14 app (App Router). The browser talks to the app's own routes
+under `/api` (`chat`, `stt`, `tts`, `health`), so there's no separate backend to run and
+no cross-origin setup to worry about.
 
 Two parts split the work:
 
@@ -122,6 +123,8 @@ nothing else to set up.
 ```
 app/
   api/chat/route.ts     the agent turn (POST /api/chat)
+  api/stt/route.ts      speech to text (POST /api/stt, OpenAI Whisper)
+  api/tts/route.ts      text to speech (GET/POST /api/tts, OpenAI TTS, streamed)
   api/health/route.ts   a health check
   layout.tsx, page.tsx  the app shell and the single chat page
   globals.css           design tokens and Markdown styles
@@ -130,7 +133,7 @@ components/
   StructuredResult.tsx  the results table and bar chart
   AssumptionsPanel.tsx  the assumptions / uncertainty panel
 lib/
-  agent.ts              the model loop (the only file that talks to OpenAI)
+  agent.ts              the model loop (chat model and tool calling; speech is in the stt/tts routes)
   tools.ts              the tools the model can call
   scoring.ts            the deterministic scoring engine
   data.ts               access to the bundled dataset
@@ -170,3 +173,24 @@ close it is running to its limits. They don't factor in construction cost, avail
 land or gates, or local rules such as noise curfews, all of which a real investment
 decision would weigh. Every answer says so, so the numbers aren't taken for more than
 they are.
+
+## Known limitations
+
+- **No authentication or rate limiting** on the `/api` routes. Chat, speech-to-text, and
+  text-to-speech each trigger paid OpenAI calls, so a public deployment is exposed to
+  cost abuse.
+- **Several inputs are estimates.** Only BTS T-100 Domestic traffic (passengers and
+  departures) and the OurAirports reference data are real. Delays, load factor,
+  cancellations, haul mix, and year-over-year growth are documented estimates.
+- **Load factor is weighted more heavily than its documented share.** Congestion feeds
+  the unmet-demand and expansion scores, so load factor's effective weight is 31% in the
+  expansion score (documented: 25%) and 47% in unmet demand (documented: 40%). The full
+  breakdown is in [docs/DESIGN.md](docs/DESIGN.md#35-effective-weights).
+- **Coverage** is about 28 major and mid-size U.S. airports.
+
+## Next steps
+
+- Authentication, per-client rate limiting, and usage caps on the API.
+- An end-to-end evaluation suite to catch regressions when prompts or models change.
+- Real delay and load-factor data (BTS On-Time, T-100 Segment, FAA ASPM) in place of estimates.
+- Observability: request logs, tool traces, latency, and cost metrics.

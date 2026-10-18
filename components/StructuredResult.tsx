@@ -1,4 +1,5 @@
 import type { Cell, StructuredResult as StructuredData } from "@/lib/types";
+import { ScoreBreakdown } from "./ScoreBreakdown";
 import styles from "./StructuredResult.module.css";
 
 interface StructuredResultProps {
@@ -11,13 +12,14 @@ interface StructuredResultProps {
  * (ranking / comparison / breakdown). `metric` shows just the table.
  */
 export function StructuredResult({ data }: StructuredResultProps) {
-  const { kind, columns, rows } = data;
+  const { kind, columns, rows, caption, explain } = data;
   const chart = buildChart(data);
 
   return (
     <section className={styles.wrap} aria-label={`${kind} result`}>
       <div className={styles.tableScroll}>
         <table className={styles.table}>
+          {caption && <caption className={styles.caption}>{caption}</caption>}
           <thead>
             <tr>
               {columns.map((col, i) => (
@@ -60,6 +62,8 @@ export function StructuredResult({ data }: StructuredResultProps) {
           ))}
         </div>
       )}
+
+      {explain && <ScoreBreakdown explain={explain} />}
     </section>
   );
 }

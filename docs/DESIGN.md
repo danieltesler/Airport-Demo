@@ -4,7 +4,7 @@ This is the design write-up for the agent that helps analysts find U.S. airports
 where the demand-side case for a terminal expansion is strongest, i.e. where demand is growing
 into the limits of what the airport can handle.
 
-It walks through how the scoring works, the tradeoffs I made along the way, where the
+It walks through how the scoring works, the tradeoffs behind the design, where the
 AI actually sits in the system, and the data behind it all.
 
 ---
@@ -67,8 +67,12 @@ The code is split into small layers, each with one job:
 - `app/api/chat/route.ts` — the HTTP boundary. It validates the input, hands off to the
   agent, and always returns something the UI can render, even on error. It runs on the
   Node.js runtime because the OpenAI SDK needs it.
-- `lib/agent.ts` — the model loop. This is the only file that talks to OpenAI; it
-  handles language and orchestration and nothing else.
+- `app/api/stt/route.ts`, `app/api/tts/route.ts` — voice: Whisper transcription and
+  streamed OpenAI text-to-speech. `app/api/health/route.ts` — liveness and data vintage.
+  The exact shapes are in [API_CONTRACT.md](API_CONTRACT.md).
+- `lib/agent.ts` — the model loop (up to `MAX_AGENT_STEPS` model/tool iterations per
+  turn). It handles language and orchestration and nothing else. The chat model calls
+  live here; speech calls live in the stt/tts routes.
 - `lib/tools.ts` — the tools the model is allowed to call. Every number the user sees
   comes from here.
 - `lib/scoring.ts` — the scoring engine: plain functions, no I/O, no model.
@@ -136,6 +140,27 @@ availability, or financing (see §6).
 | Load-factor pressure | 0.25 | Seats already scarce |
 | Passenger volume upside | 0.15 | Scale of travelers who benefit |
 
+### 3.5 Effective weights
+
+The tables above show each score's direct weights. Because the congestion score is
+itself an input to the unmet-demand and expansion scores, and congestion contains
+load-factor pressure, load factor counts more than its direct weight suggests.
+Flattened to the underlying inputs:
+
+| Input | Congestion | Unmet demand | Expansion |
+|---|---|---|---|
+| Load-factor pressure | 20.0% | 47.0% | 31.0% |
+| Share delayed >15 min | 35.0% | 12.25% | 10.5% |
+| Average departure delay | 30.0% | 10.5% | 9.0% |
+| Cancellation rate | 15.0% | 5.25% | 4.5% |
+| Growth vs. capacity | — | 25.0% | — |
+| Demand growth | — | — | 30.0% |
+| Passenger volume upside | — | — | 15.0% |
+
+For expansion, load factor (31%) is the largest single input, ahead of the documented
+25%. Since load factor is currently an estimate (§5), that estimate has an outsized
+effect on rankings.
+
 ---
 
 ## 4. Where and how AI is used
@@ -184,20 +209,18 @@ The scoring engine, the tools, and the contract don't change, because they read 
 same fields regardless of where the numbers came from.
 
 There's also a **live** source: the adsb.lol community ADS-B API, called at request
-time by the `live_flights` tool for "what's in the air near this airport right now."
-(An earlier version used OpenSky, but OpenSky's server refuses connections from cloud
-datacenter IPs, so it can't be reached from Vercel; adsb.lol is CDN-fronted and free
-with no key.)
+time by the `live_flights` tool for "what's in the air near this airport right now"
+(aircraft within about 30 nm). It is free, needs no key, and is reachable from
+serverless hosting.
 
 ---
 
 ## 6. Key tradeoffs
 
-- **Single Next.js app (one language) vs. a separate Python service.** Folding the
-  agent into TypeScript route handlers makes it one codebase that deploys to Vercel in
-  one click, with the API served same-origin (no CORS, no second host). *Tradeoff:* we
-  don't run a separate Python backend, but we gain a dramatically simpler, more
-  reliable deployment.
+- **Single Next.js app (one language) vs. a separate backend service.** Putting the
+  agent in TypeScript route handlers makes it one codebase that deploys to Vercel in
+  one click, with the API served same-origin (no CORS, no second host). *Tradeoff:* the
+  API scales and is secured with the web app rather than independently.
 - **Curated snapshot vs. live ingestion.** A full BTS pipeline (gigabytes of CSVs)
   would be over-engineering at this stage and adds fragility. We bundle a validated
   snapshot and document the scale-up path. *Tradeoff:* data isn't real-time (BTS
@@ -233,9 +256,17 @@ with no key.)
 
 These are surfaced to the user on every answer, not buried here.
 
+Operational limitations of the current build:
+
+- **No authentication or rate limiting** on `/api/chat`, `/api/stt`, or `/api/tts`.
+  Each triggers paid OpenAI calls, so a public deployment is open to cost abuse.
+- **Estimated inputs.** Only BTS T-100 Domestic traffic and the OurAirports reference
+  data are real; load factor, delays, cancellations, haul mix, and growth are estimates.
+- **Load factor is weighted above its documented share** (see §3.5).
+
 ---
 
-## 8. Where I'd take it next
+## 8. Next steps
 
 - Multi-year BTS trends so growth and seasonality come from real data, not an estimate
   (the current build uses a single year).
@@ -245,3 +276,7 @@ These are surfaced to the user on every answer, not buried here.
 - The cost side of the investment case (capex, gate/land constraints) to turn the
   demand score into a true ROI ranking.
 - A small map view using the coordinates already in the dataset.
+- Authentication, per-client rate limiting, and usage caps on the `/api` routes.
+- An end-to-end evaluation suite (tool choice, figures, no invented airports) to catch
+  regressions when prompts or models change.
+- Observability: request logs, tool traces, latency, and cost metrics.

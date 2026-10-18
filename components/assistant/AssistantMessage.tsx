@@ -23,6 +23,7 @@ import styles from "./chat.module.css";
  */
 export function AssistantMessage() {
   const extras = useExtras();
+  const isError = !!extras?.error;
   const hasText = useHasText();
   const { synthesis } = useSpeechSupport();
 
@@ -33,7 +34,13 @@ export function AssistantMessage() {
       </span>
 
       <div className={styles.assistantBody}>
-        <div className={styles.assistantBubble}>
+        <div
+          className={
+            isError ? `${styles.assistantBubble} ${styles.errorBubble}` : styles.assistantBubble
+          }
+          role={isError ? "alert" : undefined}
+        >
+          {isError && <span className={styles.errorLabel}>Something went wrong</span>}
           <MessagePrimitive.Parts
             components={{ Text: MarkdownText, Empty: TypingIndicator }}
           />
@@ -47,7 +54,15 @@ export function AssistantMessage() {
           meta={extras?.meta}
         />
 
-        {synthesis && hasText && (
+        {isError && (
+          <ActionBarPrimitive.Root className={styles.messageActions}>
+            <ActionBarPrimitive.Reload className={styles.actionButton}>
+              <span>Try again</span>
+            </ActionBarPrimitive.Reload>
+          </ActionBarPrimitive.Root>
+        )}
+
+        {synthesis && hasText && !isError && (
           <ActionBarPrimitive.Root className={styles.messageActions}>
             <MessagePrimitive.If speaking={false}>
               <ActionBarPrimitive.Speak

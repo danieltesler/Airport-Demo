@@ -201,3 +201,23 @@ export const METRIC_SCORERS: Record<MetricKey, Scorer> = {
   unmet_demand: unmetDemandScore,
   expansion: expansionScore,
 };
+
+/** Weights per metric, exported so explanations read the same numbers the scorers use. */
+export const METRIC_WEIGHTS: Record<MetricKey, Record<string, number>> = {
+  congestion: CONGESTION_WEIGHTS,
+  unmet_demand: UNMET_DEMAND_WEIGHTS,
+  expansion: EXPANSION_WEIGHTS,
+};
+
+/**
+ * How much of a metric's score load factor really drives: its direct weight plus the
+ * share that enters again inside the nested congestion score. Both paths are real in
+ * the formulas, so the total exceeds the direct weight whenever congestion is a component.
+ */
+export function loadFactorInfluence(metric: MetricKey): { direct: number; viaCongestion: number } {
+  const weights = METRIC_WEIGHTS[metric];
+  return {
+    direct: weights.load_pressure ?? 0,
+    viaCongestion: (weights.congestion ?? 0) * CONGESTION_WEIGHTS.load_pressure,
+  };
+}

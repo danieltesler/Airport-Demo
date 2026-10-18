@@ -23,6 +23,7 @@ export const airportChatAdapter: ChatModelAdapter = {
       assumptions: response.assumptions ?? null,
       uncertainty: response.uncertainty ?? null,
       meta: response.meta ?? null,
+      error: response.error ?? null,
     };
 
     return {

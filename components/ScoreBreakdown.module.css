@@ -1,0 +1,91 @@
+.details {
+  border-top: 1px solid var(--slate-200);
+  background: var(--surface);
+}
+
+.summary {
+  padding: 0.6rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+  cursor: pointer;
+}
+
+.summary:hover {
+  background: var(--accent-soft);
+}
+
+.body {
+  padding: 0 0.9rem 0.9rem;
+}
+
+.intro,
+.note {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--slate-600);
+}
+
+.note {
+  margin: 0.6rem 0 0;
+  padding: 0.5rem 0.65rem;
+  border-left: 3px solid #d9a441;
+  border-radius: var(--radius-sm);
+  background: var(--amber-bg);
+  color: var(--amber-text);
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.82rem;
+}
+
+.table th,
+.table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--slate-200);
+  text-align: left;
+  font-weight: 500;
+  color: var(--navy-900);
+}
+
+.table thead th {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--slate-500);
+}
+
+.table tfoot th,
+.table tfoot td {
+  font-weight: 650;
+  border-bottom: none;
+  border-top: 2px solid var(--slate-300);
+}
+
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.value {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--slate-500);
+}
+
+/* Keep the row label visible while the airport columns scroll sideways on narrow screens */
+.table thead th:first-child,
+.table tbody th[scope="row"],
+.table tfoot th[scope="row"] {
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  box-shadow: 1px 0 0 var(--slate-200);
+}

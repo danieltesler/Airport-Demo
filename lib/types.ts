@@ -1,7 +1,7 @@
 /**
- * TypeScript mirror of the backend API contract (see docs/API_CONTRACT.md).
- * These types are the single source of truth for request/response shapes on
- * the frontend. Keep them in sync with the contract, not with backend internals.
+ * TypeScript types for the /api/chat request/response shapes used by this app.
+ * They are the single source of truth for those shapes on the frontend; `caption`
+ * and `explain` on StructuredResult are code-generated and never reach the model.
  */
 
 /** A single conversation turn, as stored in the transcript and sent as history. */
@@ -29,6 +29,24 @@ export interface StructuredResult {
   kind: StructuredKind;
   columns: string[];
   rows: Cell[][];
+  /** Code-owned line stating what was asked of the data (scope, count). Never sent to the model. */
+  caption?: string;
+  /** Optional per-airport score breakdown for the "How was this scored?" panel. */
+  explain?: ScoreExplanation;
+}
+
+/** Real weights and per-airport contributions behind a composite score. */
+export interface ScoreExplanation {
+  metricLabel: string;
+  /** Components in weight order; `parts` in each row follows the same order. */
+  components: { label: string; weight: number }[];
+  rows: {
+    airport: string;
+    score: number;
+    /** value = normalized 0-1 component; points = its contribution to the 0-100 score. */
+    parts: { value: number; points: number }[];
+  }[];
+  notes: string[];
 }
 
 /** Transparency metadata about how the answer was produced. */
@@ -83,4 +101,6 @@ export interface AssistantExtras {
   assumptions?: string[] | null;
   uncertainty?: string | null;
   meta?: ResponseMeta | null;
+  /** Set when the turn failed; the UI uses its presence only to style the reply as an error. */
+  error?: string | null;
 }

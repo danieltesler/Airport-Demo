@@ -19,14 +19,17 @@ export function Thread() {
       <AppHeader />
 
       <ThreadPrimitive.Viewport className={styles.viewport}>
-        <div className={styles.viewportInner}>
+        <div className={styles.viewportInner} role="log" aria-label="Conversation">
           <ThreadPrimitive.Empty>
             <div className={styles.empty}>
+              <h2 className={styles.emptyTitle}>What would you like to know?</h2>
               <p className={styles.emptyLede}>
                 I analyze U.S. airports for terminal-expansion potential using a
                 transparent, rules-based scoring model over public aviation data.
               </p>
-              <span className={styles.tryLabel}>Try asking</span>
+              <span className={styles.tryLabel} id="try-asking">
+                Try asking
+              </span>
               <ExampleChips />
             </div>
           </ThreadPrimitive.Empty>

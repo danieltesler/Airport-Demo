@@ -12,7 +12,7 @@
 const BASE = "https://api.adsb.lol/v2";
 const RADIUS_NM = 30; // "near the airport"
 
-// adsb.lol rejects generic User-Agents (403) and asks for identifying contact info.
+// A descriptive User-Agent is a courtesy: it tells adsb.lol who is calling and where to reach us.
 const USER_AGENT =
   "airport-investment-intelligence (https://github.com/danieltesler/Airport-Demo)";
 

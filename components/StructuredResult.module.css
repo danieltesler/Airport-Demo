@@ -8,6 +8,8 @@
 
 .tableScroll {
   overflow-x: auto;
+  /* lets the caption size itself to the visible width, not the scrolled table width */
+  container-type: inline-size;
 }
 
 .table {
@@ -114,4 +116,20 @@
   color: var(--slate-600);
   min-width: 3ch;
   text-align: right;
+}
+
+/* Caption stating scope and match count above the table */
+.caption {
+  caption-side: top;
+  position: sticky;
+  left: 0;
+  width: 100cqw;
+  box-sizing: border-box;
+  white-space: normal;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-size: 0.78rem;
+  color: var(--slate-600);
+  background: var(--slate-50);
+  border-bottom: 1px solid var(--slate-200);
 }

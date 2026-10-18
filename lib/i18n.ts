@@ -46,6 +46,55 @@ export function scopeAssumption(count: number): string {
   return `Dataset scope is limited to ${count} U.S. airports.`;
 }
 
+function airportCount(count: number): string {
+  return `${count} ${count === 1 ? "airport" : "airports"}`;
+}
+
+/** Table caption stating exactly what a ranking covers. */
+export function rankingCaption(p: {
+  scope: string;
+  matched: number;
+  shown: number;
+  scoreLabel: string;
+}): string {
+  const typed = (p.scope ?? "").trim();
+  const scope = !typed || typed.toLowerCase() === "all" ? "all airports" : typed.replace(/_/g, " ");
+  return `Scope: ${scope} · ${airportCount(p.matched)} matched · top ${p.shown} by ${p.scoreLabel.toLowerCase()}`;
+}
+
+/** Table caption for a side-by-side comparison. */
+export function comparisonCaption(count: number, scoreLabel: string): string {
+  return `Comparing ${airportCount(count)} · ${scoreLabel.toLowerCase()}`;
+}
+
+export const METRIC_LABELS = {
+  congestion: "Congestion",
+  unmet_demand: "Unmet demand",
+  expansion: "Expansion",
+};
+
+/** Plain-language names for scoring components, keyed by the keys used in scoring.ts. */
+export const COMPONENT_LABELS: Record<string, string> = {
+  delayed_share: "Flights delayed >15 min",
+  avg_delay: "Average departure delay",
+  cancellations: "Cancellation rate",
+  load_pressure: "Load-factor pressure",
+  congestion: "Congestion (a 0-100 score itself)",
+  growth_vs_capacity: "Growth vs. runway capacity",
+  demand_growth: "Passenger growth",
+  volume_upside: "Passenger volume",
+};
+
+/** Honest disclosure: load factor enters directly and again inside the nested congestion score. */
+export function loadFactorDoubleCountNote(direct: number, viaCongestion: number): string {
+  const pct = (n: number) => `${Math.round(n * 100)}%`;
+  return (
+    `Load factor is counted twice: directly (${pct(direct)} of the score) and again inside ` +
+    `the congestion component (about ${pct(viaCongestion)} more), so it drives roughly ` +
+    `${pct(direct + viaCongestion)} of this score in total.`
+  );
+}
+
 /** Haul-mix assumptions (dynamic distance thresholds). */
 export function haulAssumptions(t: { short_max: number; long_min: number }): string[] {
   return [
@@ -76,4 +125,5 @@ export const PANEL_LABELS = {
   uncertainty: "Uncertainty",
   dataVintage: "Data vintage",
   tools: "Tools",
+  explainSummary: "How was this scored?",
 };
