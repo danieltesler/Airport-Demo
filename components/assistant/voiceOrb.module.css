@@ -56,8 +56,15 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* The empty-state orb shrinks with the window height so the whole home screen fits without scrolling. */
 .orbSmall {
-  --orb-size: 164px;
+  --orb-size: clamp(96px, calc(22dvh - 48px), 164px);
+}
+
+@media (max-width: 640px) {
+  .orbSmall {
+    --orb-size: clamp(88px, calc(19dvh - 56px), 150px);
+  }
 }
 
 .orbButton {

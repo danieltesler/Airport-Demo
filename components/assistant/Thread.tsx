@@ -53,8 +53,15 @@ export function Thread() {
               <p className={styles.greeting}>Hello</p>
               <h2 className={styles.emptyTitle}>What can I help with?</h2>
               <p className={styles.emptyLede}>
-                I analyze U.S. airports for terminal-expansion potential using a
-                transparent, rules-based scoring model over public aviation data.
+                <span className={styles.ledeFull}>
+                  I analyze U.S. airports for terminal-expansion potential using a
+                  transparent, rules-based scoring model over public aviation data.
+                </span>
+                {/* Two lines instead of three, for phones that are too short for the full sentence. */}
+                <span className={styles.ledeShort}>
+                  I analyze U.S. airports for terminal-expansion potential using transparent,
+                  rules-based scoring.
+                </span>
               </p>
               <span className={styles.tryLabel} id="try-asking">
                 Try asking

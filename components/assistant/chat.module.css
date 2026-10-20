@@ -50,24 +50,37 @@
   padding: 1.25rem 1.25rem 2rem;
 }
 
-/* ---- Empty state ---- */
+/* ---- Empty state ----
+   The home screen must fit without scrolling: the orb, heading, spacing and cards all scale with the
+   window height (dvh), so the five example cards and the composer are visible together from a
+   1280x720 laptop to a 360x740 phone. */
+.viewportInner:has(> .empty) {
+  min-height: 100%; /* lets the empty state centre vertically when the window is taller than it needs */
+  gap: 0;
+  padding-block: 0.5rem 1.15rem; /* the bottom edge fades over 18px, so keep the last card clear of it */
+}
+
 .empty {
   margin: auto 0;
-  padding: 1rem 0;
+  padding: 0;
 }
 
 .emptyLede {
-  margin: 0 auto 2rem;
-  max-width: 30rem;
-  font-size: 1rem;
-  line-height: 1.55;
+  margin: 0 auto clamp(0.75rem, 3.2dvh, 2rem);
+  max-width: 36rem;
+  font-size: clamp(0.875rem, 1.9dvh, 1rem);
+  line-height: 1.5;
   color: var(--ink-muted);
   text-align: center;
 }
 
+.ledeShort {
+  display: none;
+}
+
 .tryLabel {
   display: block;
-  margin-bottom: 0.75rem;
+  margin-bottom: clamp(0.4rem, 1.2dvh, 0.75rem);
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -77,15 +90,16 @@
 
 .chips {
   display: grid;
-  gap: 0.625rem;
+  grid-template-columns: minmax(0, 1fr); /* without minmax(0) a one-line description widens the column past the screen */
+  gap: clamp(0.4rem, 1.1dvh, 0.625rem);
 }
 
 .chip {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.85rem;
   text-align: left;
-  padding: 0.9rem 1rem;
+  padding: clamp(0.5rem, 1.5dvh, 0.9rem) 1rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -413,9 +427,9 @@
 
 /* ---- Empty-state heading, loading label, error state ---- */
 .emptyTitle {
-  margin: 0.25rem 0 1rem;
+  margin: 0.25rem 0 clamp(0.5rem, 1.6dvh, 1rem);
   font-family: var(--font-heading);
-  font-size: var(--text-display);
+  font-size: clamp(1.75rem, 5.8dvh, var(--text-display));
   font-weight: 300;
   line-height: 1.05;
   letter-spacing: -0.03em;
@@ -554,7 +568,7 @@
 .emptyHero {
   display: flex;
   justify-content: center;
-  padding: 0.5rem 0 0.25rem;
+  padding: 0.25rem 0 0.25rem;
 }
 
 .tryLabel {
@@ -576,7 +590,7 @@
 
 /* ---- Pastel retarget: greeting, example cards ---- */
 .greeting {
-  margin: 0.75rem 0 0;
+  margin: clamp(0.4rem, 1.4dvh, 0.75rem) 0 0;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -589,8 +603,8 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface-sunken);
@@ -610,9 +624,13 @@
   font-weight: 600;
 }
 
+/* One line with an ellipsis keeps every card the same height; the full question is still sent on click. */
 .chipDescription {
+  overflow: hidden;
   font-size: 0.875rem;
   color: var(--ink-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---- AI-era look: wash, grain, wordmark ---- */
@@ -691,6 +709,98 @@
   }
 }
 
+/* Short laptop windows: a slimmer header and composer margin hand the height to the empty state. */
+@media (min-width: 640px) and (max-height: 800px) {
+  .header {
+    padding: 0.75rem 1.5rem 0.25rem;
+  }
+  .composerBar {
+    padding-bottom: 0.65rem;
+  }
+}
+
+/* Laptops with room to spare: let each example card show two lines of its question. */
+@media (min-width: 641px) and (min-height: 840px) {
+  .chipDescription {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+  }
+}
+
+/* Phones: compact single-column cards (about 56px, never under the 44px tap size). When the screen is
+   short the question text is hidden visually but stays in the button's accessible name. */
+@media (max-width: 640px) {
+  .chip {
+    gap: 0.7rem;
+    padding: 0.5rem 0.8rem;
+  }
+  .chipIcon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+  .chipTitle {
+    font-size: 0.9375rem;
+  }
+  .chipDescription {
+    font-size: 0.8125rem;
+  }
+  .emptyTitle {
+    font-size: clamp(1.75rem, 5.8dvh, min(var(--text-display), 2.25rem));
+  }
+  .emptyLede {
+    margin-bottom: clamp(0.5rem, 2.4dvh, 1.25rem);
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 640px) and (max-height: 899px) {
+  .ledeFull {
+    display: none;
+  }
+  .ledeShort {
+    display: inline;
+  }
+}
+
+@media (max-width: 640px) and (max-height: 779px) {
+  .emptyLede {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) and (max-height: 899px) {
+  .chipDescription {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .chip {
+    position: relative;
+  }
+}
+
+/* Very short windows (a laptop with a tall toolbar, a small phone): drop the lede, then the greeting. */
+@media (min-width: 641px) and (max-height: 699px) {
+  .emptyLede {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) and (max-height: 719px) {
+  .greeting {
+    display: none;
+  }
+  .chip {
+    padding-block: 0.4rem;
+  }
+}
+
 @keyframes send-in {
   from {
     opacity: 0;
@@ -702,7 +812,7 @@
   }
 }
 
-@media (min-width: 900px) {
+@media (min-width: 700px) {
   .chips {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
