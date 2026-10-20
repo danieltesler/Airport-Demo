@@ -14,6 +14,7 @@ import { bumpVoiceEpoch } from "@/lib/voiceSession";
 import { voiceTrace } from "@/lib/voiceTrace";
 import { markVoiceTurn } from "@/lib/voiceTurn";
 import { MicIcon, PlayIcon, RetryIcon, StopIcon } from "./icons";
+import { threadWasCleared } from "./newChat";
 import { useVoiceNotice } from "./VoiceNoticeContext";
 import { VoiceOverlay } from "./VoiceOverlay";
 import { WaveformButton } from "./WaveformButton";
@@ -73,6 +74,14 @@ export function VoiceInput({ hideConversationStart = false }: { hideConversation
     clip: playback.clip,
   });
   controllerRef.current = controller;
+
+  // New chat clears the thread: a hands-free conversation that was running belongs to the old chat, so end it.
+  const messageCount = useAuiState((state) => state.thread.messages.length);
+  const previousMessageCount = useRef(messageCount);
+  useEffect(() => {
+    if (threadWasCleared(previousMessageCount.current, messageCount) && ui.active) ui.actions.end();
+    previousMessageCount.current = messageCount;
+  }, [messageCount, ui]);
 
   const [debug, setDebug] = useState(false);
   const [clientReady, setClientReady] = useState(false);

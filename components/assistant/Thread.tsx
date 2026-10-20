@@ -12,10 +12,9 @@ import { VoiceOrb } from "./VoiceOrb";
 import styles from "./chat.module.css";
 
 /**
- * The empty state is taller than a phone screen, and the runtime follows the bottom of the list,
- * which would open the app on the example cards with the orb and greeting scrolled out of sight.
- * Starting at the top is the same as the user having scrolled up, so sending a question still
- * brings the conversation back to the bottom.
+ * The empty state is taller than a phone screen, and the runtime can restore the scroll position
+ * when the page mounts, which would open the app on the example cards with the orb and greeting
+ * scrolled out of sight. Start at the top; sending a question then anchors it to the top of the list.
  */
 function EmptyState({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -43,7 +42,15 @@ export function Thread() {
     <ThreadPrimitive.Root className={styles.root}>
       <AppHeader />
 
-      <ThreadPrimitive.Viewport className={styles.viewport}>
+      {/* turnAnchor="top" pins the question to the top and lets the answer grow below it, instead of
+          following the bottom of the list, which scrolled long answers past their first line.
+          The library never anchors the very first turn, and its "first message appeared" jump to the
+          bottom would hit exactly that turn, so it is off; there are no saved chats to restore. */}
+      <ThreadPrimitive.Viewport
+        className={styles.viewport}
+        turnAnchor="top"
+        scrollToBottomOnInitialize={false}
+      >
         <div className={styles.viewportInner} role="log" aria-label="Conversation">
           <ThreadPrimitive.Empty>
             <EmptyState>
@@ -51,7 +58,7 @@ export function Thread() {
                 <VoiceOrb phase="off" small />
               </div>
               <p className={styles.greeting}>Hello</p>
-              <h2 className={styles.emptyTitle}>What can I help with?</h2>
+              <h2 className={styles.emptyTitle}>What can I help you with?</h2>
               <p className={styles.emptyLede}>
                 <span className={styles.ledeFull}>
                   I analyze U.S. airports for terminal-expansion potential using a

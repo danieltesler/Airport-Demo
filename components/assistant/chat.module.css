@@ -748,7 +748,7 @@
     font-size: 0.8125rem;
   }
   .emptyTitle {
-    font-size: clamp(1.75rem, 5.8dvh, min(var(--text-display), 2.25rem));
+    font-size: clamp(1.4rem, min(5.8dvh, 7vw), min(var(--text-display), 2.25rem));
   }
   .emptyLede {
     margin-bottom: clamp(0.5rem, 2.4dvh, 1.25rem);
@@ -818,5 +818,71 @@
   }
   .chips > :last-child:nth-child(odd) {
     grid-column: 1 / -1;
+  }
+}
+
+/* ---- New chat (header) ---- */
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* A ghost pill: a quiet outline that fills on hover, so it never competes with the greeting.
+   The negative block margin lets it be taller than the header line without growing the header,
+   so the page does not shift when the button appears after the first question. */
+.newChatButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 32px;
+  margin-block: -1px;
+  padding: 0 0.9rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.newChatButton:hover {
+  background: var(--surface);
+  border-color: var(--ink-muted);
+}
+
+/* Phones and touch screens get a full 44px tap target. */
+@media (max-width: 640px), (pointer: coarse) {
+  .newChatButton {
+    min-height: 44px;
+    margin-block: -7px;
+    padding: 0 0.75rem;
+  }
+}
+
+/* Narrow phones: icon only (the label stays for screen readers), so the wordmark keeps one line. */
+@media (max-width: 480px) {
+  .newChatButton {
+    width: 44px;
+    padding: 0;
+  }
+  .newChatLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* The icon-only button leaves a 360px phone just short of the full wordmark; a touch smaller keeps it on one line. */
+@media (max-width: 400px) {
+  .wordmark {
+    font-size: 1.125rem;
   }
 }
