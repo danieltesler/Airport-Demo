@@ -305,22 +305,6 @@ describe("7. off-topic requests are refused by code", () => {
   });
 });
 
-describe("9. Census wording", () => {
-  it("says the source is not set up in this demo, with no figure", async () => {
-    const saved = process.env.CENSUS_API_KEY;
-    delete process.env.CENSUS_API_KEY;
-    try {
-      const out = await runTool("metro_population", { iata: "DEN" });
-      expect(String(out.result.message)).toMatch(/not set up in this demo/);
-      expect(String(out.result.fallback)).toMatch(/not set up in this demo/);
-      expect(String(out.result.fallback)).toMatch(/not that a live source is down|do not say it is 'unavailable right now'/);
-      expect(out.result.do_not_estimate).toBe(true);
-    } finally {
-      if (saved !== undefined) process.env.CENSUS_API_KEY = saved;
-    }
-  });
-});
-
 describe("12. live BTS growth carries its sign and period", () => {
   it("states a signed percentage, a direction and the trailing window", async () => {
     const { btsAirportTraffic } = await import("./live/btsTraffic");

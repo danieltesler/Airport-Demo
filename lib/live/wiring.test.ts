@@ -155,11 +155,20 @@ describe("agent loop with a mocked model", () => {
     await runAgent("hello");
     const first = (createMock.mock.calls[0] as unknown as [{ messages: { role: string; content: string }[] }])[0];
     const system = first.messages[0].content;
-    for (const name of ["faa_airport_status", "airport_weather", "bts_airport_traffic", "faa_airport_infrastructure", "metro_population"]) {
+    for (const name of ["faa_airport_status", "airport_weather", "bts_airport_traffic", "faa_airport_infrastructure"]) {
       expect(system).toContain(name);
     }
     expect(system).toMatch(/retrieval time/);
     expect(system).toMatch(/never invent a live value/);
     expect(system).toMatch(/user_words/); // existing scope rules preserved
+  });
+});
+
+describe("the tool list the model sees", () => {
+  it("has no population tool, and 14 tools of which 5 are live", () => {
+    const names = TOOL_SCHEMAS.map((tool) => tool.name);
+    expect(names).not.toContain("metro_population");
+    expect(names).toHaveLength(14);
+    expect(names.filter((name) => LIVE_TOOLS.some((tool) => tool.name === name) || name === "live_flights")).toHaveLength(5);
   });
 });

@@ -27,7 +27,7 @@ It was built around four questions to start with:
 It isn't limited to those, though. You can rank any region or state (including everyday names like the West Coast, the Gulf Coast or the Pacific Northwest, each with its stated list of states), compare any
 airports side by side, pull up a single airport's full profile, check how many flights
 are in the air near an airport right now, check current FAA delays and weather, look up
-recent BTS traffic, runway facts or metro population, or just follow up on a previous answer.
+recent BTS traffic or runway facts, or just follow up on a previous answer.
 
 Route-level questions are open-ended too, using real 2024 and 2025 route data from BTS T-100:
 
@@ -68,7 +68,8 @@ How the assistant behaves:
 - **Honest refusals.** Out-of-scope questions get one friendly line and one thing it can do,
   built from the coverage the tools returned. It never calls a market underserved, never says
   why an airline changed capacity (the data shows what changed, not why), and never gives a
-  metro population when that source is not configured.
+  population figure: population is not part of this demo, and code replaces any answer that
+  invents one.
 - **Checked, not just instructed.** The code reads "top 3" and "least congested" from the user's own
   message, reads "Portland Oregon and Seattle" or a spelled-out "L A X" itself, and asks when a
   city has several airports. A written answer whose figures match nothing in the tool results, or
@@ -103,7 +104,7 @@ flowchart TD
 
     OPENAI["OpenAI<br/>gpt-4o-mini · Whisper<br/>TTS (fallback)"]
     ELEVEN["ElevenLabs<br/>primary voice (optional)"]
-    LIVE["Live public APIs<br/>adsb.lol · FAA NAS Status · NOAA weather<br/>BTS data.bts.gov · FAA/NTAD · Census (key)"]
+    LIVE["Live public APIs<br/>adsb.lol · FAA NAS Status · NOAA weather<br/>BTS data.bts.gov · FAA/NTAD"]
 
     U --> UI
     UI -->|question| CHAT --> AGENT
@@ -200,9 +201,7 @@ Since it's just a Next.js app, Vercel is the easy path: import the repo, add
 else to configure. Keys live in the environment and never go into the repo
 (`.env.local` is git-ignored).
 
-The live tools use free public APIs and need no key, with one exception: the Census
-metro-population tool needs a free `CENSUS_API_KEY` (https://api.census.gov/data/key_signup.html).
-Without it that single tool says it is not configured and everything else works. The
+The live tools use free public APIs and need no key. The
 data hosts have not yet been tested from a Vercel datacenter IP, so check the live tools
 after the first deploy.
 
@@ -248,7 +247,7 @@ lib/
   carriers.ts           carrier names from the BTS carrier lookup (raw code when unknown)
   geography.ts          resolves scope text (Census region/division, state, metro, "near <place>") to airports
   liveflights.ts        live ADS-B client (adsb.lol) for the "flights right now" tool
-  live/                 live public-API tools (FAA status, NOAA weather, BTS traffic, FAA infrastructure, Census) with mocked-fetch tests and real-capture fixtures
+  live/                 live public-API tools (FAA status, NOAA weather, BTS traffic, FAA infrastructure) with mocked-fetch tests and real-capture fixtures
   i18n.ts               the code-owned assumption and label text
   chatModelAdapter.ts   connects assistant-ui to /api/chat
   spoken.ts             builds the spoken summary from the structured result
@@ -296,7 +295,6 @@ Every number comes from an official or open source; nothing is hand-typed. The f
 | **NOAA Aviation Weather Center** | current METAR and TAF | live |
 | **BTS T-100 summary** (data.bts.gov API) | trailing-12-month passengers, departures, seats, load factor, growth | live (lags several months) |
 | **FAA / USDOT NTAD** | runways, tower type, Part 139 class | live |
-| **U.S. Census Bureau** (ACS 1-year) | metro population, growth, median household income | live (needs a free key) |
 
 Build-time sources are downloaded, checksummed and aggregated by the pipeline above;
 `data/airports.json` carries each field's source, table, period, retrieval date and
@@ -310,8 +308,7 @@ Burlington (BTV) and Manchester (MHT), together 93.9% of U.S. scheduled passenge
 enplanements; 49,858 route rows; 3,224 Census places.
 
 What costs money to run: the OpenAI calls (required: chat, speech-to-text and the fallback
-voice) and, if you turn it on, ElevenLabs credits (an optional paid plan). The Census key
-is free and optional. All other sources need no key. Because both paid providers can be
+voice) and, if you turn it on, ElevenLabs credits (an optional paid plan). All data sources need no key. Because both paid providers can be
 called by anyone who can reach the API, see [Known limitations](#known-limitations).
 
 ## What it doesn't do
@@ -357,8 +354,7 @@ they are.
   insufficient data. All 102 airports currently clear both thresholds.
 - **Live sources have limits.** FAA NAS Status lists only airports with an active program,
   so "none reported" is not "no delays"; BTS T-100 lags real time by several months; FAA
-  closure entries are NOTAM text and can be general-aviation only; Census figures are survey
-  estimates with one metro per airport. A live source can be down, in which case the agent
+  closure entries are NOTAM text and can be general-aviation only. A live source can be down, in which case the agent
   says so and falls back to the dataset.
 - **Load factor carries real weight.** It enters unmet demand (40%) and expansion (25%)
   exactly once, because the congestion score does not include it. The full breakdown is in

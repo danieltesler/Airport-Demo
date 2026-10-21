@@ -49,18 +49,28 @@ describe("agent with the real guard", () => {
     expect(res.meta?.spoken_guard_rejections).toBeGreaterThan(0);
   });
 
-  it("withholds a spoken population when the Census tool is not configured", async () => {
-    const saved = process.env.CENSUS_API_KEY;
-    delete process.env.CENSUS_API_KEY;
-    try {
-      scripted.push(
-        toolCall("metro_population", { iata: "SEA" }),
-        finalJson("I can't look up Seattle's population here.", "Seattle has about four million people."),
-      );
-      const res = await runAgent("How many people live around SEA?");
-      expect(res.spoken).toBeUndefined();
-    } finally {
-      if (saved !== undefined) process.env.CENSUS_API_KEY = saved;
-    }
+  it("answers a population question with no number, written or spoken, even when the model invents one", async () => {
+    scripted.push(finalJson("Seattle has about 4 million people.", "Seattle has about four million people."));
+    const res = await runAgent("What is the population of Seattle?");
+    expect(res.reply).toMatch(/Population isn't part of this demo/);
+    expect(res.reply).not.toMatch(/\d/);
+    expect(res.spoken).toBeUndefined();
+    expect(res.meta?.tools_used).toEqual([]);
+  });
+
+  it("does not offer a metro_population tool to the model", async () => {
+    scripted.push(finalJson("Population isn't part of this demo.", "Population isn't part of this demo."));
+    await runAgent("How many residents does Denver have?");
+    const sent = createMock.mock.calls[0][0] as { tools: { function: { name: string } }[] };
+    expect(sent.tools.map((t) => t.function.name)).not.toContain("metro_population");
+  });
+
+  it("leaves a tool-backed answer alone", async () => {
+    scripted.push(
+      toolCall("compare_airports", { iatas: ["LAX", "SNA"], metric: "congestion" }),
+      finalJson("**Santa Ana** is more congested than LAX.", "Santa Ana is more congested than LAX."),
+    );
+    const res = await runAgent("Compare LAX and SNA congestion");
+    expect(res.reply).not.toMatch(/Population isn't part of this demo/);
   });
 });

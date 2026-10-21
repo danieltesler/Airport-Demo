@@ -6,7 +6,6 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { btsAirportTraffic } from "./btsTraffic";
-import { metroPopulation } from "./census";
 import { faaAirportInfrastructure } from "./faaInfrastructure";
 import { faaAirportStatus } from "./faaStatus";
 import { airportWeather } from "./weather";
@@ -62,30 +61,5 @@ describe("retrieved_at is the real fetch time", () => {
     await faaAirportInfrastructure({ iata: "BOS" }, makeDeps(mock.fetchImpl, T0));
     const cached = await faaAirportInfrastructure({ iata: "BOS" }, makeDeps(mock.fetchImpl, at(7200)));
     expect(cached.result.retrieved_at).toBe("2026-10-18T14:00:00.000Z");
-  });
-
-  describe("metro_population", () => {
-    const saved = process.env.CENSUS_API_KEY;
-    beforeEach(() => {
-      process.env.CENSUS_API_KEY = "test-key";
-    });
-    afterEach(() => {
-      if (saved === undefined) delete process.env.CENSUS_API_KEY;
-      else process.env.CENSUS_API_KEY = saved;
-    });
-
-    it("keeps the fetch time on a cache hit", async () => {
-      const acs = JSON.stringify([
-        ["NAME", "B01003_001E", "B19013_001E", "metropolitan statistical area/micropolitan statistical area"],
-        ["Boston-Cambridge-Newton, MA-NH Metro Area", "4912303", "112000", "14460"],
-      ]);
-      const mock = mockFetch([
-        ["geocoding.geo.census.gov", { body: fixture("census-geocoder-bos.real.json") }],
-        ["/acs/acs1", { body: acs }],
-      ]);
-      await metroPopulation({ iata: "BOS" }, makeDeps(mock.fetchImpl, T0));
-      const cached = await metroPopulation({ iata: "BOS" }, makeDeps(mock.fetchImpl, at(600)));
-      expect(cached.result.retrieved_at).toBe("2026-10-18T14:00:00.000Z");
-    });
   });
 });

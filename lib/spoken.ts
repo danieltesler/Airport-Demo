@@ -315,11 +315,6 @@ function metricSummary(data: StructuredResult): Summary {
     return [longest === null ? `It has ${count}.` : `It has ${count}, and the longest is about ${figure(longest)} feet.`];
   }
 
-  if (head.startsWith("census")) {
-    const population = asNumber(rowByLabel(/population/i)?.[1]);
-    return population === null ? null : [`The metro area has about ${figure(population)} people.`];
-  }
-
   if (head.startsWith("live activity")) {
     const total = asNumber(rowByLabel(/total/i)?.[1]);
     const airborne = asNumber(rowByLabel(/airborne/i)?.[1]);

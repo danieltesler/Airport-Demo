@@ -51,7 +51,7 @@ flowchart TD
 
     OPENAI["OpenAI<br/>gpt-4o-mini · Whisper<br/>TTS (fallback)"]
     ELEVEN["ElevenLabs<br/>primary voice (optional)"]
-    LIVE["Live public APIs<br/>adsb.lol · FAA NAS Status · NOAA weather<br/>BTS data.bts.gov · FAA/NTAD · Census (key)"]
+    LIVE["Live public APIs<br/>adsb.lol · FAA NAS Status · NOAA weather<br/>BTS data.bts.gov · FAA/NTAD"]
 
     U --> UI
     UI -->|question| CHAT --> AGENT
@@ -293,8 +293,7 @@ What the definitions mean in practice:
 **Live data at question time.** Separate tools call official public APIs when a question
 is about right now: the FAA NAS Status feed (delays, ground stops), NOAA Aviation Weather
 (METAR/TAF), the BTS T-100 airport summary on data.bts.gov (latest months), FAA airport
-records via USDOT NTAD (runways), the U.S. Census ACS (metro population, needs a free
-key), and adsb.lol (aircraft overhead). Their answers carry their own source, period and
+records via USDOT NTAD (runways), and adsb.lol (aircraft overhead). Their answers carry their own source, period and
 retrieval time and never feed the scores; a live figure can differ from the dataset
 because the periods differ.
 

@@ -187,8 +187,6 @@ describe("template v2: comparison, breakdown and metric tables", () => {
       .toBe("In the latest year of B T S data, about 21 million passengers boarded there.");
     expect(toSpokenSummary(metric(["FAA infrastructure", "Value"], [["Runways", 6], ["Longest runway (ft)", 10083], ["Acres", 33531]])))
       .toBe("It has six runways, and the longest is about 10,100 feet.");
-    expect(toSpokenSummary(metric(["Census ACS 2024 (Boston)", "Value"], [["Metro population", 4_900_000]])))
-      .toBe("The metro area has about 4.9 million people.");
     expect(toSpokenSummary(metric(["Live activity (now)", "Count"], [["Airborne nearby", 30], ["On the ground", 18], ["Total in area", 48]])))
       .toBe("About 48 aircraft are in the area right now, 30 of them airborne.");
   });

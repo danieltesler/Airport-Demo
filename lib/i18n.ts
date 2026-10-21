@@ -270,7 +270,6 @@ export const LIVE_SOURCE_NAMES: Record<string, string> = {
   airport_weather: "NOAA Aviation Weather Center",
   bts_airport_traffic: "BTS T-100 (data.bts.gov)",
   faa_airport_infrastructure: "FAA airport record (USDOT NTAD)",
-  metro_population: "U.S. Census Bureau",
   live_flights: "adsb.lol community ADS-B feed",
 };
 

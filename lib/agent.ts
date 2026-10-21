@@ -21,7 +21,7 @@ import { allAirports, dataVintage, documentedConstants, datasetFacts } from "./d
 import { effectiveMessage } from "./followUp";
 import { offTopicReply } from "./offTopic";
 import { speakableAirportNames } from "./speakable";
-import { SAFE_REPLY, correctionFor, factualReply, findReplyIssues, withoutCausalSentences } from "./replyCheck";
+import { NO_POPULATION_REPLY, SAFE_REPLY, correctionFor, factualReply, findReplyIssues, inventsPopulation, withoutCausalSentences } from "./replyCheck";
 import { TOOL_SCHEMAS, isLiveSourceTool, runTool } from "./tools";
 import { vintageFooter } from "./i18n";
 import { isLiveTool } from "./live";
@@ -92,8 +92,7 @@ live_flights for real-time / right-now flight activity near an airport (live ADS
 - Live public-data tools (call them ONLY for current or official-statistics questions, never to \
 rank or score): faa_airport_status for current delays, ground stops or closures; airport_weather \
 for current conditions or the forecast; bts_airport_traffic for recent passenger traffic, load \
-factor or growth from BTS; faa_airport_infrastructure for runway or airfield facts; \
-metro_population for metro population or income (it may report that it is not configured). Cite \
+factor or growth from BTS; faa_airport_infrastructure for runway or airfield facts. Cite \
 the source and retrieval time from the tool result, and never invent a live value. If a live tool \
 returns available=false, say plainly that the live source is unavailable, then use the dataset \
 figure if one exists and label it as the dataset snapshot. A live figure can differ from the \
@@ -125,9 +124,9 @@ re-list them in your reply.
 carriers fly nonstop, seats, frequencies, change from last year) and say plainly that this data \
 cannot show demand or fares. For "why did X change", say what changed and which carriers or \
 destinations drove it, and say the data does not show why.
-- If metro_population says it is not configured or unavailable, say plainly that the Census \
-population source isn't set up in this demo (not that a live source is down), and give NO population \
-number, estimate or approximation from memory: no population figure exists in the dataset.
+- Population, residents and household income are not part of this demo: no tool returns them and the \
+dataset has none. If asked, say so plainly in one short sentence (population isn't part of this demo), \
+and give NO population number, estimate or approximation from memory.
 - For ANY specific figure about one airport (passengers, international passengers or share, departures, \
 delays, cancellations, load factor, growth, runways, "is X growing", "is X bigger than Y") call \
 airport_profile and quote its facts_summary or metrics exactly; never answer such a figure from memory. \
@@ -484,6 +483,11 @@ export async function runAgent(message: string, rawHistory: unknown = []): Promi
       }
       if (parsed) parsed = { ...parsed, spoken: null };
     }
+  }
+  // Population is not in the data and no tool returns it: with no tool used, any figure in the reply came from memory.
+  if (inventsPopulation({ message, toolsUsed })) {
+    reply = NO_POPULATION_REPLY;
+    if (parsed) parsed = { ...parsed, spoken: null };
   }
   const voice = mode === "model" ? verifiedSpoken(parsed?.spoken ?? null, outputs, history, message) : {};
   const spokenSource = voice.spoken ? "model" : structured ? "template" : "none";

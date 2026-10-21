@@ -76,7 +76,6 @@ never falls back to a guess. Live figures never feed the scores.
 | "What is the weather at SEA?" | NOAA Aviation Weather Center (METAR and TAF) | Wind, visibility, ceiling, flight category now, worst category in the forecast. Cached 2–5 min. |
 | "How many passengers did BOS handle recently, and is it growing?" | BTS T-100 airport-by-month summary on the data.bts.gov open-data API | Trailing-12-month enplanements, departures, seats, load factor, and growth against the prior 12 months, computed from the monthly rows. |
 | "How many runways does ORD have, and how long are they?" | FAA airport master record via USDOT NTAD | Runway count and lengths, tower type, Part 139 class. |
-| "How big is the market around DEN?" | U.S. Census Bureau (Geocoder for the metro area, ACS 1-year for population and income) | Metro population, year-over-year growth, median household income. Needs a free Census API key. |
 | "How many aircraft are overhead now?" | adsb.lol community ADS-B feed | Aircraft within about 30 nautical miles. |
 
 Why some BTS data is live and some is build-time: BTS publishes the raw T-100 segment
@@ -108,9 +107,7 @@ Not available from any free official source, and so never stated as fact: true u
   feed. It does not prove there are no delays.
 - FAA closure entries are NOTAM text and are often general-aviation only; the tool labels
   them.
-- Census figures are survey estimates with margins of error, one metro area per airport
-  (New York and the Bay Area airports share metro totals).
-- The Census Data API needs a free key; without it the metro-population tool reports that it
-  is not configured.
+- Population is not part of this demo: no tool returns it and the dataset has none. Asked, the
+  agent says so and gives no figure.
 - The live hosts were tested from a residential connection, not a cloud datacenter; check the
   live tools after each new deployment.

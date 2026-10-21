@@ -7,7 +7,6 @@ import { faaAirportStatus } from "./live/faaStatus";
 import { weatherTool } from "./live/weather";
 import { btsTrafficTool } from "./live/btsTraffic";
 import { faaInfrastructureTool } from "./live/faaInfrastructure";
-import { censusTool } from "./live/census";
 import { fixture, makeDeps, mockFetch, resetLiveState } from "./live/testing";
 
 const verdict = (spoken: string, toolOutputs: unknown[], extra: Partial<GuardInput> = {}) =>
@@ -391,7 +390,6 @@ describe("against real tool outputs", () => {
       weather: await weatherTool.handler({ iata: "JFK" }, makeDeps(metar.fetchImpl)),
       bts: await btsTrafficTool.handler({ iata: "BOS" }, makeDeps(bts.fetchImpl)),
       infra: await faaInfrastructureTool.handler({ iata: "BOS" }, makeDeps(infra.fetchImpl)),
-      census: await censusTool.handler({ iata: "BOS" }, makeDeps(mockFetch([]).fetchImpl)),
       unknownScope: rankAirports("Narnia", "expansion", 3),
       ambiguous: rankAirports("Portland", "expansion", 3),
       unknownAirport: unmetDemand("ZZZ"),
@@ -452,13 +450,6 @@ describe("against real tool outputs", () => {
     expect(verdict("In the latest year of BTS data, about 21 million passengers boarded there.", [out.bts]).reasons).toEqual([]);
     expect(verdict("In the latest year of BTS data, about 12 million passengers boarded there.", [out.bts]).ok).toBe(false);
     expect(verdict("It has six runways, and the longest is about 10,100 feet.", [out.infra]).reasons).toEqual([]);
-  });
-
-  it("a live source that is not configured needs a hedge and no population number", () => {
-    expect(out.census.result.available).toBe(false);
-    expect(verdict("I can't give a metro population right now, it isn't set up.", [out.census]).ok).toBe(true);
-    expect(verdict("The metro has about 4 million people.", [out.census]).ok).toBe(false);
-    expect(verdict("Boston is a big metro.", [out.census]).ok).toBe(false);
   });
 
   it("refusals: unknown place, unknown airport, ambiguity", () => {

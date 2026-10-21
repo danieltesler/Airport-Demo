@@ -195,14 +195,14 @@ describe("the prompt carries the new rules and the dataset facts", () => {
     expect(prompt).toMatch(/never bts_airport_traffic/);
   });
 
-  it("covers order, carriers, named airports, scope and the Census wording", () => {
+  it("covers order, carriers, named airports, scope and the population wording", () => {
     expect(prompt).toMatch(/pass order='asc'/);
     expect(prompt).toMatch(/Pass the number the user asked for/);
     expect(prompt).toMatch(/pass it as carrier to capacity_trend or route_search/);
     expect(prompt).toMatch(/Never add a carrier or destination filter the user did not name/);
     expect(prompt).toMatch(/Never choose between them yourself/);
     expect(prompt).toMatch(/You only discuss U\.S\. airport analysis/);
-    expect(prompt).toMatch(/Census population source isn't set up in this demo/);
+    expect(prompt).toMatch(/population isn't part of this demo/);
   });
 
   it("states the dataset facts generated from the data, and keeps the old rules", () => {

@@ -1,19 +1,16 @@
 /**
  * Registry of live public-API tools (FAA status, NOAA weather, BTS traffic, FAA
- * infrastructure, Census metro population).
+ * infrastructure).
  *
  * Wired into lib/tools.ts (TOOL_SCHEMAS spreads liveToolSchemas(); runTool dispatches via
  * isLiveTool/runLiveTool). LiveToolOutput is structurally identical to ToolOutput.
  *
- * Environment: CENSUS_API_KEY (free, https://api.census.gov/data/key_signup.html) enables
- * metro_population; without it that one tool returns a clear "not configured" result and
- * the other four work keyless. Optional CENSUS_ACS_YEAR overrides the ACS vintage.
+ * All four tools use free public APIs and need no key.
  */
 
 import { dataVintage, getAirport } from "../data";
 import type { LiveDeps, LiveTool, LiveToolOutput, LiveToolSchema } from "./common";
 import { btsTrafficTool } from "./btsTraffic";
-import { censusTool } from "./census";
 import { faaInfrastructureTool } from "./faaInfrastructure";
 import { faaStatusTool } from "./faaStatus";
 import { weatherTool } from "./weather";
@@ -25,7 +22,6 @@ export const LIVE_TOOLS: LiveTool[] = [
   weatherTool,
   btsTrafficTool,
   faaInfrastructureTool,
-  censusTool,
 ];
 
 const BY_NAME = new Map(LIVE_TOOLS.map((tool) => [tool.name, tool]));

@@ -4,8 +4,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { clearLiveCaches } from "./live/common";
-import { metroPopulation } from "./live/census";
 import { compareAirports } from "./tools";
 
 const codesOf = (out: ReturnType<typeof compareAirports>): string[] =>
@@ -92,27 +90,7 @@ describe("compare_airports reads named airports exactly", () => {
   });
 });
 
-describe("metro population without a Census key", () => {
-  it("says not configured, gives no population from the dataset, and flags do_not_estimate", async () => {
-    clearLiveCaches();
-    const saved = process.env.CENSUS_API_KEY;
-    delete process.env.CENSUS_API_KEY;
-    try {
-      const out = await metroPopulation(
-        { iata: "SEA" },
-        { resolveAirport: () => ({ iata: "SEA", icao: "KSEA", name: "Seattle-Tacoma", city: "Seattle", state: "WA", lat: 47.45, lon: -122.31 }) },
-      );
-      expect(out.result).toMatchObject({ available: false, do_not_estimate: true });
-      expect(String(out.result.message)).toMatch(/not configured/);
-      expect(String(out.result.fallback)).toMatch(/No population figure exists in the bundled dataset/);
-      expect(String(out.result.fallback)).toMatch(/do not give a number/);
-      expect(String(out.result.fallback)).not.toMatch(/offer it/);
-      expect(out.structured).toBeUndefined();
-    } finally {
-      if (saved !== undefined) process.env.CENSUS_API_KEY = saved;
-    }
-  });
-
+describe("population is not in the data", () => {
   it("the airport profile offers nothing population-like to quote", async () => {
     const { airportProfile } = await import("./tools");
     const text = JSON.stringify(airportProfile("SEA").result).toLowerCase();

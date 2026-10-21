@@ -4,7 +4,6 @@
  *
  *   LIVE_SMOKE=1 npx vitest run lib/live/live.smoke.test.ts
  *   LIVE_ALL=1 also checks every airport in the dataset
- *   (set CENSUS_API_KEY as well to exercise metro_population)
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -35,11 +34,6 @@ live("live public APIs (network)", () => {
 
   it("faa_airport_status", async () => {
     const out = await runLiveTool("faa_airport_status", { iata: "JFK" });
-    expect(out.result.available, JSON.stringify(out.result)).toBe(true);
-  });
-
-  it.skipIf(!process.env.CENSUS_API_KEY)("metro_population BOS", async () => {
-    const out = await runLiveTool("metro_population", { iata: "BOS" });
     expect(out.result.available, JSON.stringify(out.result)).toBe(true);
   });
 

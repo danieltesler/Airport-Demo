@@ -145,7 +145,7 @@ export function causalPhrases(reply: string, context: Pick<ReplyContext, "messag
 }
 
 const DATASET_TOOLS = new Set(["airport_profile", "rank_airports", "compare_airports", "long_haul_breakdown", "unmet_demand"]);
-const LIVE_TOOLS = new Set(["faa_airport_status", "airport_weather", "bts_airport_traffic", "faa_airport_infrastructure", "metro_population", "live_flights"]);
+const LIVE_TOOLS = new Set(["faa_airport_status", "airport_weather", "bts_airport_traffic", "faa_airport_infrastructure", "live_flights"]);
 
 const CALENDAR_LABEL =
   /\b(?:in|during|for|of|from|since)\s+(?:2024|2025)\b|\b(?:2024|2025)\b.{0,12}\b(?:vs\.?|versus|compared)\b|\blast year\b|\bcalendar\b/i;
@@ -218,6 +218,17 @@ export function correctionFor(issues: ReplyIssue[]): string {
 // --------------------------------------------------------------------------- //
 // What replaces a reply that still fails
 // --------------------------------------------------------------------------- //
+
+/** Population, residents and demographics are not in the data and no tool returns them. */
+const POPULATION_QUESTION = /\b(population|populations|populous|residents|inhabitants|demographics?|how many people (?:live|reside))\b/i;
+
+export const NO_POPULATION_REPLY =
+  "Population isn't part of this demo, so I can't give a figure. The data covers passengers, flights, routes and airlines: I can look up any of those for an airport or an area.";
+
+/** True when the user asked about population and this turn used no tool: whatever figure the reply holds came from memory. */
+export function inventsPopulation(context: Pick<ReplyContext, "message" | "toolsUsed">): boolean {
+  return POPULATION_QUESTION.test(context.message) && context.toolsUsed.length === 0;
+}
 
 export const SAFE_REPLY =
   "I couldn't confirm the figures in my answer against the data, so I'm leaving them out. The table shows the verified numbers, and I can look up a specific figure if you tell me which one.";

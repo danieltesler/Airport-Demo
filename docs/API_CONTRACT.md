@@ -99,7 +99,6 @@ Tools available to the model:
 | `airport_weather` | `iata` | `metric` table: current METAR and TAF summary (NOAA Aviation Weather Center) |
 | `bts_airport_traffic` | `iata` | `metric` table: trailing-12-month enplanements, departures, seats, load factor, growth (BTS T-100, queried live) |
 | `faa_airport_infrastructure` | `iata` | `metric` table: runway count and lengths, tower type, Part 139 class (FAA record via USDOT NTAD) |
-| `metro_population` | `iata` | `metric` table: metro population, growth, median household income (Census Bureau; needs `CENSUS_API_KEY`) |
 
 #### Route tools
 
@@ -153,8 +152,8 @@ The last five tools query public APIs at question time (code in `lib/live/`). Th
 
 - **Scores never use live values.** Rankings, comparisons, profiles and all three scores are computed from the bundled dataset only, so they are reproducible. A live tool answers a live question and may show a more recent figure than the dataset; `bts_airport_traffic` then adds a `bundled_dataset` block with the dataset's figure, its vintage and a `differs_materially` flag so the two are presented with their own periods.
 - **Tables.** A live tool's `metric` table is returned as `structured` only when no analysis table (ranking, comparison, breakdown) was produced earlier in the same turn; it never replaces one. Failed live calls add no table. The `retrieved_at` in a live result is the time the data was actually fetched: a figure served from the tool's short cache keeps its original fetch time (the oldest, when several cached values were combined). Every live table carries a code-built `caption` such as `Source: FAA NAS Status · retrieved 14:32 UTC`, using the tool's own retrieval time; like all captions it is never sent to the model. Load factor in every table (comparison, ranking, live BTS traffic) is a percentage with one decimal, for example `79.9%`; the model's tool result carries the same figure as `load_factor_pct`.
-- **Population without a key.** The dataset has no population field. When `metro_population` cannot answer (no `CENSUS_API_KEY`, no metro area, no published estimate) its result is `available: false` with `do_not_estimate: true` and a fallback telling the model to say so plainly and give no number from memory. Every unavailable live result carries `do_not_estimate: true`.
-- **Source facts.** The FAA NAS Status feed lists only airports with an active program, so "none reported" is not "no delays". BTS T-100 lags real time by several months and the result states the latest month covered. FAA closure entries are NOTAM text and can be general-aviation only. Census figures are survey estimates, one metro area per airport. The hosts have not yet been tested from a Vercel datacenter IP.
+- **Population is not part of this demo.** The dataset has no population field and no tool returns one. A population question is answered with one fixed line ("Population isn't part of this demo...") and no figure: the system prompt says so, and when the turn used no tool the code replaces whatever the model wrote and drops the spoken line, so a number from memory cannot reach the user. Every unavailable live result carries `do_not_estimate: true`.
+- **Source facts.** The FAA NAS Status feed lists only airports with an active program, so "none reported" is not "no delays". BTS T-100 lags real time by several months and the result states the latest month covered. FAA closure entries are NOTAM text and can be general-aviation only. The hosts have not yet been tested from a Vercel datacenter IP.
 
 #### Scope resolution
 
@@ -423,10 +422,8 @@ It does not check OpenAI or adsb.lol connectivity.
 | `ELEVENLABS_CHARS_PER_DAY` | `8000` | Global character budget per day (per server instance) |
 | `ELEVENLABS_MAX_CONCURRENT` | `3` | Simultaneous ElevenLabs calls |
 | `NEXT_PUBLIC_API_BASE_URL` | empty | Only if the API is on a different origin than the UI |
-| `CENSUS_API_KEY` | — (optional) | Free Census Bureau key; enables `metro_population`. Without it that tool reports it is not configured. Server-side only. |
-| `CENSUS_ACS_YEAR` | `2024` | Optional ACS 1-year vintage override |
 
-The live-flights, FAA status, weather, BTS traffic and FAA infrastructure tools use free public APIs and need no key. Only the Census tool needs one (free: https://api.census.gov/data/key_signup.html).
+The live-flights, FAA status, weather, BTS traffic and FAA infrastructure tools use free public APIs and need no key.
 
 ---
 
@@ -538,7 +535,7 @@ The live-flights, FAA status, weather, BTS traffic and FAA infrastructure tools 
   The reply then relies on the model relaying that message, and the turn has no table.
 - **Live flights** are a point-in-time count within roughly 30 nm of the airport from a
   community ADS-B feed, and can be unavailable; the agent then reports that plainly.
-- **Live public-data tools** (FAA status, weather, BTS traffic, FAA infrastructure, Census)
+- **Live public-data tools** (FAA status, weather, BTS traffic, FAA infrastructure)
   can each be unavailable; the agent then says so and falls back to the dataset, labelled as
   a snapshot. See "Live-data tools" above for per-source caveats.
 
