@@ -12,6 +12,7 @@ Base URL (local dev): `http://localhost:3000`
 | `/api/stt` | POST | Speech to text (OpenAI Whisper) |
 | `/api/tts` | POST | Text to speech: ElevenLabs when configured, OpenAI TTS as the automatic fallback and default |
 | `/api/health` | GET | Liveness and dataset vintage |
+| `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout`, `/api/auth/me` | GET, GET, POST, GET | Optional Sign in with Google (see [Authentication](#authentication)) |
 
 All routes run on the Node.js runtime and are evaluated per request (never cached).
 The app is **English-only**.
@@ -306,6 +307,7 @@ logs and debugging, not for display.
 | Body is not valid JSON | 400 | `bad_request` |
 | `message` missing, empty, or not a string | 400 | `empty_message` |
 | Agent or OpenAI failure | 200 | error name, or `agent_error` |
+| Sign-in required (`AUTH_REQUIRED=true`) and no valid session | 401 | `unauthorized` (body is only `{ "error": "unauthorized" }`, no `reply`) |
 
 ```json
 { "reply": "I hit an error while analyzing that. Please try again in a moment, or rephrase your question.", "error": "agent_error" }
@@ -402,6 +404,45 @@ It does not check OpenAI or adsb.lol connectivity.
 
 ---
 
+## Authentication
+
+Optional Sign in with Google (OAuth 2.0 authorization code + PKCE, OpenID Connect). Controlled by one
+server variable, `AUTH_REQUIRED` (unset or `false`: off, every route behaves as documented elsewhere in this file).
+When it is `true`, `POST /api/chat`, `POST /api/stt` and `POST /api/tts` require a valid session cookie and
+otherwise answer:
+
+```
+401 { "error": "unauthorized" }
+```
+
+The 401 has no `reply`; the client shows "Please sign in again." The same-origin check (403) runs first. `/api/health` and the `/api/auth/*` routes are never guarded.
+
+| Route | Method | Purpose |
+|---|---|---|
+| `/api/auth/login` | GET | Start sign-in: 302 to Google, sets the signed, 10-minute `airport_login` cookie (state, nonce, PKCE verifier). Open this as a link, not a fetch. |
+| `/api/auth/callback` | GET | Google returns here with `code` and `state`. On success: 302 to `/` with the `airport_session` cookie. On any failure: 302 to `/?signin=failed` (the reason is only in the server log). |
+| `/api/auth/logout` | POST | Clears the session cookie. 200 `{ "signedIn": false }`. Browser requests from another site get 403. |
+| `/api/auth/me` | GET | 200 `{ "required": boolean, "signedIn": true, "name", "email", "picture" }` or `{ "required": boolean, "signedIn": false }`. Never cached. |
+
+Call order:
+
+1. `GET /api/auth/login`: generate `state`, `nonce` and a PKCE `code_verifier`; store them in the signed login cookie; redirect to `https://accounts.google.com/o/oauth2/v2/auth` with `response_type=code`, `client_id`, `redirect_uri`, `scope=openid email profile`, `state`, `nonce`, `code_challenge`, `code_challenge_method=S256`.
+2. The user signs in at Google, which redirects the browser to `GET /api/auth/callback?code&state`.
+3. The callback checks `state` against the login cookie (constant-time), then POSTs `code`, `code_verifier`, `client_id`, `client_secret`, `redirect_uri` and `grant_type=authorization_code` to `https://oauth2.googleapis.com/token`.
+4. It verifies the returned `id_token` against Google's JWKS (`https://www.googleapis.com/oauth2/v3/certs`): RS256 signature, `iss` is `https://accounts.google.com` or `accounts.google.com`, `aud` is our client id, `exp`, `iat` (under 10 minutes old), `nonce` equals the stored one, and `email_verified` is true.
+5. It issues our session JWT and sets it in an HttpOnly, SameSite=Lax cookie (Secure everywhere except `http://localhost`). Google's tokens are discarded.
+6. Protected routes call `requireUser` (`lib/auth/session.ts`): verify our JWT (HS256, `iss`, `aud`, `exp`) or answer 401.
+
+The JWTs:
+
+- **Google ID token** (issued by Google, verified by us once): RS256; claims used: `iss`, `aud`, `sub`, `exp`, `iat`, `nonce`, `email`, `email_verified`, `name`, `picture`.
+- **Our session JWT** (issued and verified by us, cookie `airport_session`): HS256 with `AUTH_SECRET`; `iss` `airport-demo`, `aud` `airport-demo-api`, `sub` (Google's id), `email`, `name`, `picture`, `iat`, `exp` (8 hours).
+- **Login cookie** (`airport_login`, 10 minutes): HS256, `aud` `airport-demo-login`; not accepted as a session.
+
+Redirect URIs to register in Google Cloud Console (exact match): `https://airport-demo-pi.vercel.app/api/auth/callback` and `http://localhost:3000/api/auth/callback`.
+
+---
+
 ## Configuration
 
 | Variable | Default | Purpose |
@@ -421,6 +462,11 @@ It does not check OpenAI or adsb.lol connectivity.
 | `ELEVENLABS_CLIENT_CHARS_PER_HOUR` | `3000` | Per-client character budget per hour |
 | `ELEVENLABS_CHARS_PER_DAY` | `8000` | Global character budget per day (per server instance) |
 | `ELEVENLABS_MAX_CONCURRENT` | `3` | Simultaneous ElevenLabs calls |
+| `AUTH_REQUIRED` | unset (off) | `true` makes `/api/chat`, `/api/stt` and `/api/tts` require a signed-in user; unset or `false` leaves the app open |
+| `AUTH_SECRET` | — (required when sign-in is used) | Signs our session JWTs; 32+ random characters |
+| `AUTH_URL` | `http://localhost:3000` outside production; required in production | The app's public origin; the Google redirect URI is built from it |
+| `GOOGLE_CLIENT_ID` | — | Google OAuth client id |
+| `GOOGLE_CLIENT_SECRET` | — | Google OAuth client secret (server-side only) |
 | `NEXT_PUBLIC_API_BASE_URL` | empty | Only if the API is on a different origin than the UI |
 
 The live-flights, FAA status, weather, BTS traffic and FAA infrastructure tools use free public APIs and need no key.

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CHAT_TIMEOUT_MS, sendChat } from "./api";
+import { CHAT_TIMEOUT_MS, SESSION_ENDED_EVENT, SIGN_IN_AGAIN_REPLY, fetchAuthStatus, sendChat } from "./api";
 
 /** A fetch that never answers, but rejects the way a real one does when its signal aborts. */
 function hangingFetch() {
@@ -80,6 +80,28 @@ describe("sendChat timeout and cancel", () => {
   it("an error body from the server still wins over the timeout wording", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ reply: "Server says no", error: "x" }), { status: 500 })));
     expect((await sendChat("hello", [])).reply).toBe("Server says no");
+  });
+});
+
+describe("401 from the server means the session is gone", () => {
+  it("shows 'Please sign in again.' and tells the page to re-check who is signed in", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: "unauthorized" }, { status: 401 })));
+    const dispatched = vi.fn();
+    vi.stubGlobal("window", { dispatchEvent: dispatched });
+    const response = await sendChat("hello", []);
+    expect(response).toEqual({ reply: "Please sign in again.", error: "unauthorized" });
+    expect(SIGN_IN_AGAIN_REPLY).toBe("Please sign in again.");
+    expect(dispatched).toHaveBeenCalledOnce();
+    expect((dispatched.mock.calls[0][0] as Event).type).toBe(SESSION_ENDED_EVENT);
+  });
+
+  it("fetchAuthStatus reads /api/auth/me and falls back to 'not required, nobody' when the check fails", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ required: true, signedIn: false })));
+    expect(await fetchAuthStatus()).toEqual({ required: true, signedIn: false });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 500 })));
+    expect(await fetchAuthStatus()).toEqual({ required: false, signedIn: false });
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
+    expect(await fetchAuthStatus()).toEqual({ required: false, signedIn: false });
   });
 });
 

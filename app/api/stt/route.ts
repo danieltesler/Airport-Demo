@@ -1,4 +1,5 @@
 import OpenAI, { toFile } from "openai";
+import { requireUser } from "@/lib/auth/session";
 import { MAX_AUDIO_BYTES, isAllowedAudioType } from "@/lib/audioUpload";
 import { rejectCrossSite } from "@/lib/requestGuards";
 
@@ -25,6 +26,10 @@ const DOMAIN_PROMPT =
 export async function POST(request: Request) {
   const crossSite = rejectCrossSite(request);
   if (crossSite) return crossSite;
+
+  // Signed-in users only, when AUTH_REQUIRED is on (lib/auth/session.ts). Checked before any body is read or paid call made.
+  const unauthorized = await requireUser(request);
+  if (unauthorized) return unauthorized;
 
   if (!process.env.OPENAI_API_KEY) {
     return Response.json({ error: "OPENAI_API_KEY not set" }, { status: 503 });

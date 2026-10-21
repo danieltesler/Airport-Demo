@@ -199,7 +199,7 @@ describe("security headers", () => {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data:",
+      "img-src 'self' data: https://*.googleusercontent.com",
       "media-src 'self' blob: data:",
       "connect-src 'self'",
       "frame-ancestors 'none'",

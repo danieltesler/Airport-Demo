@@ -89,6 +89,16 @@ export interface ChatResponse {
   error?: string;
 }
 
+/** Response body for GET /api/auth/me. The profile fields are present only when signed in. */
+export interface AuthStatus {
+  /** True when the server enforces sign-in (AUTH_REQUIRED). */
+  required: boolean;
+  signedIn: boolean;
+  name?: string;
+  email?: string;
+  picture?: string | null;
+}
+
 /** Response body for GET /api/health. */
 export interface HealthResponse {
   status: string;

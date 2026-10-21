@@ -194,11 +194,82 @@ itself, with a message, after 8 seconds of silence, 3 empty turns, 10 turns with
 is hidden or the screen locks; tap the mic to carry on. It keeps the screen awake while active
 where the browser allows it.
 
+## Authentication
+
+Sign in with Google is optional and **off by default**. When it is on, only signed-in people
+can use the paid routes (`/api/chat`, `/api/stt`, `/api/tts`); anyone with a Google account
+may sign in. The flow is OAuth 2.0 authorization code with PKCE, plus OpenID Connect, written by
+hand in `lib/auth/` (no auth framework; the one dependency is `jose`, for JWTs).
+
+**Call order**
+
+1. The browser opens `GET /api/auth/login`. The server makes three one-time secrets (`state`,
+   `nonce`, PKCE `code_verifier`), keeps them in a signed 10-minute HttpOnly cookie, and redirects
+   to Google with `response_type=code`, `client_id`, `redirect_uri`, `scope=openid email profile`,
+   `state`, `nonce` and `code_challenge` (the SHA-256 of the verifier, `S256`).
+2. The user signs in on Google's page and agrees to share their identity.
+3. Google redirects the browser to `GET /api/auth/callback?code=...&state=...`.
+4. The server checks `state` equals the one in the cookie (login CSRF defence).
+5. The server (not the browser) POSTs the `code`, the `code_verifier`, the client id and secret and
+   the redirect URI to Google's token endpoint and receives an `id_token`.
+6. The server verifies the ID token against Google's public keys (JWKS): signature, issuer,
+   audience (our client id), expiry, issue time and the `nonce`; and requires `email_verified`.
+7. The server issues **its own** session JWT and sets it as an HttpOnly cookie. Google's tokens are
+   never stored or logged; only the identity (`sub`, email, name, picture) is kept.
+8. The browser lands on `/`. Every call to `/api/chat`, `/api/stt` and `/api/tts` now carries the cookie;
+   the central guard `requireUser` verifies it (default deny) and answers `401 {"error":"unauthorized"}` otherwise.
+9. `POST /api/auth/logout` clears the cookie; `GET /api/auth/me` tells the UI who is signed in.
+
+**The JWTs**
+
+| Token | Who issues it | Who checks it | How | Lifetime |
+|---|---|---|---|---|
+| Google ID token | Google | us, once, in the callback | RS256, Google's public keys (JWKS); `iss`, `aud` = our client id, `exp`, `iat`, `nonce`, `email_verified` | about 1 hour (we also require it to be under 10 minutes old) |
+| Our session JWT (cookie `airport_session`) | us | us, on every protected request | HS256 with `AUTH_SECRET`; `iss` = `airport-demo`, `aud` = `airport-demo-api`, `sub` = Google id, `email`, `name`, `picture`, `iat`, `exp` | 8 hours |
+| Login cookie (`airport_login`) | us | us, in the callback | HS256, `aud` = `airport-demo-login` (so it can never act as a session) | 10 minutes |
+
+**Environment variables** (names only; values go in `.env.local` or the Vercel project, never in the repo)
+
+| Variable | Purpose |
+|---|---|
+| `AUTH_REQUIRED` | The on/off switch: `true` turns the guard on. Unset or `false` = the app works exactly as without sign-in. |
+| `AUTH_SECRET` | Signs our JWTs. 32+ random characters: `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
+| `AUTH_URL` | The app's public origin (production: `https://airport-demo-pi.vercel.app`). The redirect URI is built from it, never from the request's Host header. https only, except `http://localhost`. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | The OAuth client from Google Cloud Console (type: Web application). |
+
+**Google Cloud Console.** Create an OAuth client ID of type *Web application*, with these
+*Authorized redirect URIs* (exact match):
+
+- `https://airport-demo-pi.vercel.app/api/auth/callback`
+- `http://localhost:3000/api/auth/callback`
+
+**On/off.** `AUTH_REQUIRED=false` (or removing it) and redeploying makes the app fully open again.
+Vercel applies an environment-variable change to the next deployment, so after changing it redeploy
+(or redeploy the previous deployment). Any value that is not clearly off (`false`, `0`, `off`, `no`, empty)
+counts as on, so a typo locks the API rather than opening it.
+
+**Reading the code.** Start at `lib/auth/login.ts` then `lib/auth/callback.ts`; the helpers they call are small:
+`pkce.ts` (random values, PKCE, constant-time compare), `google.ts` (the two Google endpoints), `idToken.ts`
+(verify Google's JWT), `jwt.ts` and `session.ts` (our JWT and the `requireUser` guard).
+
+**Known limits** (accepted for a demo):
+
+- *No revocation.* The session is a stateless JWT. Sign out deletes the browser's copy, but a copied
+  cookie stays valid until it expires (at most 8 hours). The only server-side kill switch is rotating
+  `AUTH_SECRET`, which signs everybody out.
+- *Sign-in is not a spending cap.* Anyone with a Google account may sign in, so the guard stops anonymous
+  scripts, not a determined user. There is no per-user rate limit; the bounds are the per-request input
+  caps, the ElevenLabs character budgets and the provider spending limits.
+- *Off means open.* `AUTH_REQUIRED` unset is "off" by design (it is the on/off switch), so deleting the
+  variable reopens the app at the next deployment.
+- *Preview deployments cannot sign in*, because the redirect URI always points at `AUTH_URL` (production).
+  With `AUTH_REQUIRED=true` a preview is locked, not open.
+
 ## Deploying
 
 Since it's just a Next.js app, Vercel is the easy path: import the repo, add
-`OPENAI_API_KEY` to the project's environment variables, and deploy. There's nothing
-else to configure. Keys live in the environment and never go into the repo
+`OPENAI_API_KEY` to the project's environment variables, and deploy. Nothing else is
+needed unless you turn on Sign in with Google (see Authentication above). Keys live in the environment and never go into the repo
 (`.env.local` is git-ignored).
 
 The live tools use free public APIs and need no key. The
@@ -229,6 +300,7 @@ app/
   api/stt/route.ts      speech to text (POST /api/stt, OpenAI Whisper)
   api/tts/route.ts      text to speech (POST /api/tts, ElevenLabs with OpenAI fallback)
   api/health/route.ts   a health check
+  api/auth/*/route.ts   Sign in with Google: login, callback, logout, me (the logic is in lib/auth/)
   layout.tsx, page.tsx  the app shell and the single chat page
   globals.css           design tokens and Markdown styles
 components/
@@ -236,6 +308,7 @@ components/
   StructuredResult.tsx  the results table and bar chart
   AssumptionsPanel.tsx  the assumptions / uncertainty panel
 lib/
+  auth/                 Sign in with Google by hand: PKCE, ID token check, our session JWT, the requireUser guard (README "Authentication")
   agent.ts              the model loop (chat model and tool calling; speech is in the stt/tts routes)
   tools.ts              the tools the model can call
   scoring.ts            the deterministic scoring engine and its anchors

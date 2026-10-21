@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { requireUser } from "@/lib/auth/session";
 import { SpeechBudgetError, SpeechUnavailableError, createSpeechService } from "@/lib/speechSynthesis";
 import { clientId, rejectCrossSite } from "@/lib/requestGuards";
 
@@ -36,6 +37,10 @@ const speech = createSpeechService({
 export async function POST(request: Request) {
   const crossSite = rejectCrossSite(request);
   if (crossSite) return crossSite;
+
+  // Signed-in users only, when AUTH_REQUIRED is on (lib/auth/session.ts). Checked before any body is read or paid call made.
+  const unauthorized = await requireUser(request);
+  if (unauthorized) return unauthorized;
 
   let text = "";
   try {

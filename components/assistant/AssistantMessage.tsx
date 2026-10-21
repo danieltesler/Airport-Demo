@@ -9,6 +9,8 @@ import type { AssistantExtras } from "@/lib/types";
 import { StructuredResult } from "@/components/StructuredResult";
 import { AssumptionsPanel } from "@/components/AssumptionsPanel";
 import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
+import { SIGN_IN_AGAIN_REPLY } from "@/lib/api";
+import { ComposerNotice } from "./ComposerNotice";
 import { MarkdownText } from "./MarkdownText";
 import { TypingIndicator } from "./TypingIndicator";
 import { SpeakerIcon, StopIcon } from "./icons";
@@ -23,7 +25,9 @@ import styles from "./chat.module.css";
  */
 export function AssistantMessage() {
   const extras = useExtras();
-  const isError = !!extras?.error;
+  // A 401 is not a failure to explain: the session ended, so say so quietly and link to sign in.
+  const needsSignIn = extras?.error === "unauthorized";
+  const isError = !!extras?.error && !needsSignIn;
   const speechText = extras?.spoken ?? "";
   const { playback, player } = useSpeechPlayback();
   const isReadingThis = playback.text === speechText && playback.status !== "idle" && playback.status !== "error";
@@ -35,17 +39,21 @@ export function AssistantMessage() {
       </span>
 
       <div className={styles.assistantBody}>
-        <div
-          className={
-            isError ? `${styles.assistantBubble} ${styles.errorBubble}` : styles.assistantBubble
-          }
-          role={isError ? "alert" : undefined}
-        >
-          {isError && <span className={styles.errorLabel}>Something went wrong</span>}
-          <MessagePrimitive.Parts
-            components={{ Text: MarkdownText, Empty: TypingIndicator }}
-          />
-        </div>
+        {needsSignIn ? (
+          <ComposerNotice inline message={SIGN_IN_AGAIN_REPLY} action={{ label: "Sign in", href: "/api/auth/login" }} />
+        ) : (
+          <div
+            className={
+              isError ? `${styles.assistantBubble} ${styles.errorBubble}` : styles.assistantBubble
+            }
+            role={isError ? "alert" : undefined}
+          >
+            {isError && <span className={styles.errorLabel}>Something went wrong</span>}
+            <MessagePrimitive.Parts
+              components={{ Text: MarkdownText, Empty: TypingIndicator }}
+            />
+          </div>
+        )}
 
         {extras?.structured && <StructuredResult data={extras.structured} />}
 

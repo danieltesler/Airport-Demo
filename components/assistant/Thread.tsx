@@ -3,7 +3,8 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { ThreadPrimitive } from "@assistant-ui/react";
 import { AppHeader } from "./AppHeader";
-import { ExampleChips } from "./ExampleChips";
+import { AuthGate } from "./AuthGate";
+import { HomeStart } from "./HomeStart";
 import { UserMessage } from "./UserMessage";
 import { AssistantMessage } from "./AssistantMessage";
 import { Composer } from "./Composer";
@@ -70,10 +71,7 @@ export function Thread() {
                   rules-based scoring.
                 </span>
               </p>
-              <span className={styles.tryLabel} id="try-asking">
-                Try asking
-              </span>
-              <ExampleChips />
+              <HomeStart />
             </EmptyState>
           </ThreadPrimitive.Empty>
 
@@ -84,8 +82,10 @@ export function Thread() {
       </ThreadPrimitive.Viewport>
 
       <div className={styles.composerBar}>
-        <Composer />
-        <VoiceDisclosure />
+        <AuthGate>
+          <Composer />
+          <VoiceDisclosure />
+        </AuthGate>
       </div>
     </ThreadPrimitive.Root>
   );

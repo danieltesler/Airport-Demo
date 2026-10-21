@@ -7,6 +7,7 @@
 import type {
   ChatRequest,
   ChatResponse,
+  AuthStatus,
   ChatTurn,
   HealthResponse,
 } from "./types";
@@ -25,6 +26,12 @@ export const CHAT_TIMEOUT_MS = 45_000;
 
 /** The `error` of a request the user stopped on purpose. It is not a failure and never shown as one. */
 export const CHAT_CANCELLED = "cancelled";
+
+/** Shown when the server answers 401: the session ended, or sign-in is required and there is none. */
+export const SIGN_IN_AGAIN_REPLY = "Please sign in again.";
+
+/** Fired on the window when any API call comes back 401, so the page can re-check who is signed in. */
+export const SESSION_ENDED_EVENT = "airport:session-ended";
 
 const TIMEOUT_REPLY = "That took longer than expected, so I stopped waiting. Please try again.";
 
@@ -62,6 +69,11 @@ export async function sendChat(
       signal: request.signal,
     });
 
+    if (response.status === 401) {
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(SESSION_ENDED_EVENT));
+      return { reply: SIGN_IN_AGAIN_REPLY, error: "unauthorized" };
+    }
+
     const data = await safeParseJson(response);
     if (timedOut) return { reply: TIMEOUT_REPLY, error: "timeout" };
     if (signal?.aborted) return { reply: "", error: CHAT_CANCELLED };
@@ -98,6 +110,29 @@ export async function checkHealth(): Promise<HealthResponse | null> {
     return (await response.json()) as HealthResponse;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Who is signed in, and whether the server requires sign-in. If the check itself fails, report
+ * "not required, nobody": the page then simply shows the app, and the server still enforces its own rules.
+ */
+export async function fetchAuthStatus(): Promise<AuthStatus> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, { cache: "no-store" });
+    if (!response.ok) return { required: false, signedIn: false };
+    return (await response.json()) as AuthStatus;
+  } catch {
+    return { required: false, signedIn: false };
+  }
+}
+
+/** Ask the server to end the session (it clears the cookie). Resolves either way; the caller reloads the page. */
+export async function signOut(): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/auth/logout`, { method: "POST" });
+  } catch {
+    // Offline: the reload that follows shows the real state.
   }
 }
 

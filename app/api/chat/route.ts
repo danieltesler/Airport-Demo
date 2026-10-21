@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runAgent } from "@/lib/agent";
+import { requireUser } from "@/lib/auth/session";
 import { MAX_MESSAGE_CHARS, sanitizeHistory } from "@/lib/chatInput";
 import { MAX_JSON_BODY_BYTES, declaredTooLarge, rejectCrossSite } from "@/lib/requestGuards";
 import type { ChatRequest } from "@/lib/types";
@@ -18,6 +19,10 @@ export const maxDuration = 30;
 export async function POST(request: Request) {
   const crossSite = rejectCrossSite(request);
   if (crossSite) return crossSite;
+
+  // Signed-in users only, when AUTH_REQUIRED is on (lib/auth/session.ts). Checked before any body is read or paid call made.
+  const unauthorized = await requireUser(request);
+  if (unauthorized) return unauthorized;
 
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({

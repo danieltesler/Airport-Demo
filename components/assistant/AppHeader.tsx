@@ -1,4 +1,5 @@
 import { NewChatButton } from "./NewChatButton";
+import { UserMenu } from "./UserMenu";
 import styles from "./chat.module.css";
 
 /** App header: a light wordmark with a small iridescent dot, a quiet pill saying what the data is, and New chat once there is a conversation. */
@@ -14,6 +15,7 @@ export function AppHeader() {
       <div className={styles.headerActions}>
         <NewChatButton />
         <span className={styles.headerPill}>Public aviation data</span>
+        <UserMenu />
       </div>
     </header>
   );

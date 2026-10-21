@@ -18,6 +18,7 @@
   "dependencies": {
     "@assistant-ui/react": "^0.15.16",
     "@assistant-ui/react-markdown": "^0.14.12",
+    "jose": "^6.2.13",
     "next": "^14.2.15",
     "openai": "^4.104.0",
     "react": "^18.3.1",

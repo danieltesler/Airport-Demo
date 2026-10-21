@@ -886,3 +886,316 @@
     font-size: 1.125rem;
   }
 }
+
+/* ---- Sign-in ---- */
+
+/* While /api/auth/me has not answered: the composer's height, empty, so nothing shifts when it arrives. */
+.composerPending {
+  visibility: hidden;
+}
+
+.composerPendingRow {
+  min-height: 45px; /* one line of the real input */
+}
+
+/* The example cards keep their room but stay invisible until we know the visitor may use them. */
+.awaitingAuth {
+  visibility: hidden;
+}
+
+/* A link at the end of a notice line (the 401 "Please sign in again."). */
+.noticeLink {
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.noticeLink:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* A notice that sits inside a message instead of above the composer. */
+.noticeInline {
+  margin: 0;
+  padding-block: 0.1rem;
+  text-align: left;
+}
+
+/* The sign-in card takes the place of the example cards (home) or the composer (session ended mid-chat). */
+.signInArea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.signInCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 26rem;
+  padding: clamp(1rem, 3dvh, 1.5rem) 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  text-align: center;
+}
+
+.signInTitle {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.375rem;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.signInReason {
+  margin: 0 0 0.5rem;
+  max-width: 22rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+/* Google's "Sign in with Google": white, a neutral outline, the multicolour G, dark text. Their kit
+   asks for Roboto; the app's own UI font is used instead so the page loads one font family fewer. */
+.googleButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  min-width: 14rem;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0 1.25rem 0 1rem;
+  border: 1px solid #747775;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1f1f1f;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.googleButton:hover {
+  background: #f3f3f3;
+  box-shadow: var(--shadow-sm);
+}
+
+.googleButton:active {
+  background: #e9e9e9;
+}
+
+.googleLogo {
+  flex-shrink: 0;
+}
+
+/* "Sign-in didn't complete": calm and quiet, with a dismiss button; not red, nothing here is an emergency. */
+.signInFailed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 26rem;
+  padding: 0.25rem 0.35rem 0.25rem 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.signInFailed span {
+  text-wrap: balance; /* if it ever has to wrap, two even lines rather than one word on the second */
+}
+
+.signInFailedDismiss {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+}
+
+.signInFailedDismiss:hover {
+  background: var(--line);
+}
+
+/* ---- User menu (header avatar and its panel) ---- */
+.userMenu {
+  position: relative;
+  z-index: 20; /* above the scrolling conversation, which comes later in the page */
+  flex-shrink: 0;
+}
+
+/* Same trick as New chat: taller than the header line without growing the header. */
+.userTrigger {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-block: -1px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  transition: border-color 0.15s ease;
+}
+
+.userTrigger:hover,
+.userTrigger[aria-expanded="true"] {
+  border-color: var(--ink-muted);
+}
+
+.userAvatar {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1;
+  object-fit: cover;
+}
+
+.userPanel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: max-content;
+  min-width: 13rem;
+  max-width: min(18rem, calc(100vw - 1.8rem));
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.userIdentity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.4rem 0.6rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.userPanelName {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.userPanelEmail {
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.signOutItem {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 0.6rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: left;
+}
+
+.signOutItem:hover:not(:disabled) {
+  background: var(--surface-sunken);
+}
+
+.signOutItem:disabled {
+  color: var(--ink-muted);
+}
+
+/* Phones and touch screens get 44px targets; the avatar stays 32px inside its bigger button. The
+   negative margin keeps the header as short as the wordmark, so it does not grow when the avatar appears. */
+@media (max-width: 640px), (pointer: coarse) {
+  .userTrigger {
+    width: 44px;
+    height: 44px;
+    margin-block: -10px;
+    border-color: transparent;
+    background: transparent;
+  }
+  .userAvatar {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--line-strong);
+  }
+  .userTrigger:hover,
+  .userTrigger[aria-expanded="true"] {
+    border-color: transparent;
+  }
+  .signOutItem {
+    min-height: 44px;
+  }
+  .signInFailedDismiss {
+    width: 44px;
+    height: 44px;
+    margin-block: -6px;
+  }
+  .noticeLink {
+    display: inline-block;
+    padding-block: 0.5rem;
+    margin-block: -0.5rem;
+  }
+}
+
+/* Narrow phones: with New chat and the avatar both in the header, the wordmark needs the room back.
+   Scoped to a signed-in header, so the header without sign-in is untouched. */
+@media (max-width: 480px) {
+  .header:has(.userMenu) {
+    gap: 0.35rem;
+  }
+  .header:has(.userMenu) .headerActions {
+    gap: 0;
+  }
+}
+
+@media (max-width: 400px) {
+  .header:has(.userMenu) .wordmark {
+    gap: 0.45rem;
+    min-height: 30px; /* as tall as the New chat button, so the header keeps its height when that appears */
+    font-size: 1rem;
+  }
+}
+
+/* The smallest phones: a touch less padding and type keeps the notice on one line. */
+@media (max-width: 400px) {
+  .signInFailed {
+    padding-left: 0.8rem;
+    font-size: 0.78rem;
+  }
+}
