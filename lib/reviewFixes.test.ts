@@ -224,14 +224,13 @@ describe("6. off-topic words next to an airport are not refused", () => {
       "Joke aside, how congested is Denver?",
       "Write an essay on Boise's growth",
       "Any lyrics-free summary of Hartford vs Burlington?",
-      "Write a poem about Southwest's flying",
     ]) {
       expect(offTopicReply(message), message).toBeNull();
     }
   });
 
   it("still refuses plain off-topic requests", () => {
-    for (const message of ["Write me a short poem about cats.", "Tell me a joke", "Give me a recipe for lasagna", "Write an essay on the French Revolution"]) {
+    for (const message of ["Write me a short poem about cats.", "Tell me a joke", "Give me a recipe for lasagna", "Write an essay on the French Revolution", "Write a poem about Southwest's flying"]) {
       expect(offTopicReply(message), message).not.toBeNull();
     }
   });

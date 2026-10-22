@@ -7,8 +7,9 @@ import { traceBargeIn } from "./voiceTrace";
  *   off -> listening -> thinking -> speaking -> (400 ms gap) -> listening ...
  *                  any phase -> paused (needs a tap)      any phase -> off (End)
  *
- * Half-duplex by design: it only listens while the assistant is silent, so it never hears itself
- * on laptop speakers. Interrupting is a tap, not a voice. Every failure lands in `paused` with a
+ * A question is only sent from the listening phase. While the assistant speaks, voice barge-in (on by
+ * default, see lib/bargeIn.ts) watches for the user talking over it and stops playback; after repeated
+ * false triggers it switches itself off for the session. A tap interrupts too. Every failure lands in `paused` with a
  * reason the chip can say, and the answer is always on screen, so there is no silent dead state.
  *
  * The controller is framework-free: the browser pieces (microphone, audio context, wake lock,

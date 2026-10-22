@@ -294,11 +294,13 @@ describe("7. off-topic requests are refused by code", () => {
     expect(offTopicReply("Write me a short poem about cats.")).toBe(OFF_TOPIC_REPLY);
     expect(offTopicReply("tell me a joke")).toBe(OFF_TOPIC_REPLY);
     expect(offTopicReply("Give me a recipe for lasagna")).toBe(OFF_TOPIC_REPLY);
+    // Red-team: an explicit creative ask is refused even when it names an airport (the model told the joke).
+    expect(offTopicReply("Write a short story about an airport")).toBeNull(); // a story about an airport may be analysis (Daredevil regression run)
+    expect(offTopicReply("Write a poem comparing LAX and SNA")).toBe(OFF_TOPIC_REPLY);
+    expect(offTopicReply("Tell me a joke about ATL.")).toBe(OFF_TOPIC_REPLY);
   });
 
   it("never intercepts anything about airports", () => {
-    expect(offTopicReply("Write a short story about an airport")).toBeNull();
-    expect(offTopicReply("Write a poem comparing LAX and SNA")).toBeNull();
     expect(offTopicReply("What is a good recipe for airport congestion?")).toBeNull();
     expect(offTopicReply("Compare Boston and Chicago")).toBeNull();
     expect(offTopicReply("Which flights are delayed?")).toBeNull();

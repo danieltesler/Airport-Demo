@@ -64,6 +64,7 @@ export const airportChatAdapter: ChatModelAdapter = {
       meta: response.meta ?? null,
       spoken,
       shown: response.shown ?? null,
+      sig: response.sig ?? null,
       error: response.error ?? null,
     };
 
@@ -105,13 +106,21 @@ function shownNoteOf(message: ThreadMessage): string | undefined {
   return typeof custom?.shown === "string" && custom.shown ? custom.shown : undefined;
 }
 
-/** Prior turns, mapped to the contract's `{ role, content }` history shape, with each answer's `shown` note. */
+/** The server's signature of an assistant answer, if any. */
+function signatureOf(message: ThreadMessage): string | undefined {
+  const custom = message.metadata?.custom as AssistantExtras | undefined;
+  return typeof custom?.sig === "string" && custom.sig ? custom.sig : undefined;
+}
+
+/** Prior turns, mapped to the contract's `{ role, content }` history shape, with each answer's `shown` note and signature. */
 function toHistory(messages: readonly ThreadMessage[]): ChatTurn[] {
   return messages
     .filter((message) => message.role === "user" || message.role === "assistant")
     .map((message) => {
       const turn: ChatTurn = { role: message.role as ChatRole, content: readText(message) };
-      const shown = message.role === "assistant" ? shownNoteOf(message) : undefined;
-      return shown ? { ...turn, shown } : turn;
+      if (message.role !== "assistant") return turn;
+      const shown = shownNoteOf(message);
+      const sig = signatureOf(message);
+      return { ...turn, ...(shown ? { shown } : {}), ...(sig ? { sig } : {}) };
     });
 }

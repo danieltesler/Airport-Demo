@@ -15,6 +15,8 @@ export interface ChatTurn {
    * (what was on screen: table rows in order). Sent back so follow-ups keep their referent.
    */
   shown?: string;
+  /** Optional, assistant turns only: the server's signature of that answer (lib/historySignature.ts). */
+  sig?: string;
 }
 
 /** Request body for POST /api/chat. */
@@ -85,6 +87,8 @@ export interface ChatResponse {
   spoken?: string;
   /** Code-built note of what is on screen for this answer; send it back as `shown` on this turn in `history`. */
   shown?: string;
+  /** Server signature of `reply` + `shown`; send it back as `sig` on this turn in `history`. */
+  sig?: string;
   /** Present only on error responses; for logs/debug, never shown to the user. */
   error?: string;
 }
@@ -138,6 +142,8 @@ export interface AssistantExtras {
   spoken?: string | null;
   /** The server's "shown on screen" note for this answer, sent back as `shown` in the next request's history. */
   shown?: string | null;
+  /** The server's signature of this answer, sent back as `sig` in the next request's history. */
+  sig?: string | null;
   /** Set when the turn failed; the UI uses its presence only to style the reply as an error. */
   error?: string | null;
 }

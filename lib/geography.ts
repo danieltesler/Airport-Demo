@@ -263,6 +263,10 @@ const WITHIN_PATTERN = new RegExp(`^(?:within|inside|up to)\\s+${NUMBER}\\s*${UN
 const DISTANCE_PATTERN = new RegExp(`^${NUMBER}\\s*${UNIT}\\s+(?:radius\\s+)?(?:of|from|around)\\s+(.+)$`);
 const NEAR_PATTERN = /^(?:near|around|close to|nearby|by)\s+(.+)$/;
 
+/** "near me", "close to us", "near here": the user's own location, which the app never knows. */
+export const SELF_LOCATION = /^(?:me|us|here|my (?:location|area|place|city|home)|where i am|where we are|my current location)$/i;
+export const ASK_FOR_LOCATION_NOTE = "The user did not name a place; ask which city or airport to measure from.";
+
 function parseRadiusRequest(text: string): RadiusRequest | null {
   const explicit = text.match(WITHIN_PATTERN) ?? text.match(DISTANCE_PATTERN);
   if (explicit) {
@@ -469,6 +473,11 @@ class ScopeResolver<T extends GeoAirport> {
     const anchor = normalizeScope(anchorText);
     const radius = roundMiles(radiusMiles);
     const scopePrefix = explicitRadius ? `within ${radius} miles of` : "near";
+
+    // "near me" once fuzzy-matched "me" to MEM, MKE, CLE and CMH. The app has no location: ask, suggest nothing.
+    if (SELF_LOCATION.test(anchor)) {
+      return { ...this.unknown(input, anchor, [ASK_FOR_LOCATION_NOTE]), suggestions: [] };
+    }
 
     const airport = anchor.length === 3 ? this.airportByCode.get(anchor.toUpperCase()) : undefined;
     if (airport) {

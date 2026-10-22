@@ -235,6 +235,7 @@ hand in `lib/auth/` (no auth framework; the one dependency is `jose`, for JWTs).
 | `AUTH_REQUIRED` | The on/off switch: `true` turns the guard on. Unset or `false` = the app works exactly as without sign-in. |
 | `AUTH_SECRET` | Signs our JWTs. 32+ random characters: `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
 | `AUTH_URL` | The app's public origin (production: `https://airport-demo-pi.vercel.app`). The redirect URI is built from it, never from the request's Host header. https only, except `http://localhost`. |
+| `HISTORY_SIGNING_KEY` | Optional. Signs each answer so a forged assistant turn in the client-sent history grounds no figure (lib/historySignature.ts). Falls back to `AUTH_SECRET`, then to a random per-process key. 32+ characters. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | The OAuth client from Google Cloud Console (type: Web application). |
 
 **Google Cloud Console.** Create an OAuth client ID of type *Web application*, with these
@@ -394,8 +395,9 @@ they are.
 
 ## Known limitations
 
-- **No authentication or rate limiting** on the `/api` routes. Chat, speech-to-text, and
-  text-to-speech each trigger paid calls (OpenAI, and ElevenLabs credits when configured),
+- **Optional sign-in, no per-user rate limit.** Google sign-in guards the `/api` routes when
+  `AUTH_REQUIRED=true` (it is on for the live deployment), but any Google account can sign in and
+  there is no per-user rate limit yet. Chat, speech-to-text, and text-to-speech each trigger paid calls (OpenAI, and ElevenLabs credits when configured),
   so a public deployment is exposed to cost abuse. Each route bounds its input: chat takes a
   message of up to 1,000 characters and the last 12 turns; speech-to-text takes at most 1 MB of
   audio in a few allowed formats; text-to-speech takes at most 600 characters, with a
@@ -436,7 +438,7 @@ they are.
 
 ## Next steps
 
-- Authentication, per-client rate limiting, and usage caps on the API.
+- Per-user rate limiting and usage caps on the API (keyed on the signed-in user, in a shared store).
 - An end-to-end evaluation suite to catch regressions when prompts or models change.
 - Multi-year growth trends and FAA ASPM demand-vs-capacity data from the same pipeline.
 - Fare data (BTS DB1B) to test "underserved by demand" against real fares and itineraries,

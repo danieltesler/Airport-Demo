@@ -6,6 +6,7 @@
 
 import * as data from "./data";
 import type { Airport } from "./data";
+import { ASK_FOR_LOCATION_NOTE } from "./geography";
 import type { ScopeResolution } from "./geography";
 import type { ToolOutput } from "./tools";
 
@@ -27,8 +28,10 @@ export function scopeProblem(resolution: ScopeResolution<Airport>): ToolOutput {
   };
   const suggestions = resolution.suggestions ?? [];
   const asChoice = (items: string[]): string => (items.length > 1 ? `${items.slice(0, -1).join(", ")} or ${items.at(-1)}` : items[0]);
-  const unknownReply =
-    suggestions.length > 0
+  const aroundTheUser = resolution.notes.includes(ASK_FOR_LOCATION_NOTE);
+  const unknownReply = aroundTheUser
+    ? "I don't know where you are. Tell me a city, state or airport and I'll look at the airports around it."
+    : suggestions.length > 0
       ? `I don't have '${resolution.input}' as a ready-made area. Did you mean ${asChoice(suggestions)}?`
       : `I don't have '${resolution.input}' as a ready-made area. I can use a U.S. state, a region such as the Northeast or the West Coast, a metro like the Bay Area, or 'near <city>'.`;
   return {

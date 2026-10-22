@@ -387,8 +387,9 @@ These are surfaced to the user on every answer, not buried here.
 
 Operational limitations of the current build:
 
-- **No authentication or rate limiting** on `/api/chat`, `/api/stt`, or `/api/tts`.
-  Each triggers paid calls (OpenAI, and ElevenLabs credits when configured), so a public
+- **Optional sign-in, no per-user rate limit** on `/api/chat`, `/api/stt`, or `/api/tts`.
+  Google sign-in guards them when `AUTH_REQUIRED=true` (on for the live deployment), but any
+  Google account can sign in and nothing yet limits a signed-in user. Each triggers paid calls (OpenAI, and ElevenLabs credits when configured), so a public
   deployment is open to cost abuse. Input is size-capped on every route, cross-site browser
   requests are refused, and speech has character and concurrency budgets shared by both
   providers, but the budgets are in memory and reset per instance.
@@ -406,7 +407,7 @@ Operational limitations of the current build:
 - The cost side of the investment case (capex, gate/land constraints) to turn the
   demand score into a true ROI ranking.
 - A small map view using the coordinates already in the dataset.
-- Authentication, per-client rate limiting, and usage caps on the `/api` routes.
+- Per-user rate limiting and usage caps on the `/api` routes (keyed on the signed-in user, in a shared store).
 - An end-to-end evaluation suite (tool choice, figures, no invented airports) to catch
   regressions when prompts or models change.
 - Observability: request logs, tool traces, latency, and cost metrics.

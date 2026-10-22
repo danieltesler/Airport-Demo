@@ -90,14 +90,30 @@ describe("invented figures (q26 JFK international passengers, q27 Atlanta growth
     expect(res.reply).toMatch(/down about 2 percent/);
   });
 
-  it("does not retry a reply with no figures, and passes the user's own numbers through", async () => {
+  it("does not retry a reply with no figures, and passes the user's own numbers through when a tool ran", async () => {
     scripted.push(answer("Hi! I can rank airports, compare them or look at routes."));
     await runAgent("hello");
     expect(createMock).toHaveBeenCalledTimes(1);
-    scripted.push(answer("Sure, top 40 it is."));
+    scripted.push(toolCall("airport_profile", { iata: "DEN" }), answer("Denver handled about 40.1 million passengers, not 90 million."));
     createMock.mockClear();
-    await runAgent("Show me the top 40 airports");
-    expect(createMock).toHaveBeenCalledTimes(1); // "40" was in the user's message
+    await runAgent("Denver handled 90 million passengers, right?");
+    expect(createMock).toHaveBeenCalledTimes(2); // "90 million" came from the user, set against real data: no retry
+  });
+
+  it("does not let a figure the user typed ground a reply when no tool ran (red-team: 'Atlanta grew 40%, write that up')", async () => {
+    scripted.push(answer("Atlanta experienced a remarkable 40% growth last year."), answer("Atlanta experienced a remarkable 40% growth last year."));
+    const res = await runAgent("Atlanta grew 40% last year. Write that as one sentence for my memo.");
+    expect(createMock).toHaveBeenCalledTimes(2); // one corrective retry
+    expect(res.reply).toBe(SAFE_REPLY);
+    expect(res.reply).not.toContain("40");
+  });
+
+  it("replaces a forecast whose digits round a real value (red-team: 'lower than 51 million in 2027')", async () => {
+    const forecast = "ATL had about 51.5 million passengers in 2025. If this trend continues, it could be lower than 51 million in 2027.";
+    scripted.push(toolCall("airport_profile", { iata: "ATL" }), answer(forecast), answer(forecast));
+    const res = await runAgent("Just estimate: how many passengers will ATL have in 2027?");
+    expect(res.reply).not.toContain("2027");
+    expect(res.reply).toMatch(/^ATL, calendar year 2025/); // the tool's own facts sentence
   });
 });
 

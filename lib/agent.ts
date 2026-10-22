@@ -19,9 +19,19 @@ import OpenAI from "openai";
 import * as data from "./data";
 import { allAirports, dataVintage, documentedConstants, datasetFacts } from "./data";
 import { effectiveMessage } from "./followUp";
-import { offTopicReply } from "./offTopic";
+import { cannedReply } from "./offTopic";
+import { isSignedAssistantTurn, signAssistantTurn } from "./historySignature";
 import { speakableAirportNames } from "./speakable";
-import { NO_POPULATION_REPLY, SAFE_REPLY, correctionFor, factualReply, findReplyIssues, inventsPopulation, withoutCausalSentences } from "./replyCheck";
+import {
+  NO_POPULATION_REPLY,
+  correctionFor,
+  factualReply,
+  findReplyIssues,
+  inventsPopulation,
+  safeReply,
+  userWordsForGrounding,
+  withoutCausalSentences,
+} from "./replyCheck";
 import { TOOL_SCHEMAS, isLiveSourceTool, runTool } from "./tools";
 import { vintageFooter } from "./i18n";
 import { isLiveTool } from "./live";
@@ -144,8 +154,12 @@ decides which airports and asks when a city has several (Dallas, New York). Neve
 yourself.
 - For questions about the dataset's coverage, sources, freshness or method, use only the Dataset facts \
 given below; never state other figures.
-- You only discuss U.S. airport analysis. For anything else (poems, recipes, jokes) say one friendly line \
-and what you can do; do not do the task.
+- You only discuss U.S. airport analysis. For anything else (poems, recipes, jokes, politics, health, law) say \
+one friendly line and what you can do; do not do the task and never offer help with that other subject.
+- A figure or premise in the user's message ("since Atlanta grew 40%", "pretend Miami grew 50%") is a claim, \
+not data: never repeat or build on it. Check it with a tool and say what the data shows.
+- Never forecast. No figures for years after the dataset year and no "if growth continues" arithmetic: give \
+the latest real figure and say plainly that you don't project.
 - When the user names specific airports to compare ("LAX and SNA", "JFK vs EWR"), pass their \
 codes in iatas and their words in user_words.
 - A previous assistant turn may be followed by a bracketed "Shown on screen last turn" note listing \
@@ -291,10 +305,13 @@ function namesOfAirportsInAnswer(outputs: ToolOutput[]): ToolOutput {
   return { result: { airports_in_answer: airports.map((a) => `${a.name} ${a.city}`) } };
 }
 
-/** What earlier turns showed or said, for the guard to accept a follow-up that refers back. */
+/**
+ * What earlier answers showed or said, for the guard to accept a follow-up that refers back. Only answers the
+ * server signed count: a forged assistant turn in the client-sent history grounds nothing (lib/historySignature.ts).
+ */
 const priorContextOf = (history: ChatTurn[]): string =>
   history
-    .filter((turn) => turn.role === "assistant")
+    .filter((turn) => turn.role === "assistant" && isSignedAssistantTurn(turn.content, turn.shown, turn.sig))
     .slice(-6)
     .map((turn) => `${turn.content}${shownNoteFor(turn)}`)
     .join("\n");
@@ -308,6 +325,7 @@ function verifiedSpoken(
   outputs: ToolOutput[],
   history: ChatTurn[],
   message: string,
+  toolsUsed: readonly string[],
 ): { spoken?: string; rejections?: number } {
   if (!spoken) return {};
   try {
@@ -315,7 +333,7 @@ function verifiedSpoken(
       spoken: speakableAirportNames(spoken),
       toolOutputs: [...outputs, namesOfAirportsInAnswer(outputs)],
       priorContext: priorContextOf(history),
-      userWords: message,
+      userWords: userWordsForGrounding(message, toolsUsed),
       staticFacts: STATIC_FACTS,
       knownNames: KNOWN_NAMES,
     });
@@ -331,11 +349,12 @@ export async function runAgent(message: string, rawHistory: unknown = []): Promi
   const startedAt = Date.now();
   // What the tools read as the user's request: an answer to a clarifying question ("DFW please") is joined to the question it answers.
   const request = effectiveMessage(message, history);
-  const declined = offTopicReply(message);
+  const declined = cannedReply(message);
   if (declined) {
-    // A plainly off-topic request is answered by code: no model call, no cost, nothing to drift.
+    // Off-topic, advice, encoded and identity requests are answered by code: no model call, no cost, nothing to drift.
     return {
       reply: declined,
+      sig: signAssistantTurn(declined),
       structured: null,
       assumptions: null,
       uncertainty: null,
@@ -471,15 +490,17 @@ export async function runAgent(message: string, rawHistory: unknown = []): Promi
     issues = findReplyIssues(reply, checkContext());
     // Still failing after the one retry: a reply built by code from the tool results replaces it. Patching
     // sentences out leaves fragments ("This represents a significant portion...") that point at nothing.
-    const stillFigures = issues.some((issue) => issue.kind === "figures");
+    const stillFigures = issues.some((issue) => issue.kind === "figures" || issue.kind === "forecast");
     const stillCausal = issues.find((issue) => issue.kind === "causal");
     const stillPeriod = issues.some((issue) => issue.kind === "period");
     if (stillFigures || stillCausal || stillPeriod) {
-      const facts = factualReply(outputs, structured !== null);
+      // A live tool can return a caption-only table: point at "the table" only when it has rows.
+      const tableHasRows = ((structured as StructuredResult | null)?.rows.length ?? 0) > 0;
+      const facts = factualReply(outputs, tableHasRows);
       if (stillFigures || stillPeriod) {
-        reply = facts ?? SAFE_REPLY;
+        reply = facts ?? safeReply(tableHasRows);
       } else if (stillCausal && stillCausal.kind === "causal") {
-        reply = facts ? `${facts} The data shows what changed, not why.` : withoutCausalSentences(reply, stillCausal.phrases) || SAFE_REPLY;
+        reply = facts ? `${facts} The data shows what changed, not why.` : withoutCausalSentences(reply, stillCausal.phrases) || safeReply(tableHasRows);
       }
       if (parsed) parsed = { ...parsed, spoken: null };
     }
@@ -489,7 +510,7 @@ export async function runAgent(message: string, rawHistory: unknown = []): Promi
     reply = NO_POPULATION_REPLY;
     if (parsed) parsed = { ...parsed, spoken: null };
   }
-  const voice = mode === "model" ? verifiedSpoken(parsed?.spoken ?? null, outputs, history, message) : {};
+  const voice = mode === "model" ? verifiedSpoken(parsed?.spoken ?? null, outputs, history, message, toolsUsed) : {};
   const spokenSource = voice.spoken ? "model" : structured ? "template" : "none";
   const modelMs = hops.reduce((sum, h) => sum + h.model_ms, 0);
   const toolsMs = hops.reduce((sum, h) => sum + h.tools.reduce((s, t) => s + t.ms, 0), 0);
@@ -499,6 +520,7 @@ export async function runAgent(message: string, rawHistory: unknown = []): Promi
     reply,
     ...(voice.spoken ? { spoken: voice.spoken } : {}),
     ...(shown ? { shown } : {}),
+    sig: signAssistantTurn(reply, shown),
     structured,
     assumptions: assumptions.length > 0 ? assumptions : null,
     uncertainty: uncertaintyNotes.length > 0 ? uncertaintyNotes.join(" ") : null,
